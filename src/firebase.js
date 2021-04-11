@@ -17,9 +17,10 @@ const firebaseConfig = {
 
   const firebaseDB = firebase.database()
 
-  const firebaseStore = firebaseDB.ref('milkteastore').orderByChild("googlereview");
-
+  const firebaseStore = firebaseDB.ref('milkteastore').orderByChild("googlereview")
+  const firebasePromotions = firebaseDB.ref('promotions')
   export {
       firebase,
-      firebaseStore
+      firebaseStore,
+      firebasePromotions
   }
