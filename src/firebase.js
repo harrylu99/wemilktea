@@ -22,7 +22,6 @@ const firebaseConfig = {
   const firebaseMilktea = firebaseDB.ref('milktea')
   const firebasePlayers = firebaseDB.ref('players')
 
-
   export {
       firebase,
       firebaseStore,
