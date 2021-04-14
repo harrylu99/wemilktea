@@ -5,7 +5,7 @@ const DrinkCard = (props) => {
         <div className="drink_card_wrapper">
             <div 
                 className="drink_card_thmb"
-                style={{background:`#f2f9ff url(${props.bck})`}}
+                style={{background:` url(${props.bck})`}}
             ></div>
             <div className="drink_card_nfo">
                 <div className="drink_card_store">

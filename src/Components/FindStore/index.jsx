@@ -2,44 +2,45 @@ import React, { Component } from 'react';
 import DrinkCard from '../ui/drinkCard';
 import Fade from 'react-reveal/Fade';
 import Stripes from '../../Resources/images/stripes.png';
-import { firebaseMilktea } from '../../firebase';
+import { firebaseStore } from '../../firebase';
 import 'firebase/storage'
 import { firebaseLooper } from '../ui/misc';
 import { Promise } from 'core-js';
   
-export default class Explore extends Component {
+export default class FindStore extends Component {
 
     state = {
         loading:true,
-        milktea:[]
+        milkteastore:[]
     }
 
     componentDidMount(){
-        firebaseMilktea.once('value').then(snapshot =>{
-            const milktea = firebaseLooper(snapshot);
+        firebaseStore.once('value').then(snapshot =>{
+            const milkteastore = firebaseLooper(snapshot)
             let promises = [];
 
             Promise.all(promises).then(()=>{
                 this.setState({
                     loading: false,
-                    milktea
+                    milkteastore
                 })
             })
 
 
         })
+
     }
 
     showplayersByCategory = (category) => (
-        this.state.milktea ?
-            this.state.milktea.map((milktea,i)=>{
-                return milktea.milkteastore === category ?
+        this.state.milkteastore ?
+            this.state.milkteastore.map((milkteastore,i)=>{
+                return milkteastore.district === category ?
                     <Fade left delay={i*20} key={i}>
                         <div className="item">
                             <DrinkCard
-                                number={`$ ${milktea.price}`}
-                                name={milktea.name}
-                                bck={milktea.milkteapic}
+                                number={milkteastore.priceaffordable}
+                                name={milkteastore.storename}
+                                bck={milkteastore.storeimage}
                             />
                         </div>
                     </Fade>
@@ -59,51 +60,44 @@ export default class Explore extends Component {
                 { !this.state.loading ?
                     <div>
                         <div className="team_category_wrapper">
-                            <div className="title">YiFang</div>
+                            <div className="title">Auckland CBD</div>
                             <div className="team_cards">
-                                {this.showplayersByCategory('YiFang')}
+                                {this.showplayersByCategory('CityCenter')}
                             </div>
                         </div>
 
                         <div className="team_category_wrapper">
-                            <div className="title">Coco</div>
+                            <div className="title">Auckland City</div>
                             <div className="team_cards">
-                                {this.showplayersByCategory('Coco')}
+                                {this.showplayersByCategory('AucklandCity')}
                             </div>
                         </div>
 
                         <div className="team_category_wrapper">
-                            <div className="title">GongCha</div>
+                            <div className="title">North Shore</div>
                             <div className="team_cards">
-                                {this.showplayersByCategory('GongCha')}
+                                {this.showplayersByCategory('NorthShore')}
                             </div>
                         </div>
 
                         <div className="team_category_wrapper">
-                            <div className="title">HuluCat</div>
+                            <div className="title">Manukau City</div>
                             <div className="team_cards">
-                                {this.showplayersByCategory('HuluCat')}
+                                {this.showplayersByCategory('ManukauCity')}
                             </div>
                         </div>
 
                         <div className="team_category_wrapper">
-                            <div className="title">Creamomo</div>
+                            <div className="title">Other Auckland</div>
                             <div className="team_cards">
-                                {this.showplayersByCategory('Creamomo')}
+                                {this.showplayersByCategory(' ')}
                             </div>
                         </div>
 
                         <div className="team_category_wrapper">
-                            <div className="title">WuCha</div>
+                            <div className="title">Outside Auckland</div>
                             <div className="team_cards">
-                                {this.showplayersByCategory('WuCha')}
-                            </div>
-                        </div>
-
-                        <div className="team_category_wrapper">
-                            <div className="title">HiTea</div>
-                            <div className="team_cards">
-                                {this.showplayersByCategory('HiTea')}
+                                {this.showplayersByCategory(' ')}
                             </div>
                         </div>
 

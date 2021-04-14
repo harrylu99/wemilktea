@@ -5,7 +5,7 @@ import { firebaseLooper, reverseArray } from '../../../ui/misc';
 import StoresBlock from '../../../ui/stores_block';
 import Slide from 'react-reveal/Slide'
 
-class Blocks extends Component {
+export default class Blocks extends Component {
 
     state = {
         stores:[]
@@ -38,7 +38,6 @@ class Blocks extends Component {
 
 
     render() {
-        console.log(this.state)
         return (
             <div className="home_matches">
                 {this.showMatches(this.state.stores)}
@@ -46,5 +45,3 @@ class Blocks extends Component {
         );
     }
 }
-
-export default Blocks;

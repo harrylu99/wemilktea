@@ -14,9 +14,6 @@ const Footer = () => {
             </div> */}
             <div className="footer_discl">
                 Wemilktea @ 2021
-                <br/>
-                <br/>
-                All rights reserved.
             </div>
             
         </footer>

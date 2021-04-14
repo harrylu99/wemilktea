@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { easePolyOut } from 'd3-ease';
 import Animate from 'react-move/Animate';
 
-class Stripes extends Component {
+export default class Stripes extends Component {
   state = {
     stripes: [
       {
@@ -69,5 +69,3 @@ class Stripes extends Component {
     return <div className="featured_stripes">{this.showStripes()}</div>;
   }
 }
-
-export default Stripes;

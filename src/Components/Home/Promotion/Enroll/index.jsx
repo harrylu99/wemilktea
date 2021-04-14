@@ -5,7 +5,7 @@ import { validate } from '../../../ui/misc';
  
 import { firebasePromotions } from '../../../../firebase';
 
-class Enroll extends Component {
+export default class Enroll extends Component {
 
     state = {
         formError:false,
@@ -126,7 +126,7 @@ class Enroll extends Component {
                             <div className="success_label">{this.state.formSuccess}</div>
                             <button onClick={(event)=> this.submitForm(event)}>Enroll</button>
                             <div className="enroll_discl">
-                            An email address can only be boarded once.
+                            One email address can only be boarded once.
                             <br/>
                             Enroll means you have read and agree with the <a href='https://www.copyrightregistrationservice.com/register/terms.shtml' target="view_window">  terms and conditions</a>.
                             </div>
@@ -137,5 +137,3 @@ class Enroll extends Component {
         );
     }
 }
-
-export default Enroll;

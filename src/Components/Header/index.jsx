@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 
 import { CityLogo } from '../ui/icons';
 
-class Header extends Component {
+export default class Header extends Component {
     render() {
         return (
             <AppBar
@@ -43,5 +43,3 @@ class Header extends Component {
         );
     }
 }
-
-export default Header;
