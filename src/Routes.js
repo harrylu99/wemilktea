@@ -3,7 +3,7 @@ import Layout from './HOC/Layout'
 
 import { Switch }  from 'react-router-dom'
 import Home from './Components/Home'
-import PublicRoute from './Components/authRoutes/publicRoutes/index.jsx'
+import PublicRoute from './Components/authRoutes/PublicRoutes/index.jsx'
 import Explore from './Components/Explore'
 import FindStore from './Components/FindStore'
 import ScrollToTop from './Components/ScrollToTop'
