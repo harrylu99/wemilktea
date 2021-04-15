@@ -19,7 +19,7 @@ export default class Header extends Component {
                     borderBottom: '2px solid #00285e'
                 }}
             >
-                <Toolbar style={{display:'flex'}}>
+                <Toolbar style={{ display:'flex'}}>
                     <div style={{flexGrow: 1}}>
                         <div className="header_logo">
                             <CityLogo

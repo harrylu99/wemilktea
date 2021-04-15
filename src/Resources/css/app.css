@@ -1,3 +1,16 @@
+@media (max-width: 768px){
+    .change{
+        height: 100%;
+         float: right;
+         margin: 15px;
+     }
+}
+@media (min-width: 768px){
+    .change{
+     display: none;
+     }
+}
+
 body {
     margin:0;
     padding:0;
@@ -25,7 +38,7 @@ a {
     background-size: cover !important;
 }
 .container {
-    width:1024px;
+    width: 1024px;
     margin: 0 auto;
 }
 
@@ -398,7 +411,7 @@ footer .footer_discl {
 .home_topdrinks .home_card_wrapper {
     position: relative;
     float: left;
-    width: 630px;
+    width: 550px;
     min-height: 600px;
 }
 
