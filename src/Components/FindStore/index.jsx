@@ -52,49 +52,49 @@ export default class FindStore extends Component {
 
     render() {
         return (
-            <div className="the_team_container"
+            <div className="the_card_container"
                 style={{
                     background:`url(${Stripes}) repeat`
                 }}
             >
                 { !this.state.loading ?
                     <div>
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Auckland CBD</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('CityCenter')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Auckland City</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('AucklandCity')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">North Shore</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('NorthShore')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Manukau City</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('ManukauCity')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Other Auckland</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory(' ')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Outside Auckland</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory(' ')}

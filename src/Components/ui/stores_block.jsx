@@ -11,7 +11,7 @@ const StoresBlock = ({store}) => {
                 <div className="store_top">
                     <div className="left">
                         <div className="top_pick">
-                            {<a href={store.locationlink}>{store.storename}</a>}
+                            {<a href={store.locationlink} target="blank">{store.storename}</a>}
                             </div>
                     </div>
                 </div>

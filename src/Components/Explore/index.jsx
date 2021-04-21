@@ -51,56 +51,56 @@ export default class Explore extends Component {
 
     render() {
         return (
-            <div className="the_team_container"
+            <div className="the_card_container"
                 style={{
                     background:`url(${Stripes}) repeat`
                 }}
             >
                 { !this.state.loading ?
                     <div>
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">YiFang</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('YiFang')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Coco</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('Coco')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">GongCha</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('GongCha')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">HuluCat</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('HuluCat')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">Creamomo</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('Creamomo')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">WuCha</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('WuCha')}
                             </div>
                         </div>
 
-                        <div className="team_category_wrapper">
+                        <div className="card_category_wrapper">
                             <div className="title">HiTea</div>
                             <div className="team_cards">
                                 {this.showplayersByCategory('HiTea')}
