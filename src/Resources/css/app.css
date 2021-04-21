@@ -230,50 +230,50 @@ footer .footer_discl {
 }
 
 /*=============================
-            MATCHES HOME
+            Store HOME
 ===============================*/
 
-.home_matches_wrapper {
+.home_stores_wrapper {
     background: #98c5e9;
     margin-top:9px;
     padding: 50px 0px;
 }
 
-.home_matches_wrapper .home_matches {
+.home_stores_wrapper .home_stores {
     flex-wrap: wrap;
     display: flex;
     margin-top: 60px;
 }
 
-.home_matches_wrapper .home_matches .item {
+.home_stores_wrapper .home_stores .item {
     width: 50%;
     margin: 35px 0px;
 }
 
-.home_matches_wrapper .home_matches .item .wrapper {
+.home_stores_wrapper .home_stores .item .wrapper {
     padding-right:30px;
 }
 
 
 /*=============================
-            MATCHES BLOCK
+            Store BLOCK
 ===============================*/
 
-.match_block .match_date{
+.store_block .store_review{
     color:#ffffff;
     font-size:20px;
 }
 
-.match_block .match_wrapper .match_top,
-.match_block .match_wrapper .match_bottom {
+.store_block .store_wrapper .store_top,
+.store_block .store_wrapper .store_bottom {
     display: flex;
 }
-.match_block .match_wrapper .match_bottom {
+.store_block .store_wrapper .store_bottom {
     margin-top: 5px;
 }
 
-.match_block .match_wrapper .match_top .left,
-.match_block .match_wrapper .match_bottom .left {
+.store_block .store_wrapper .store_top .left,
+.store_block .store_wrapper .store_bottom .left {
     background: white; 
     font-family: 'Righteous', cursive;
     flex-grow: 1;
@@ -281,26 +281,26 @@ footer .footer_discl {
     padding: 10px;
 }
 
-.match_block .match_wrapper .match_top .left div,
-.match_block .match_wrapper .match_bottom .left div {
+.store_block .store_wrapper .store_top .left div,
+.store_block .store_wrapper .store_bottom .left div {
     float:left
 }
 
-.match_block .match_wrapper .match_top .left .icon,
-.match_block .match_wrapper .match_bottom .left .icon {
+.store_block .store_wrapper .store_top .left .icon,
+.store_block .store_wrapper .store_bottom .left .icon {
     width: 50px;
     height: 50px;
     background-size: cover !important;
 }
-.match_block .match_wrapper .match_top .left .team_name,
-.match_block .match_wrapper .match_bottom .left .team_name {
+.store_block .store_wrapper .store_top .left .top_pick,
+.store_block .store_wrapper .store_bottom .left .top_pick {
     font-size: 30px;
     padding: 6px 10px;
 }
 
 
-.match_block .match_wrapper .match_top .right,
-.match_block .match_wrapper .match_bottom .right { 
+.store_block .store_wrapper .store_top .right,
+.store_block .store_wrapper .store_bottom .right { 
     width: 150px;
     background: #0e1731;
     width: flex;
@@ -310,92 +310,10 @@ footer .footer_discl {
     padding-top: 20px;
 } 
 
-.match_box_big {
-    width:100%;
-    border-bottom: 2px solid #98c6e9;
-    padding: 20px;
-    box-sizing: border-box;
-    height: 143px;
-    clear: both;
-}
-
-.match_box_big .block_wraper {
-    display: inline-block;
-    margin-right: 50px;
-    float: left;
-}
-
-.match_box_big .block {
-    display: flex;
-}
-
-.match_box_big .icon{
-    width: 50px;
-    height: 50px;
-    background-size: cover !important;
-}
-
-.match_box_big .block .team,
-.match_box_big .block .result {
-    font-size: 21px;
-    line-height: 51px;
-    margin-left: 18px;
-    font-weight: 300;
-}
-
-.match_box_big .block .result {
-    font-weight: 500;
-}
-
-.block_wraper.nfo {
-    border-left: 1px solid #98c6e9;
-    height: 102px;
-    padding-left: 10px;
-    font-weight: 300;
-    color: #5e5e5e;
-}
-
-.block_wraper.nfo div {
-    margin: 5px 0px;
-}
-
-.match_filters {
-     display: flex;
-     border-bottom: 1px solid #01285e;
-     background: #dff1ff;
-}
-.match_filters .tag {
-    font-weight: 300;
-    margin-bottom: 5px;
-    color: #656565;
-}
-.match_filters .option {
-    background: #ffffff;
-    padding: 5px 9px;
-    border-radius: 3px;
-    font-size: 13px;
-    margin-right: 5px;
-    cursor: pointer;
-}
-
-.match_filters .option.active {
-    background: #62a2d3;
-    color: #fff;
-}
-
-.match_filters_box {
-    padding: 10px 20px;
-    border-right: 1px solid #01285e;
-    background: #dff1ff;
-}
-
-.match_filters .cont {
-    display: flex;
-}
 
 
 /*=============================
-            MATCHES BLOCK
+        Store/topdrink BLOCK
 ===============================*/
 
 
@@ -421,7 +339,7 @@ footer .footer_discl {
 }
 
 /*=============================
-            MATCHES BLOCK
+            Drinks BLOCK
 ===============================*/
 
 
@@ -537,172 +455,3 @@ footer .footer_discl {
     padding: 10px 0px;
 }
 
-/*=============================
-         THE MATCHES
-===============================*/
-
-.the_matches_container {
-    margin-top: 96px;
-}
-
-.the_matches_wrapper {
-    display: flex;
-}
-
-.the_matches_wrapper .left {
-    flex-grow: 1;
-}
-
-.the_matches_wrapper .right {
-   width:400px;
-}
-
-.league_table_wrapper {
-    border-left: 1px solid #98c6e9;
-}
-.league_table_wrapper .title {
-    padding: 22px;
-    font-size: 22px;
-    color: #ffffff;
-    background: #98c6e9;
-    border-bottom: 1px solid #01285e;
-}
-
-.the_matches_wrapper .progress {
-    text-align: center;
-    padding: 60px 0px;
-}
-
-
-
-
-/*=============================
-         ADMIN
-===============================*/
-
-.admin_container {
-    margin-top: 96px;
-    display:flex;
-}
-
-.admin_container .admin_left_nav {
-    min-height: 100vh;
-    background: #282828;
-    border-right: 2px solid #01285e;
-}
-
-.admin_container  .admin_right {
-    flex-grow: 1;
-}
-.admin_container  .admin_progress {
-    text-align: center;
-    margin: 20px 0px;
-}
-
-.admin_container .matches_tag_red {
-    font-weight: 700;
-    color: #F44336;
-}
-
-.admin_container .matches_tag_green {
-    font-weight: 700;
-    color: #4CAF50;
-}
-
-.admin_container h2 {
-    margin: 0px 0px 50px 0px;
-    border-bottom: 1px solid #dbdbdb;
-    color: #414141;
-    font-size: 40px;
-}
-
-.editmatch_dialog_wrapper,
-.editplayers_dialog_wrapper {
-    padding: 20px;
-    width: 480px;
-}
-
- 
-.select_team_layout .wrapper{
-    display: flex;
-}
-
-.select_team_layout .wrapper .left {
-    flex-grow: 1;
-}
-
-.select_team_layout input[name=result_local_input],
-.select_team_layout input[name=result_away_input] {
-    width: 60px;
-    text-align: center;
-    background: #98c6e9;
-    color: #ffffff;
-}
-
-.admin_submit button {
-    font-size: 20px;
-    margin: 40px 0px;
-    background: #009688;
-}
-
-/*=============================
-         THE TEAM
-===============================*/
-
-.the_team_container {
-    margin-top: 96px;
-    padding: 20px;
-    background-size: 5px 5px !important;
-    min-height:100vh;
-}
-
-.team_category_wrapper .title {
-    font-size: 90px;
-    margin: 30px 0px;
-    font-family: 'Righteous', cursive;
-    color: #d5ebfe;
-}
-
-.team_category_wrapper .team_cards {
-    display: flex;
-    flex-wrap: wrap;
-}
-.team_category_wrapper .team_cards .item{
-    margin-right: 20px;
-    margin-bottom: 20px;
-}
-
-/*=============================
-            SIGN IN
-===============================*/
-
-.signin_wrapper {
-    margin-top: 96px;
-    padding: 20px;
-    min-height: 70VH;
-    text-align: center;
-}
-
-.signin_wrapper form {
-    width: 350px;
-    margin: 0 auto;
-}
-
-.signin_wrapper form button {
-    width: 100%;
-    padding: 10px;
-}
-
-.signin_wrapper h2 {
-    font-family: 'Righteous', cursive;
-    color: #98c6e9;
-    font-size: 50px;
-}
-
-.user_dashboard {
-    font-size: 60px;
-    font-family: 'Righteous', cursive;
-    color: #d5ebfe;
-    text-align: center;
-    margin-top: 200px;
-}

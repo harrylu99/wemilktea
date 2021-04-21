@@ -4,7 +4,7 @@ import Blocks from './Blocks';
 
 const Store = () => {
     return (
-        <div className="home_matches_wrapper">
+        <div className="home_stores_wrapper">
             <div className="container">
                 <Tag
                     bck="#0e1731"

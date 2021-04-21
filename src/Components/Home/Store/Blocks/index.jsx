@@ -39,7 +39,7 @@ export default class Blocks extends Component {
 
     render() {
         return (
-            <div className="home_matches">
+            <div className="home_stores">
                 {this.showMatches(this.state.stores)}
             </div>
         );

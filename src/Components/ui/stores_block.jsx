@@ -3,24 +3,21 @@ import React from 'react';
 const StoresBlock = ({store}) => {
 
     return (
-        <div className="match_block">
-            <div className="match_date">
+        <div className="store_block">
+            <div className="store_review">
                 {`Google Review: ${store.googlereview}`}
             </div>
-            <div className="match_wrapper">
-                <div className="match_top">
+            <div className="store_wrapper">
+                <div className="store_top">
                     <div className="left">
-                        <div className="team_name">
+                        <div className="top_pick">
                             {<a href={store.locationlink}>{store.storename}</a>}
                             </div>
                     </div>
-                    {/* <div className="right">
-                        {store.priceaffordable}
-                    </div> */}
                 </div>
-                <div className="match_bottom">
+                <div className="store_bottom">
                     <div className="left">
-                        <div className="team_name">
+                        <div className="top_pick">
                         {"🧋 Top pick drink"}
                         {<br/>}
                         {store.bestpick}</div>
