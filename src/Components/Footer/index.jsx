@@ -1,14 +1,11 @@
-import React from 'react';
-// import { CityLogo } from '../ui/icons';
+import React from 'react'
 
 const Footer = () => {
-    return (
-        <footer className="bck_blue">
-            <div className="footer_discl">
-                Wemilktea @ 2021
-            </div>   
-        </footer>
-    );
-};
+  return (
+    <footer className='bck_blue'>
+      <div className='footer_discl'>WeMilktea @ 2022</div>
+    </footer>
+  )
+}
 
-export default Footer;
+export default Footer

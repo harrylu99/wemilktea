@@ -1,6 +1,6 @@
-import React, { Component } from 'react';
-import { easePolyOut } from 'd3-ease';
-import Animate from 'react-move/Animate';
+import React, { Component } from 'react'
+import { easePolyOut } from 'd3-ease'
+import Animate from 'react-move/Animate'
 
 export default class Stripes extends Component {
   state = {
@@ -27,7 +27,7 @@ export default class Stripes extends Component {
         delay: 400
       }
     ]
-  };
+  }
 
   showStripes = () =>
     this.state.stripes.map((stripe, i) => (
@@ -53,19 +53,19 @@ export default class Stripes extends Component {
         {({ opacity, left, rotate, top, background }) => {
           return (
             <div
-              className="stripe"
+              className='stripe'
               style={{
                 background,
                 opacity,
                 transform: `rotate(${rotate}deg) translate(${left}px, ${top}px)`
               }}
             ></div>
-          );
+          )
         }}
       </Animate>
-    ));
+    ))
 
   render() {
-    return <div className="featured_stripes">{this.showStripes()}</div>;
+    return <div className='featured_stripes'>{this.showStripes()}</div>
   }
 }

@@ -5,14 +5,14 @@ import TopDrinks from './TopDrinks'
 import Promotion from './Promotion'
 
 const Home = () => {
-    return (
-        <div className="bck_blue">
-            <Featured/>
-            <Store/>
-            <TopDrinks/>
-            <Promotion/>
-        </div>
-    );
-};
+  return (
+    <div className='bck_blue'>
+      <Featured />
+      <Store />
+      <TopDrinks />
+      <Promotion />
+    </div>
+  )
+}
 
-export default Home;
+export default Home
