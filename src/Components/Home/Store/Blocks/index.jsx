@@ -1,9 +1,8 @@
 import React, { Component } from 'react'
+import Slide from 'react-reveal/Slide'
 import { firebaseStore } from '../../../../firebase.js'
 import { firebaseLooper, reverseArray } from '../../../ui/misc'
-
 import StoresBlock from '../../../ui/stores_block'
-import Slide from 'react-reveal/Slide'
 
 export default class Blocks extends Component {
   state = {

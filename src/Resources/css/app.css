@@ -133,34 +133,6 @@ button {
     text-align: center;
   }
 
-
-.image_upload_container {
-    position: relative;
-}
-
-.image_upload_container .remove {
-    top: 0;
-    position: absolute;
-    right: 0;
-    background: #98c6e9;
-    color: #ffffff;
-    border: 1px solid white;
-    padding: 10px;
-}
-
-.not_found_container {
-    text-align: center;
-    margin-top: 96px;
-    padding: 20px;
-    background-size: 5px 5px !important;
-    min-height: 100vh;
-    text-align: center;
-    font-size: 90px;
-    font-family: 'Righteous', cursive;
-    color: #d5ebfe;
-}
-
-
 /*=============================
             HEADER FOOTER
 ===============================*/
@@ -216,7 +188,7 @@ footer .footer_discl {
     position: absolute;
 }
 
-.featured_player {
+.featured_drinking {
     width: 500px;
     height: 500px;
     background-size: contain !important;
@@ -242,7 +214,7 @@ footer .footer_discl {
 }
 
 /*=============================
-            Store HOME
+            STORE HOME
 ===============================*/
 
 .home_stores_wrapper {
@@ -268,7 +240,7 @@ footer .footer_discl {
 
 
 /*=============================
-            Store BLOCK
+            STORE BLOCK
 ===============================*/
 
 .store_block .store_review{
@@ -325,7 +297,7 @@ footer .footer_discl {
 
 
 /*=============================
-        Store/topdrink BLOCK
+        STORE/TOPDRINK BLOCK
 ===============================*/
 
 
@@ -351,7 +323,7 @@ footer .footer_discl {
 }
 
 /*=============================
-            Drinks BLOCK
+            DRINKS BLOCK
 ===============================*/
 
 
@@ -472,7 +444,7 @@ footer .footer_discl {
 
 
 /*=============================
-         THE TEAM
+         OTHER
 ===============================*/
 
 .the_card_container {
@@ -489,11 +461,11 @@ footer .footer_discl {
     color: #d5ebfe;
 }
 
-.card_category_wrapper .team_cards {
+.card_category_wrapper .item_cards {
     display: flex;
     flex-wrap: wrap;
 }
-.card_category_wrapper .team_cards .item{
+.card_category_wrapper .item_cards .item{
     margin-right: 20px;
     margin-bottom: 20px;
 }

@@ -133,7 +133,7 @@ export default class Enroll extends Component {
                   href='https://www.copyrightregistrationservice.com/register/terms.shtml'
                   target='view_window'
                 >
-                  {' '}
+
                   terms and conditions
                 </a>
                 .

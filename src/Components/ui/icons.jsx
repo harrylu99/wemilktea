@@ -1,16 +1,15 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import wemilketeaLogo from '../../Resources/images/logos/wemilktea_logo.gif'
 
-import mcitylogo from '../../Resources/images/logos/wemilktea_logo.gif'
-
-export const CityLogo = (props) => {
+export const WebsiteLogo = (props) => {
   const template = (
     <div
       className='img_cover'
       style={{
         width: props.width,
         height: props.height,
-        background: `url(${mcitylogo}) no-repeat`
+        background: `url(${wemilketeaLogo}) no-repeat`
       }}
     />
   )

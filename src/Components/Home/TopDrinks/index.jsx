@@ -1,7 +1,7 @@
 import React, { Component } from 'react'
+import Reveal from 'react-reveal/Reveal'
 import Stripes from '../../../Resources/images/stripes.png'
 import { Tag } from '../../ui/misc'
-import Reveal from 'react-reveal/Reveal'
 import DrinkCard from './Cards'
 
 export default class TopDrinks extends Component {
@@ -17,12 +17,10 @@ export default class TopDrinks extends Component {
           this.setState({
             show: true
           })
-        }}
-      >
+        }}>
         <div
           className='home_topdrinks'
-          style={{ background: `#ffffff url(${Stripes})` }}
-        >
+          style={{ background: `#ffffff url(${Stripes})` }}>
           <div className='container'>
             <div className='home_topdrinks_wrapper'>
               <div className='home_card_wrapper'>
@@ -37,8 +35,7 @@ export default class TopDrinks extends Component {
                     add={{
                       display: 'inline-block',
                       marginBottom: '20px'
-                    }}
-                  >
+                    }}>
                     Check
                   </Tag>
                 </div>
@@ -50,8 +47,7 @@ export default class TopDrinks extends Component {
                     add={{
                       display: 'inline-block',
                       marginBottom: '20px'
-                    }}
-                  >
+                    }}>
                     The Top
                   </Tag>
                 </div>
@@ -63,8 +59,7 @@ export default class TopDrinks extends Component {
                     add={{
                       display: 'inline-block',
                       marginBottom: '20px'
-                    }}
-                  >
+                    }}>
                     Drink 🥤
                   </Tag>
                 </div>
@@ -79,8 +74,7 @@ export default class TopDrinks extends Component {
                       display: 'inline-block',
                       marginBottom: '27px',
                       border: '1px solid #0e1731'
-                    }}
-                  >
+                    }}>
                     Explore more
                   </Tag>
                 </div>

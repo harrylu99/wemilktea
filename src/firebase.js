@@ -21,12 +21,10 @@ const firebaseStore = firebaseDB
   .orderByChild('googlereview')
 const firebasePromotions = firebaseDB.ref('promotions')
 const firebaseMilktea = firebaseDB.ref('milktea')
-const firebasePlayers = firebaseDB.ref('players')
 
 export {
   firebase,
   firebaseStore,
   firebasePromotions,
   firebaseMilktea,
-  firebasePlayers
 }

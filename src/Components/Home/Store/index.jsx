@@ -17,9 +17,9 @@ const Store = () => {
           size='22px'
           color='#0e1731'
           link={true}
-          linkto='/find_store'
+          linkto='/findStore'
         >
-          See more store
+          FIND MORE STORE
         </Tag>
       </div>
     </div>

@@ -1,11 +1,10 @@
 import React, { Component } from 'react'
 import { easePolyOut } from 'd3-ease'
 import Animate from 'react-move/Animate'
-
-import FeaturedPlayer from '../../../../Resources/images/drinkmilktea.png'
+import DrikingMilktea from '../../../../Resources/images/drinkmilktea.png'
 
 export default class Text extends Component {
-  animateFirst = () => (
+  animateFirstLine = () => (
     <Animate
       show={true}
       start={{
@@ -18,8 +17,7 @@ export default class Text extends Component {
         x: [273],
         y: [450],
         timing: { duration: 500, ease: easePolyOut }
-      }}
-    >
+      }}>
       {({ opacity, x, y }) => {
         return (
           <div
@@ -27,8 +25,7 @@ export default class Text extends Component {
             style={{
               opacity,
               transform: `translate(${x}px,${y}px)`
-            }}
-          >
+            }}>
             We 💙
           </div>
         )
@@ -36,7 +33,7 @@ export default class Text extends Component {
     </Animate>
   )
 
-  animateSecond = () => (
+  animateSecondLine = () => (
     <Animate
       show={true}
       start={{
@@ -49,8 +46,7 @@ export default class Text extends Component {
         x: [273],
         y: [586],
         timing: { delay: 300, duration: 500, ease: easePolyOut }
-      }}
-    >
+      }}>
       {({ opacity, x, y }) => {
         return (
           <div
@@ -58,8 +54,7 @@ export default class Text extends Component {
             style={{
               opacity,
               transform: `translate(${x}px,${y}px)`
-            }}
-          >
+            }}>
             Milktea
           </div>
         )
@@ -67,7 +62,7 @@ export default class Text extends Component {
     </Animate>
   )
 
-  animatePlayer = () => (
+  animateDrinking = () => (
     <Animate
       show={true}
       start={{
@@ -76,18 +71,16 @@ export default class Text extends Component {
       enter={{
         opacity: [1],
         timing: { delay: 800, duration: 500, ease: easePolyOut }
-      }}
-    >
+      }}>
       {({ opacity, x, y }) => {
         return (
           <div
-            className='featured_player'
+            className='featured_drinking'
             style={{
               opacity,
-              background: `url(${FeaturedPlayer})`,
-              transform: `translate(550px,201px)`
-            }}
-          ></div>
+              background: `url(${DrikingMilktea})`,
+              transform: `translate(620px,201px)`
+            }}></div>
         )
       }}
     </Animate>
@@ -96,10 +89,9 @@ export default class Text extends Component {
   render() {
     return (
       <div className='featured_text'>
-        {this.animatePlayer()}
-        {/* {this.animateNumber()} */}
-        {this.animateFirst()}
-        {this.animateSecond()}
+        {this.animateFirstLine()}
+        {this.animateSecondLine()}
+        {this.animateDrinking()}
       </div>
     )
   }
