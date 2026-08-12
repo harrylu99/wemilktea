@@ -17,6 +17,19 @@ export const browserEnvironmentSchema = z
 
 export type BrowserEnvironment = z.infer<typeof browserEnvironmentSchema>;
 
+export const storeDiscoveryResultSchema = z.object({
+  runId: z.string().uuid(),
+  status: z.enum(["succeeded", "failed"]),
+  queryCount: z.number().int().nonnegative(),
+  resultCount: z.number().int().nonnegative(),
+  newCandidateCount: z.number().int().nonnegative(),
+  knownCount: z.number().int().nonnegative(),
+  possibleDuplicateCount: z.number().int().nonnegative(),
+  errorSummary: z.string().nullable()
+});
+
+export type StoreDiscoveryResult = z.infer<typeof storeDiscoveryResultSchema>;
+
 export const storeSuggestionSchema: z.ZodType<StoreSuggestion> = z.object({
   name: z.string().trim().min(1),
   address: z.string().trim().min(1),

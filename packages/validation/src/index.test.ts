@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { browserEnvironmentSchema, storeSuggestionSchema } from "./index";
+import {
+  browserEnvironmentSchema,
+  storeDiscoveryResultSchema,
+  storeSuggestionSchema
+} from "./index";
 
 test("accepts a complete store suggestion", () => {
   expect(
@@ -50,5 +54,23 @@ test("rejects an invalid store suggestion URL", () => {
       address: "1 Queen Street, Auckland",
       sourceUrl: "not-a-url"
     }).success
+  ).toBeFalse();
+});
+
+test("validates the server-side store discovery response", () => {
+  expect(
+    storeDiscoveryResultSchema.safeParse({
+      runId: "c1af35e6-e2d2-490f-82ca-2137b8f106d4",
+      status: "succeeded",
+      queryCount: 8,
+      resultCount: 112,
+      newCandidateCount: 8,
+      knownCount: 101,
+      possibleDuplicateCount: 3,
+      errorSummary: null
+    }).success
+  ).toBeTrue();
+  expect(
+    storeDiscoveryResultSchema.safeParse({ status: "succeeded" }).success
   ).toBeFalse();
 });

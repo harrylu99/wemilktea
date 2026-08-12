@@ -130,21 +130,15 @@ where not exists (
 );
 
 insert into public.store_candidates (
-  google_place_id, candidate_name, formatted_address, coordinates, source_provenance, status
+  google_place_id, source_provenance, status
 )
 values (
   'ChIJseedCandidateDominionRoad',
-  'Sample Tea Dominion Road',
-  '123 Dominion Road, Mount Eden, Auckland',
-  extensions.st_setsrid(extensions.st_makepoint(174.7470, -36.8830), 4326)::extensions.geography,
   'google',
   'new'
 )
 on conflict (google_place_id) do update
-set candidate_name = excluded.candidate_name,
-    formatted_address = excluded.formatted_address,
-    coordinates = excluded.coordinates,
-    source_provenance = excluded.source_provenance,
+set source_provenance = excluded.source_provenance,
     status = excluded.status,
     last_seen_at = now();
 

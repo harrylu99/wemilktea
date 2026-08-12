@@ -26,6 +26,8 @@ Server-side integrations ─────┼── Google Places API
 
 The public app reads only published data under RLS. The admin app authenticates through Supabase and performs allowed operational work under RLS. Where a workflow needs a secret, the browser calls an authenticated server-side endpoint; that endpoint validates input, calls the provider, and persists only permitted data through Supabase.
 
+Store discovery follows this boundary: an authorized admin invokes the `store-discovery` Edge Function, which uses the Google Places key server-side, records an operational run, and writes internal candidate records. Google results never publish or mutate canonical locations automatically. See [Google Places discovery](GOOGLE_PLACES_DISCOVERY.md).
+
 Images are uploaded or managed by server-side code. PostgreSQL stores object keys, ownership/permission status, attribution where required, and presentation metadata; R2 stores the file itself.
 
 ## Deployment boundaries

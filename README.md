@@ -64,6 +64,8 @@ VITE_SUPABASE_ANON_KEY=
 
 The admin browser flow needs no additional environment variables. See [Admin authentication](docs/ADMIN_AUTH.md) for the Supabase Auth configuration, first-admin procedure, and database authorization model.
 
+Google Places discovery is configured only for the server-side Edge Function. See [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md) for its local variables, deployment setup, API usage boundary, and required policy checks.
+
 ## Commands
 
 ```sh
@@ -101,5 +103,6 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Architecture](docs/ARCHITECTURE.md)
 - [Database schema](docs/DATABASE.md)
 - [Admin authentication](docs/ADMIN_AUTH.md)
+- [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)
