@@ -21,11 +21,17 @@ See [the architecture document](docs/ARCHITECTURE.md) for responsibilities and d
 
 ```text
 apps/
-  public/       Public WeMilktea application
+  web/          Public WeMilktea application
   admin/        Internal WeMilktea Admin application
+packages/
+  domain/       Shared domain contracts
+  validation/   Shared Zod schemas
+  config/       Browser-safe shared configuration types
 docs/           Product, architecture, and decision records
 supabase/
   migrations/   Ordered SQL schema changes
+  functions/    Server-side integrations
+  seed.sql      Local seed entry point
 ```
 
 ## Prerequisites
@@ -38,29 +44,32 @@ supabase/
 
 ```sh
 bun install
-cp apps/public/.env.example apps/public/.env.local
+cp apps/web/.env.example apps/web/.env.local
 cp apps/admin/.env.example apps/admin/.env.local
-bun run dev:public
+bun run dev
 ```
 
 Run the admin application separately with `bun run dev:admin`.
 
 ## Environment variables
 
-The browser applications may use only the Supabase project URL and publishable/anon key:
+The browser applications may use only the Supabase project URL and publishable/anon key. Copy the relevant application `.env.example` to `.env.local`:
 
 ```text
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
 
-Do not put Supabase service-role credentials, Google Places keys, or R2 credentials in a Vite environment file. Configure those only in the selected server-side integration environment.
+`supabase/functions/.env.example` lists server-only values for local function development. Do not put Supabase service-role credentials, Google Places keys, or R2 credentials in a Vite environment file or commit their values.
 
 ## Commands
 
 ```sh
-bun run dev:public
+bun run dev
+bun run dev:web
 bun run dev:admin
+bun run format
+bun run format:check
 bun run lint
 bun run test
 bun run typecheck
@@ -69,10 +78,9 @@ bun run build
 
 ## Supabase local development
 
-After installing the Supabase CLI, initialise or link the project, start the local stack, and apply migrations:
+After installing the Supabase CLI, start the local stack and apply migrations:
 
 ```sh
-supabase init
 supabase start
 supabase db reset
 ```
@@ -81,7 +89,7 @@ Create schema changes with `supabase migration new <name>`. Commit the generated
 
 ## Deployment
 
-Cloudflare Pages deploys each app independently from this repository. Configure each Pages project with its corresponding app directory and build command (`bun run build` from that app, or the equivalent workspace command) and publish `dist`.
+Cloudflare Pages deploys each app independently from this repository. Configure the public project with root directory `apps/web`, and the admin project with root directory `apps/admin`. For each, use `bun run build` and publish `dist`.
 
 Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudflare R2 owns image objects; database rows store object keys and metadata only. Configure production secrets in Supabase Edge Function secrets or another approved server-side boundary.
 
@@ -89,5 +97,6 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 
 - [Product definition](docs/PRD.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Database schema](docs/DATABASE.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)

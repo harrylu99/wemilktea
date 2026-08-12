@@ -4,9 +4,11 @@ Read this file and the relevant document in `docs/` before significant implement
 
 ## Architecture and ownership
 
-- `apps/public` owns public discovery UI and its presentation-only modules.
+- `apps/web` owns public discovery UI and its presentation-only modules.
 - `apps/admin` owns internal operational UI and its presentation-only modules.
+- `packages/domain`, `packages/validation`, and `packages/config` own only shared contracts. Do not add UI here.
 - `supabase/migrations` owns database schema history. Database changes are migration-driven.
+- `supabase/functions` owns server-side integrations and privileged workflows.
 - Share code only when it has two real consumers. Do not create placeholder shared packages or abstractions.
 - The approved stack is Bun workspaces, React, TypeScript, Vite, React Router, Tailwind CSS, shadcn/ui, Zod, Supabase, Cloudflare Pages/R2, and Google Places. Do not replace it without a technical blocker.
 - No general-purpose Node/Fastify API is part of V1. Secret-bearing work belongs in Supabase Edge Functions or another approved server-side boundary.

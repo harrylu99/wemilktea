@@ -11,16 +11,16 @@ Server-side integrations ─────┼── Google Places API
 
 ## System responsibilities
 
-| System | Owns | Does not own |
-| --- | --- | --- |
-| Public application | Public routes, browse/search presentation, picker interaction, suggestion form UI | Secrets, privileged writes, canonical store data |
-| Admin application | Internal workflows for discovery, review, and catalog operations | Google Places credentials, image binaries |
-| Supabase PostgreSQL + PostGIS | Canonical stores, drinks, locations, moderation state, user submissions, relationships | R2 image bytes, Google Places as canonical source |
-| Supabase Auth + RLS | Admin identity and row-level authorization | Application presentation |
-| Supabase Edge Functions or approved server boundary | Secret-bearing Google Places/R2 operations and privileged orchestration | Browser UI |
-| Cloudflare R2 | WeMilktea-owned/permitted image objects | Product records and image metadata |
-| Cloudflare Pages | Independent public/admin static application deployment | Server-side secrets or database migrations |
-| Google Places API | Candidate discovery and enrichment input, subject to its terms | Canonical WeMilktea records |
+| System                                              | Owns                                                                                   | Does not own                                      |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Public application                                  | Public routes, browse/search presentation, picker interaction, suggestion form UI      | Secrets, privileged writes, canonical store data  |
+| Admin application                                   | Internal workflows for discovery, review, and catalog operations                       | Google Places credentials, image binaries         |
+| Supabase PostgreSQL + PostGIS                       | Canonical stores, drinks, locations, moderation state, user submissions, relationships | R2 image bytes, Google Places as canonical source |
+| Supabase Auth + RLS                                 | Admin identity and row-level authorization                                             | Application presentation                          |
+| Supabase Edge Functions or approved server boundary | Secret-bearing Google Places/R2 operations and privileged orchestration                | Browser UI                                        |
+| Cloudflare R2                                       | WeMilktea-owned/permitted image objects                                                | Product records and image metadata                |
+| Cloudflare Pages                                    | Independent public/admin static application deployment                                 | Server-side secrets or database migrations        |
+| Google Places API                                   | Candidate discovery and enrichment input, subject to its terms                         | Canonical WeMilktea records                       |
 
 ## Data flow
 

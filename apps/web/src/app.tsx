@@ -1,11 +1,11 @@
 import { applicationMetadata } from "@wemilktea/config";
 import { Route, Routes } from "react-router-dom";
 
-function AdminShell() {
+function WebShell() {
   return (
     <main className="p-6">
-      <h1>{applicationMetadata.admin.name}</h1>
-      <p>Internal application foundation</p>
+      <h1>{applicationMetadata.web.name}</h1>
+      <p>Public application foundation</p>
     </main>
   );
 }
@@ -13,7 +13,7 @@ function AdminShell() {
 export function App() {
   return (
     <Routes>
-      <Route path="*" element={<AdminShell />} />
+      <Route path="*" element={<WebShell />} />
     </Routes>
   );
 }

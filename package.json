@@ -2,17 +2,21 @@
   "name": "wemilktea-v1",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.2.22",
+  "packageManager": "bun@1.3.14",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev:public": "bun --filter @wemilktea/public dev",
+    "dev": "bun run dev:web",
+    "dev:web": "bun --filter @wemilktea/web dev",
     "dev:admin": "bun --filter @wemilktea/admin dev",
-    "build": "bun --filter '@wemilktea/*' run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "bun --filter @wemilktea/web build && bun --filter @wemilktea/admin build",
     "lint": "eslint .",
-    "test": "bun --filter '@wemilktea/*' run test",
-    "typecheck": "bun --filter '@wemilktea/*' run typecheck"
+    "test": "bun test",
+    "typecheck": "tsc --build"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
@@ -20,9 +24,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "prettier": "^3.6.2",
     "typescript-eslint": "^8.42.0"
-  },
-  "dependencies": {
-    "bun": "^1.3.14"
   }
 }
