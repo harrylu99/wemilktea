@@ -62,6 +62,8 @@ VITE_SUPABASE_ANON_KEY=
 
 `supabase/functions/.env.example` lists server-only values for local function development. Do not put Supabase service-role credentials, Google Places keys, or R2 credentials in a Vite environment file or commit their values.
 
+The admin browser flow needs no additional environment variables. See [Admin authentication](docs/ADMIN_AUTH.md) for the Supabase Auth configuration, first-admin procedure, and database authorization model.
+
 ## Commands
 
 ```sh
@@ -89,7 +91,7 @@ Create schema changes with `supabase migration new <name>`. Commit the generated
 
 ## Deployment
 
-Cloudflare Pages deploys each app independently from this repository. Configure the public project with root directory `apps/web`, and the admin project with root directory `apps/admin`. For each, use `bun run build` and publish `dist`.
+Cloudflare Pages deploys each app independently from this repository. Configure the public project with root directory `apps/web`, and the admin project with root directory `apps/admin`. For each, use `bun run build` and publish `dist`. The admin app ships `public/_redirects` so direct protected URLs resolve to the client-side route guard.
 
 Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudflare R2 owns image objects; database rows store object keys and metadata only. Configure production secrets in Supabase Edge Function secrets or another approved server-side boundary.
 
@@ -98,5 +100,6 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Product definition](docs/PRD.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Database schema](docs/DATABASE.md)
+- [Admin authentication](docs/ADMIN_AUTH.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)

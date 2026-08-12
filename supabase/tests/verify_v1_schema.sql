@@ -28,7 +28,12 @@ begin
     raise exception 'location Google Place IDs are not unique';
   end if;
 
-  if (select count(distinct price_cents) from public.location_products join public.products using (product_id) where products.slug = 'brown-sugar-pearl-milk-tea') < 2 then
+  if (
+    select count(distinct price_cents)
+    from public.location_products
+    join public.products on products.id = location_products.product_id
+    where products.slug = 'brown-sugar-pearl-milk-tea'
+  ) < 2 then
     raise exception 'seed data does not include location-specific product prices';
   end if;
 
@@ -64,10 +69,19 @@ begin
 
   execute 'set local role anon';
 
-  select count(*) into private_count from public.discovery_runs;
-  if private_count <> 0 then
+  begin
+    select count(*) into private_count from public.discovery_runs;
     raise exception 'anonymous users can read discovery runs';
-  end if;
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  begin
+    perform public.is_admin();
+    raise exception 'anonymous users can execute is_admin';
+  exception
+    when insufficient_privilege then null;
+  end;
 
   select count(*) into public_count from public.locations;
   if public_count = 0 then
@@ -77,6 +91,12 @@ begin
   insert into public.store_submissions (store_name, suburb)
   values ('RLS verification store', 'Auckland');
 
+  execute 'reset role';
+
+  execute 'set local role authenticated';
+  if public.is_admin() then
+    raise exception 'unlisted authenticated users are administrators';
+  end if;
   execute 'reset role';
 end;
 $$;

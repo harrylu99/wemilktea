@@ -31,7 +31,9 @@ auth.users 1 ── * store_submissions (reviewer, after WM-17 authorization)
 
 ## RLS foundation
 
-All V1 tables have RLS enabled. Anonymous and normal authenticated users receive only the grants and policies needed to read published public catalogue rows and insert pending store submissions. No public policy or grant exposes discovery runs, candidates, observations, or moderation data. WM-17 adds authorized admin policies; privileged server-side functions continue to use server credentials.
+All V1 tables have RLS enabled. Anonymous and normal authenticated users receive only the grants and policies needed to read published public catalogue rows and insert pending store submissions. No public policy or grant exposes discovery runs, candidates, observations, or moderation data.
+
+`admin_users` is a private allow-list linked to `auth.users`. The `is_admin()` security-definer function is available only to authenticated users and is used by every admin data policy. Administrators can operate the catalogue and moderation tables; authenticated users outside the allow-list cannot. See [Admin authentication](ADMIN_AUTH.md).
 
 ## Local verification
 

@@ -21,5 +21,7 @@ port = 54323
 
 [auth]
 enabled = true
+enable_signup = false
+enable_anonymous_sign_ins = false
 site_url = "http://127.0.0.1:5173"
 additional_redirect_urls = ["http://127.0.0.1:5173", "http://127.0.0.1:5174"]
