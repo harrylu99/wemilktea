@@ -25,6 +25,7 @@ auth.users 1 ── * store_submissions (reviewer, after WM-17 authorization)
 - `store_candidates` is a durable record keyed by Google Place ID. Google-derived display data is not persisted: candidate review must retrieve it on demand with proper attribution, then capture only independently verified WeMilktea data when promoting a location. `store_candidate_observations` connects each Place ID to every discovery run without creating another candidate row.
 - Candidate review records `reviewed_at`, `reviewed_by`, and (for approval/merge) `resolved_location_id`. New, known, and possible-duplicate candidates remain unreviewed; rejected candidates record a reviewer without a canonical link; approved candidates must record both a reviewer and their canonical location.
 - `approve_store_candidate`, `merge_store_candidate`, and `reject_store_candidate` are admin-only, transactionally safe RPCs. They lock the candidate row, reject repeated resolution, and preserve candidate observations. Approval creates a draft location; merge can attach the candidate Place ID only when the target location has no conflicting Place ID.
+- `update_location_management` is an admin-only canonical location editor. It preserves the immutable Google Place ID and uses `updated_at` to reject stale writes. `publish_location` validates the canonical location and atomically marks both the location and its parent brand published; `unpublish_location` returns only the location to `draft`.
 - The server-only `find_possible_location_duplicate()` function returns a canonical location ID only when a normalized candidate name matches and its PostGIS point is within 100 metres. It is executable only by `service_role`; it cannot grant public or ordinary authenticated users location matching access.
 - `store_submissions` is a separate public-input queue. Its moderation lifecycle is `pending`, `approved`, `rejected`, or `duplicate`.
 
@@ -47,4 +48,5 @@ supabase start
 supabase db reset
 docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/verify_v1_schema.sql
 docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/candidate_review_workflow.sql
+docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/store_management_workflow.sql
 ```

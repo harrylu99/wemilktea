@@ -30,6 +30,8 @@ Store discovery follows this boundary: an authorized admin invokes the `store-di
 
 Candidate review follows the same boundary. The admin fetches Google reference data only through `candidate-google-detail`; the function returns it transiently with attribution and never writes it to the candidate record. Atomic database RPCs resolve a reviewed candidate to a canonical draft location, an existing location, or a retained rejection. See [Candidate review](CANDIDATE_REVIEW.md).
 
+Store management operates only on canonical locations. An administrator can save validated canonical edits, publish a draft location, or unpublish a published location through admin-only database RPCs. Publishing atomically makes the parent brand publicly readable too, because public location access requires both records to be published. See [Store management](STORE_MANAGEMENT.md).
+
 Images are uploaded or managed by server-side code. PostgreSQL stores object keys, ownership/permission status, attribution where required, and presentation metadata; R2 stores the file itself.
 
 ## Deployment boundaries

@@ -4,7 +4,8 @@ import {
   browserEnvironmentSchema,
   candidateGoogleDetailSchema,
   storeDiscoveryResultSchema,
-  storeSuggestionSchema
+  storeSuggestionSchema,
+  updateStoreManagementSchema
 } from "./index";
 
 test("accepts a complete store suggestion", () => {
@@ -117,6 +118,25 @@ test("validates the transient Google detail contract", () => {
       websiteUri: null,
       googleMapsUri: "https://maps.google.com/?cid=1",
       attributionLabel: "Google Maps"
+    }).success
+  ).toBeTrue();
+});
+
+test("validates canonical store-management updates", () => {
+  expect(
+    updateStoreManagementSchema.safeParse({
+      locationId: "9adff3b8-a8a3-4b15-a03b-64b4730e1dde",
+      expectedUpdatedAt: "2026-08-12T00:00:00.000Z",
+      brandId: "6b2f9ccb-fd9c-4a19-9d42-e9203b48ba3e",
+      location: {
+        displayName: "Gong cha Newmarket",
+        slug: "gong-cha-newmarket",
+        suburb: "Newmarket",
+        address: "123 Broadway, Auckland",
+        latitude: -36.87,
+        longitude: 174.78,
+        sourceReference: "https://example.test/verification"
+      }
     }).success
   ).toBeTrue();
 });

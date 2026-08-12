@@ -1,10 +1,32 @@
 import { applicationMetadata } from "@wemilktea/config";
-import { FormEvent, useState } from "react";
+import { FormEvent, lazy, Suspense, useState } from "react";
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useAdminAuth } from "./auth-context";
 import { AdminAuthProvider } from "./auth-provider";
-import { CandidateQueuePage, CandidateReviewPage } from "./candidates";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+
+const CandidateQueuePage = lazy(() =>
+  import("./candidates").then((module) => ({
+    default: module.CandidateQueuePage
+  }))
+);
+const CandidateReviewPage = lazy(() =>
+  import("./candidates").then((module) => ({
+    default: module.CandidateReviewPage
+  }))
+);
+const StoresPage = lazy(() =>
+  import("./stores").then((module) => ({ default: module.StoresPage }))
+);
+const StoreManagementPage = lazy(() =>
+  import("./stores").then((module) => ({
+    default: module.StoreManagementPage
+  }))
+);
+
+function RouteLoading() {
+  return <p className="text-sm text-muted-foreground">Loading…</p>;
+}
 
 const navigation = [
   ["Dashboard", "/dashboard"],
@@ -323,16 +345,34 @@ export function App() {
             <Route
               path="/stores"
               element={
-                <PlaceholderPage
-                  title="Stores"
-                  description="Store management will be added in a future ticket."
-                />
+                <Suspense fallback={<RouteLoading />}>
+                  <StoresPage />
+                </Suspense>
               }
             />
-            <Route path="/candidates" element={<CandidateQueuePage />} />
+            <Route
+              path="/stores/:locationId"
+              element={
+                <Suspense fallback={<RouteLoading />}>
+                  <StoreManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/candidates"
+              element={
+                <Suspense fallback={<RouteLoading />}>
+                  <CandidateQueuePage />
+                </Suspense>
+              }
+            />
             <Route
               path="/candidates/:candidateId"
-              element={<CandidateReviewPage />}
+              element={
+                <Suspense fallback={<RouteLoading />}>
+                  <CandidateReviewPage />
+                </Suspense>
+              }
             />
             <Route
               path="/submissions"

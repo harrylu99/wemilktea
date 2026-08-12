@@ -135,6 +135,58 @@ export const candidateGoogleDetailSchema = z.object({
 
 export type CandidateGoogleDetail = z.infer<typeof candidateGoogleDetailSchema>;
 
+export const publicationStatusSchema = z.enum([
+  "draft",
+  "published",
+  "archived"
+]);
+
+export const storeManagementListItemSchema = z.object({
+  id: uuidSchema,
+  brand_id: uuidSchema,
+  display_name: z.string().min(1),
+  slug: slugSchema,
+  suburb: z.string().min(1),
+  publication_status: publicationStatusSchema,
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime()
+});
+
+export type StoreManagementListItem = z.infer<
+  typeof storeManagementListItemSchema
+>;
+
+export const storeManagementDetailSchema = z.object({
+  id: uuidSchema,
+  brand_id: uuidSchema,
+  brand_name: z.string().min(1),
+  display_name: z.string().min(1),
+  slug: slugSchema,
+  suburb: z.string().min(1),
+  address: z.string().min(1),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  publication_status: publicationStatusSchema,
+  source_provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
+  source_reference: z.string().url().nullable(),
+  google_place_id: z.string().min(1).nullable(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime()
+});
+
+export type StoreManagementDetail = z.infer<typeof storeManagementDetailSchema>;
+
+export const updateStoreManagementSchema = z.object({
+  locationId: uuidSchema,
+  expectedUpdatedAt: z.string().datetime(),
+  brandId: uuidSchema,
+  location: canonicalLocationInputSchema
+});
+
+export type UpdateStoreManagementInput = z.infer<
+  typeof updateStoreManagementSchema
+>;
+
 export const storeSuggestionSchema: z.ZodType<StoreSuggestion> = z.object({
   name: z.string().trim().min(1),
   address: z.string().trim().min(1),
