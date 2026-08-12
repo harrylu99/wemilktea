@@ -3,7 +3,7 @@ import { FormEvent, useState } from "react";
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useAdminAuth } from "./auth-context";
 import { AdminAuthProvider } from "./auth-provider";
-import { DiscoveryControl } from "./discovery-control";
+import { CandidateQueuePage, CandidateReviewPage } from "./candidates";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 
 const navigation = [
@@ -302,18 +302,6 @@ function PlaceholderPage({
   );
 }
 
-function CandidatesPage() {
-  return (
-    <section>
-      <h1 className="text-2xl font-semibold">Candidates</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Run discovery now; candidate review will be added in a future ticket.
-      </p>
-      <DiscoveryControl />
-    </section>
-  );
-}
-
 export function App() {
   return (
     <AdminAuthProvider>
@@ -341,7 +329,11 @@ export function App() {
                 />
               }
             />
-            <Route path="/candidates" element={<CandidatesPage />} />
+            <Route path="/candidates" element={<CandidateQueuePage />} />
+            <Route
+              path="/candidates/:candidateId"
+              element={<CandidateReviewPage />}
+            />
             <Route
               path="/submissions"
               element={

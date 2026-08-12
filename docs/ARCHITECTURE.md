@@ -28,6 +28,8 @@ The public app reads only published data under RLS. The admin app authenticates 
 
 Store discovery follows this boundary: an authorized admin invokes the `store-discovery` Edge Function, which uses the Google Places key server-side, records an operational run, and writes internal candidate records. Google results never publish or mutate canonical locations automatically. See [Google Places discovery](GOOGLE_PLACES_DISCOVERY.md).
 
+Candidate review follows the same boundary. The admin fetches Google reference data only through `candidate-google-detail`; the function returns it transiently with attribution and never writes it to the candidate record. Atomic database RPCs resolve a reviewed candidate to a canonical draft location, an existing location, or a retained rejection. See [Candidate review](CANDIDATE_REVIEW.md).
+
 Images are uploaded or managed by server-side code. PostgreSQL stores object keys, ownership/permission status, attribution where required, and presentation metadata; R2 stores the file itself.
 
 ## Deployment boundaries

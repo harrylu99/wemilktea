@@ -104,5 +104,6 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Database schema](docs/DATABASE.md)
 - [Admin authentication](docs/ADMIN_AUTH.md)
 - [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md)
+- [Candidate review](docs/CANDIDATE_REVIEW.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)
