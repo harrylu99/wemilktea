@@ -70,6 +70,8 @@ Google Places discovery is configured only for the server-side Edge Function. Se
 
 R2 image secrets are configured only for the `image-storage` Edge Function. The browser receives only `VITE_R2_PUBLIC_BASE_URL`; see [Image storage](docs/IMAGE_STORAGE.md) for bucket permissions, presigned uploads, CORS, and the Google-image restriction.
 
+Product catalogue management is documented in [Product catalogue management](docs/PRODUCTS.md). It uses the existing canonical `products` and `location_products` model and the WM-24 image boundary.
+
 The public Maps key is optional for local development and must be restricted by HTTP referrer and enabled APIs in Google Cloud. It is safe to expose to the browser only under those restrictions; never put the server-only Places key in a Vite environment file. See [Design references](docs/DESIGN.md).
 
 ## Commands
@@ -116,6 +118,7 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Public Store Detail](docs/STORE_DETAIL.md)
 - [Store submissions](docs/STORE_SUBMISSIONS.md)
 - [Image storage](docs/IMAGE_STORAGE.md)
+- [Product catalogue management](docs/PRODUCTS.md)
 - [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)

@@ -5,9 +5,9 @@ import {
   requireAdmin
 } from "../_shared/admin-auth.ts";
 import {
-  buildStoreStorageKey,
+  buildImageStorageKey,
   imageStorageRequestSchema,
-  isStoreStorageKeyForLocation,
+  isImageStorageKeyForEntity,
   maxImageBytes
 } from "./storage-policy.ts";
 import { createR2Storage, type R2Storage } from "./storage.ts";
@@ -98,8 +98,9 @@ Deno.serve(async (request) => {
 
   try {
     if (parsedRequest.data.action === "authorize") {
-      const storageKey = buildStoreStorageKey(
-        parsedRequest.data.locationId,
+      const storageKey = buildImageStorageKey(
+        parsedRequest.data.entityType,
+        parsedRequest.data.entityId,
         parsedRequest.data.contentType
       );
       const uploadUrl = await storage.createPutUrl({
@@ -122,9 +123,10 @@ Deno.serve(async (request) => {
     }
 
     if (
-      !isStoreStorageKeyForLocation(
+      !isImageStorageKeyForEntity(
         parsedRequest.data.storageKey,
-        parsedRequest.data.locationId
+        parsedRequest.data.entityType,
+        parsedRequest.data.entityId
       )
     ) {
       return jsonResponse({ error: "Invalid image reference." }, 400, headers);
@@ -159,16 +161,33 @@ Deno.serve(async (request) => {
         );
       }
 
-      const { data, error } = await admin.client.rpc("attach_location_image", {
-        p_location_id: parsedRequest.data.locationId,
-        p_storage_key: parsedRequest.data.storageKey,
-        p_provenance: "wemilktea",
-        p_alt_text: parsedRequest.data.altText ?? null,
-        p_content_type: object.contentType,
-        p_byte_size: object.contentLength,
-        p_width: parsedRequest.data.width ?? null,
-        p_height: parsedRequest.data.height ?? null
-      });
+      const rpcName =
+        parsedRequest.data.entityType === "product"
+          ? "attach_product_image"
+          : "attach_location_image";
+      const rpcArgs =
+        parsedRequest.data.entityType === "product"
+          ? {
+              p_product_id: parsedRequest.data.entityId,
+              p_storage_key: parsedRequest.data.storageKey,
+              p_provenance: "wemilktea",
+              p_alt_text: parsedRequest.data.altText ?? null,
+              p_content_type: object.contentType,
+              p_byte_size: object.contentLength,
+              p_width: parsedRequest.data.width ?? null,
+              p_height: parsedRequest.data.height ?? null
+            }
+          : {
+              p_location_id: parsedRequest.data.entityId,
+              p_storage_key: parsedRequest.data.storageKey,
+              p_provenance: "wemilktea",
+              p_alt_text: parsedRequest.data.altText ?? null,
+              p_content_type: object.contentType,
+              p_byte_size: object.contentLength,
+              p_width: parsedRequest.data.width ?? null,
+              p_height: parsedRequest.data.height ?? null
+            };
+      const { data, error } = await admin.client.rpc(rpcName, rpcArgs);
 
       if (error || !Array.isArray(data) || !data[0]?.image_id) {
         await cleanupObject(storage, parsedRequest.data.storageKey);
@@ -193,9 +212,15 @@ Deno.serve(async (request) => {
       );
     }
 
-    const { data, error } = await admin.client.rpc("remove_location_image", {
-      p_location_id: parsedRequest.data.locationId
-    });
+    const rpcName =
+      parsedRequest.data.entityType === "product"
+        ? "remove_product_image"
+        : "remove_location_image";
+    const rpcArgs =
+      parsedRequest.data.entityType === "product"
+        ? { p_product_id: parsedRequest.data.entityId }
+        : { p_location_id: parsedRequest.data.entityId };
+    const { data, error } = await admin.client.rpc(rpcName, rpcArgs);
     if (error) {
       console.error("Image metadata removal failed.", error);
       return jsonResponse(

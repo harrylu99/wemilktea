@@ -74,6 +74,29 @@ set name = excluded.name,
     is_seasonal = excluded.is_seasonal,
     is_published = excluded.is_published;
 
+insert into public.products (
+  brand_id, category_id, name, slug, description, discovery_tags, is_seasonal, is_published
+)
+select
+  brands.id,
+  categories.id,
+  'Seasonal Brown Sugar Milk Tea',
+  'seasonal-brown-sugar-milk-tea',
+  'A seasonal brown sugar variation awaiting catalogue review.',
+  array['seasonal', 'brown-sugar']::text[],
+  true,
+  false
+from public.brands
+join public.categories on categories.slug = 'milk-tea'
+where brands.slug = 'gong-cha'
+on conflict (brand_id, slug) do update
+set name = excluded.name,
+    category_id = excluded.category_id,
+    description = excluded.description,
+    discovery_tags = excluded.discovery_tags,
+    is_seasonal = excluded.is_seasonal,
+    is_published = false;
+
 insert into public.location_products (
   location_id, product_id, brand_id, price_cents, currency, availability_status, last_verified_at, source_provenance
 )
@@ -104,7 +127,13 @@ set price_cents = excluded.price_cents,
     source_provenance = excluded.source_provenance;
 
 insert into public.image_assets (provenance, storage_key, alt_text)
-values ('wemilktea', 'products/brown-sugar-pearl-milk-tea.jpg', 'Brown sugar pearl milk tea')
+select
+  'wemilktea',
+  'products/' || products.id || '/00000000-0000-0000-0000-000000000001.jpg',
+  'Brown sugar pearl milk tea'
+from public.products
+join public.brands on brands.id = products.brand_id
+where brands.slug = 'gong-cha' and products.slug = 'brown-sugar-pearl-milk-tea'
 on conflict (storage_key) where storage_key is not null do update
 set provenance = excluded.provenance,
     alt_text = excluded.alt_text;
@@ -113,7 +142,8 @@ insert into public.product_images (product_id, image_id, is_primary)
 select products.id, image_assets.id, true
 from public.products
 join public.brands on brands.id = products.brand_id
-join public.image_assets on image_assets.storage_key = 'products/brown-sugar-pearl-milk-tea.jpg'
+join public.image_assets on image_assets.storage_key =
+  'products/' || products.id || '/00000000-0000-0000-0000-000000000001.jpg'
 where brands.slug = 'gong-cha' and products.slug = 'brown-sugar-pearl-milk-tea'
 on conflict (product_id, image_id) do update set is_primary = excluded.is_primary;
 

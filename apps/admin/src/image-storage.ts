@@ -51,8 +51,9 @@ function getClient() {
   return supabase;
 }
 
-export async function uploadStoreImage(input: {
-  locationId: string;
+async function uploadManagedImage(input: {
+  entityType: "store" | "product";
+  entityId: string;
   file: File;
   altText?: string;
 }) {
@@ -67,7 +68,8 @@ export async function uploadStoreImage(input: {
   const authorization = await client.functions.invoke("image-storage", {
     body: {
       action: "authorize",
-      locationId: input.locationId,
+      entityType: input.entityType,
+      entityId: input.entityId,
       contentType: input.file.type,
       byteSize: input.file.size,
       ...(input.altText?.trim() ? { altText: input.altText.trim() } : {})
@@ -89,7 +91,8 @@ export async function uploadStoreImage(input: {
   const confirmation = await client.functions.invoke("image-storage", {
     body: {
       action: "confirm",
-      locationId: input.locationId,
+      entityType: input.entityType,
+      entityId: input.entityId,
       storageKey: authorization.data.storageKey,
       contentType: input.file.type,
       ...(input.altText?.trim() ? { altText: input.altText.trim() } : {})
@@ -100,10 +103,46 @@ export async function uploadStoreImage(input: {
   }
 }
 
+export async function uploadStoreImage(input: {
+  locationId: string;
+  file: File;
+  altText?: string;
+}) {
+  return uploadManagedImage({
+    entityType: "store",
+    entityId: input.locationId,
+    file: input.file,
+    altText: input.altText
+  });
+}
+
 export async function removeStoreImage(locationId: string) {
   const client = getClient();
   const result = await client.functions.invoke("image-storage", {
-    body: { action: "remove", locationId }
+    body: { action: "remove", entityType: "store", entityId: locationId }
+  });
+  if (result.error || !result.data?.ok) {
+    throw new ImageStorageError("The image could not be removed.");
+  }
+}
+
+export async function uploadProductImage(input: {
+  productId: string;
+  file: File;
+  altText?: string;
+}) {
+  return uploadManagedImage({
+    entityType: "product",
+    entityId: input.productId,
+    file: input.file,
+    altText: input.altText
+  });
+}
+
+export async function removeProductImage(productId: string) {
+  const client = getClient();
+  const result = await client.functions.invoke("image-storage", {
+    body: { action: "remove", entityType: "product", entityId: productId }
   });
   if (result.error || !result.data?.ok) {
     throw new ImageStorageError("The image could not be removed.");

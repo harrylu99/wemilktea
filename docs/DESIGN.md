@@ -14,6 +14,12 @@ Approved public WeMilktea designs live in the [WeMilktea Figma file](https://www
 - Tablet: [27:1173](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=27-1173)
 - Desktop: [27:1209](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=27-1209)
 
+## Admin Products
+
+- Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)
+
+The connected Figma snapshot currently exposes the Products list node above. A separate approved Product Detail/Edit/Create node was not discoverable in the current connected page snapshot, so WM-25 follows the existing Admin Store Management field grouping and tokens for the detail form, availability section, and image section. Replace this note with the approved detail/image/availability node IDs when that design is published to the connected file.
+
 ## Suggest Store flow
 
 The connected Figma snapshot currently exposes the public Stores and Store

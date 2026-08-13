@@ -11,18 +11,22 @@ export const maxImageBytes = 10 * 1024 * 1024;
 const contentTypeSchema = z.enum(allowedImageContentTypes);
 const uuidSchema = z.string().uuid();
 export type AllowedImageContentType = (typeof allowedImageContentTypes)[number];
+export const imageEntityTypes = ["store", "product"] as const;
+export type ImageEntityType = (typeof imageEntityTypes)[number];
 
 export const imageStorageRequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("authorize"),
-    locationId: uuidSchema,
+    entityType: z.enum(imageEntityTypes),
+    entityId: uuidSchema,
     contentType: contentTypeSchema,
     byteSize: z.number().int().positive().max(maxImageBytes),
     altText: z.string().trim().max(200).optional()
   }),
   z.object({
     action: z.literal("confirm"),
-    locationId: uuidSchema,
+    entityType: z.enum(imageEntityTypes),
+    entityId: uuidSchema,
     storageKey: z.string().min(1).max(300),
     contentType: contentTypeSchema,
     altText: z.string().trim().max(200).optional(),
@@ -31,7 +35,8 @@ export const imageStorageRequestSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("remove"),
-    locationId: uuidSchema
+    entityType: z.enum(imageEntityTypes),
+    entityId: uuidSchema
   })
 ]);
 
@@ -47,22 +52,35 @@ export function extensionForContentType(contentType: AllowedImageContentType) {
   return extensionByContentType[contentType];
 }
 
-export function buildStoreStorageKey(
-  locationId: string,
+export function buildImageStorageKey(
+  entityType: ImageEntityType,
+  entityId: string,
   contentType: AllowedImageContentType,
   id = crypto.randomUUID()
 ) {
-  return `stores/${locationId}/${id}.${extensionForContentType(contentType)}`;
+  return `${entityType === "store" ? "stores" : "products"}/${entityId}/${id}.${extensionForContentType(contentType)}`;
 }
 
-export function isStoreStorageKeyForLocation(
+export function isImageStorageKeyForEntity(
   storageKey: string,
-  locationId: string
+  entityType: ImageEntityType,
+  entityId: string
 ) {
   return new RegExp(
-    `^stores/${locationId}/[0-9a-f-]+\\.(jpg|jpeg|png|webp)$`
+    `^${entityType === "store" ? "stores" : "products"}/${entityId}/[0-9a-f-]+\\.(jpg|jpeg|png|webp)$`
   ).test(storageKey);
 }
+
+export const buildStoreStorageKey = (
+  locationId: string,
+  contentType: AllowedImageContentType,
+  id?: string
+) => buildImageStorageKey("store", locationId, contentType, id);
+
+export const isStoreStorageKeyForLocation = (
+  storageKey: string,
+  locationId: string
+) => isImageStorageKeyForEntity(storageKey, "store", locationId);
 
 export function publicImageUrl(baseUrl: string, storageKey: string) {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");

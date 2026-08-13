@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   buildStoreStorageKey,
+  buildImageStorageKey,
   imageStorageRequestSchema,
   isStoreStorageKeyForLocation,
   maxImageBytes,
@@ -18,11 +19,23 @@ test("builds a scoped unique store image key", () => {
   ).toBeFalse();
 });
 
+test("builds a product-specific image key and rejects cross-entity keys", () => {
+  const key = buildImageStorageKey(
+    "product",
+    locationId,
+    "image/png",
+    "abc-def"
+  );
+  expect(key).toBe(`products/${locationId}/abc-def.png`);
+  expect(isStoreStorageKeyForLocation(key, locationId)).toBeFalse();
+});
+
 test("validates the small supported image contract", () => {
   expect(
     imageStorageRequestSchema.safeParse({
       action: "authorize",
-      locationId,
+      entityType: "store",
+      entityId: locationId,
       contentType: "image/jpeg",
       byteSize: maxImageBytes
     }).success
@@ -30,7 +43,8 @@ test("validates the small supported image contract", () => {
   expect(
     imageStorageRequestSchema.safeParse({
       action: "authorize",
-      locationId,
+      entityType: "product",
+      entityId: locationId,
       contentType: "image/gif",
       byteSize: 20
     }).success
@@ -38,7 +52,8 @@ test("validates the small supported image contract", () => {
   expect(
     imageStorageRequestSchema.safeParse({
       action: "authorize",
-      locationId,
+      entityType: "store",
+      entityId: locationId,
       contentType: "image/png",
       byteSize: maxImageBytes + 1
     }).success

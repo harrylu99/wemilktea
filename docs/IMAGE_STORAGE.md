@@ -44,6 +44,12 @@ Store images use generated keys in this form:
 stores/{location-id}/{uuid}.{jpg|png|webp}
 ```
 
+Product images reuse the same function and policy under:
+
+```text
+products/{product-id}/{uuid}.{jpg|png|webp}
+```
+
 The original filename is never authoritative. V1 accepts JPEG, PNG, and WebP images up to 10 MiB. The server validates the UUID-scoped key, MIME type, object size, and optional dimensions before writing metadata. The same policy is exported to browser-safe configuration for early UX validation.
 
 ## Metadata and provenance

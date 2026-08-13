@@ -33,6 +33,8 @@ auth.users 1 ── * store_submissions (reviewer, after WM-17 authorization)
 
 `image_assets` stores metadata only, including `content_type`, `byte_size`, optional dimensions, alt text, and provenance. WeMilktea, merchant, and user images use an R2 object key after permitted upload. Google images retain external metadata and are explicitly prevented from claiming an R2 object key. `product_images` and `location_images` are explicit links, with at most one primary image per entity. The admin-only `attach_location_image` and `remove_location_image` RPCs protect location image replacement/removal; direct authenticated table writes are revoked so the Edge Function remains the trusted R2 boundary.
 
+WM-25 adds admin RPCs for product create/update/publication, same-brand `location_products` upserts, and product image attachment/removal. Product publication requires its parent brand and category to be published; public product/image policies therefore remain safe for WM-26/27.
+
 ## RLS foundation
 
 All V1 tables have RLS enabled. Anonymous and normal authenticated users receive only the grants and policies needed to read published public catalogue rows and insert pending store submissions. No public policy or grant exposes discovery runs, candidates, observations, or moderation data.

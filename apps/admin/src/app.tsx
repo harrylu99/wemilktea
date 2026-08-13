@@ -28,6 +28,14 @@ const SubmissionsPage = lazy(() =>
     default: module.SubmissionsPage
   }))
 );
+const ProductsPage = lazy(() =>
+  import("./products").then((module) => ({ default: module.ProductsPage }))
+);
+const ProductManagementPage = lazy(() =>
+  import("./products").then((module) => ({
+    default: module.ProductManagementPage
+  }))
+);
 
 function RouteLoading() {
   return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -390,10 +398,17 @@ export function App() {
             <Route
               path="/products"
               element={
-                <PlaceholderPage
-                  title="Products"
-                  description="Product management will be added in a future ticket."
-                />
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/products/:productId"
+              element={
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductManagementPage />
+                </Suspense>
               }
             />
           </Route>

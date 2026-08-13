@@ -228,3 +228,58 @@ export const storeSubmissionRowSchema = z.object({
 });
 
 export type StoreSubmissionRow = z.infer<typeof storeSubmissionRowSchema>;
+
+export const productManagementInputSchema = z.object({
+  brandId: uuidSchema,
+  categoryId: uuidSchema,
+  name: z.string().trim().min(1).max(160),
+  slug: slugSchema,
+  description: z.string().trim().max(2000).optional(),
+  discoveryTags: z.array(z.string().trim().min(1).max(40)).max(20),
+  isSeasonal: z.boolean()
+});
+
+export type ProductManagementInput = z.infer<
+  typeof productManagementInputSchema
+>;
+
+export const productManagementListItemSchema = z.object({
+  id: uuidSchema,
+  brand_id: uuidSchema,
+  category_id: uuidSchema,
+  name: z.string().min(1),
+  slug: slugSchema,
+  description: z.string().nullable(),
+  is_seasonal: z.boolean(),
+  is_published: z.boolean(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+  brands: z.object({ name: z.string().min(1), slug: slugSchema }),
+  categories: z.object({ name: z.string().min(1), slug: slugSchema })
+});
+
+export type ProductManagementListItem = z.infer<
+  typeof productManagementListItemSchema
+>;
+
+export const productLocationManagementRowSchema = z.object({
+  location_id: uuidSchema,
+  product_id: uuidSchema,
+  brand_id: uuidSchema,
+  price_cents: z.number().int().nonnegative().nullable(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  availability_status: z.enum(["available", "unavailable", "unknown"]),
+  last_verified_at: z.string().datetime().nullable(),
+  source_provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
+  source_reference: z.string().url().nullable(),
+  locations: z.object({
+    id: uuidSchema,
+    display_name: z.string().min(1),
+    suburb: z.string().min(1),
+    publication_status: publicationStatusSchema
+  })
+});
+
+export type ProductLocationManagementRow = z.infer<
+  typeof productLocationManagementRowSchema
+>;
