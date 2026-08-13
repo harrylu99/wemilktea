@@ -31,3 +31,6 @@ verify_jwt = true
 
 [functions.candidate-google-detail]
 verify_jwt = true
+
+[functions.image-storage]
+verify_jwt = true

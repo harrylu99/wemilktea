@@ -59,6 +59,7 @@ The browser applications may use only the Supabase project URL and publishable/a
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_GOOGLE_MAPS_BROWSER_KEY=
+VITE_R2_PUBLIC_BASE_URL=
 ```
 
 `supabase/functions/.env.example` lists server-only values for local function development. Do not put Supabase service-role credentials, Google Places keys, or R2 credentials in a Vite environment file or commit their values.
@@ -66,6 +67,8 @@ VITE_GOOGLE_MAPS_BROWSER_KEY=
 The admin browser flow needs no additional environment variables. See [Admin authentication](docs/ADMIN_AUTH.md) for the Supabase Auth configuration, first-admin procedure, and database authorization model.
 
 Google Places discovery is configured only for the server-side Edge Function. See [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md) for its local variables, deployment setup, API usage boundary, and required policy checks.
+
+R2 image secrets are configured only for the `image-storage` Edge Function. The browser receives only `VITE_R2_PUBLIC_BASE_URL`; see [Image storage](docs/IMAGE_STORAGE.md) for bucket permissions, presigned uploads, CORS, and the Google-image restriction.
 
 The public Maps key is optional for local development and must be restricted by HTTP referrer and enabled APIs in Google Cloud. It is safe to expose to the browser only under those restrictions; never put the server-only Places key in a Vite environment file. See [Design references](docs/DESIGN.md).
 
@@ -112,6 +115,7 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Public Stores experience](docs/STORES.md)
 - [Public Store Detail](docs/STORE_DETAIL.md)
 - [Store submissions](docs/STORE_SUBMISSIONS.md)
+- [Image storage](docs/IMAGE_STORAGE.md)
 - [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)

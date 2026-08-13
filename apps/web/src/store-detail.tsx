@@ -19,13 +19,15 @@ const googleMapsBrowserKey =
     : "";
 
 function StoreHeroImage({ store }: { store: PublicStoreDetail }) {
+  const [hasImageError, setHasImageError] = useState(false);
   const image = store.images[0];
-  if (image?.url) {
+  if (image?.url && !hasImageError) {
     return (
       <img
         alt={image.altText ?? `${store.displayName} store`}
         className="detail-hero-image"
         src={image.url}
+        onError={() => setHasImageError(true)}
       />
     );
   }

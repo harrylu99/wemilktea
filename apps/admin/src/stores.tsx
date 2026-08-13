@@ -7,6 +7,14 @@ import {
 } from "@wemilktea/validation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { z } from "zod";
+import {
+  managedImageUrl,
+  removeStoreImage,
+  uploadStoreImage,
+  type ManagedImage,
+  ImageStorageError
+} from "./image-storage";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { filterManagedStores, type ManagedStore } from "./store-list";
 
@@ -25,6 +33,45 @@ function statusLabel(status: string) {
 
 function PageState({ message }: { message: string }) {
   return <p className="text-sm text-muted-foreground">{message}</p>;
+}
+
+const managedImageRowSchema = z.object({
+  image_id: z.string().uuid(),
+  is_primary: z.boolean(),
+  image_assets: z.union([
+    z.object({
+      id: z.string().uuid(),
+      storage_key: z.string().min(1),
+      alt_text: z.string().nullable(),
+      content_type: z.string().nullable(),
+      byte_size: z.number().nullable()
+    }),
+    z.array(
+      z.object({
+        id: z.string().uuid(),
+        storage_key: z.string().min(1),
+        alt_text: z.string().nullable(),
+        content_type: z.string().nullable(),
+        byte_size: z.number().nullable()
+      })
+    )
+  ])
+});
+
+function normalizeManagedImage(value: unknown): ManagedImage | null {
+  const parsed = managedImageRowSchema.safeParse(value);
+  if (!parsed.success || !parsed.data.is_primary) return null;
+  const asset = Array.isArray(parsed.data.image_assets)
+    ? parsed.data.image_assets[0]
+    : parsed.data.image_assets;
+  if (!asset) return null;
+  return {
+    id: asset.id,
+    storageKey: asset.storage_key,
+    altText: asset.alt_text,
+    contentType: asset.content_type,
+    byteSize: asset.byte_size
+  };
 }
 
 function friendlyStoreError(message: string | undefined) {
@@ -310,6 +357,10 @@ export function StoreManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPublication, setIsChangingPublication] = useState(false);
+  const [image, setImage] = useState<ManagedImage | null>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [imageAltText, setImageAltText] = useState("");
+  const [isChangingImage, setIsChangingImage] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase || !locationId) {
@@ -321,22 +372,35 @@ export function StoreManagementPage() {
     }
 
     setIsLoading(true);
-    const [detailResult, brandsResult] = await Promise.all([
+    const [detailResult, brandsResult, imageResult] = await Promise.all([
       supabase.rpc("get_location_management_detail", {
         p_location_id: locationId
       }),
-      supabase.from("brands").select("id, name, slug").order("name")
+      supabase.from("brands").select("id, name, slug").order("name"),
+      supabase
+        .from("location_images")
+        .select(
+          "image_id, is_primary, image_assets(id, storage_key, alt_text, content_type, byte_size)"
+        )
+        .eq("location_id", locationId)
+        .eq("is_primary", true)
+        .maybeSingle()
     ]);
     const parsedDetails = storeManagementDetailSchema
       .array()
       .safeParse(detailResult.data);
     const parsedBrands = brandOptionSchema.array().safeParse(brandsResult.data);
+    const managedImage = imageResult.data
+      ? normalizeManagedImage(imageResult.data)
+      : null;
 
     if (
       detailResult.error ||
       brandsResult.error ||
+      imageResult.error ||
       !parsedDetails.success ||
-      !parsedBrands.success
+      !parsedBrands.success ||
+      (imageResult.data && !managedImage)
     ) {
       setErrorMessage("Store details could not be loaded. Please try again.");
     } else if (!parsedDetails.data[0]) {
@@ -346,6 +410,8 @@ export function StoreManagementPage() {
       const nextForm = formFromDetail(nextDetail);
       setDetail(nextDetail);
       setBrands(parsedBrands.data);
+      setImage(managedImage);
+      setImageAltText(managedImage?.altText ?? "");
       setForm(nextForm);
       setInitialForm(nextForm);
       setErrorMessage(null);
@@ -457,6 +523,65 @@ export function StoreManagementPage() {
       action === "publish" ? "Store published." : "Store unpublished to draft."
     );
     await load();
+  };
+
+  const uploadImage = async () => {
+    if (!detail || !selectedImageFile) {
+      setErrorMessage("Choose a JPEG, PNG, or WebP image first.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsChangingImage(true);
+    try {
+      await uploadStoreImage({
+        locationId: detail.id,
+        file: selectedImageFile,
+        altText: imageAltText
+      });
+      setSelectedImageFile(null);
+      setSuccessMessage("Store image saved.");
+      await load();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ImageStorageError
+          ? error.message
+          : "The store image could not be saved. Please try again."
+      );
+    } finally {
+      setIsChangingImage(false);
+    }
+  };
+
+  const removeImage = async () => {
+    if (!detail || !image) return;
+    if (
+      !window.confirm(
+        "Remove this store image? The public fallback will be used."
+      )
+    ) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsChangingImage(true);
+    try {
+      await removeStoreImage(detail.id);
+      setImage(null);
+      setImageAltText("");
+      setSuccessMessage("Store image removed.");
+      await load();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ImageStorageError
+          ? error.message
+          : "The store image could not be removed. Please try again."
+      );
+    } finally {
+      setIsChangingImage(false);
+    }
   };
 
   if (isLoading) return <PageState message="Loading store…" />;
@@ -602,6 +727,92 @@ export function StoreManagementPage() {
           {isSaving ? "Saving…" : "Save changes"}
         </button>
       </form>
+
+      <section className="mt-8 rounded-lg border border-border bg-card p-5">
+        <p className="text-xs font-semibold tracking-wide text-muted-foreground">
+          STORE IMAGE
+        </p>
+        <h2 className="mt-1 text-lg font-semibold">Owned image</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Upload a WeMilktea-owned or explicitly permitted image. Google photos
+          are not copied into R2.
+        </p>
+        {image ? (
+          <div className="mt-4 flex flex-wrap items-start gap-4">
+            {managedImageUrl(image) ? (
+              <img
+                alt={image.altText ?? `${detail.display_name} store`}
+                className="h-32 w-48 rounded-md border border-border object-cover"
+                src={managedImageUrl(image) ?? undefined}
+              />
+            ) : (
+              <div className="grid h-32 w-48 place-items-center rounded-md border border-border bg-muted text-xs text-muted-foreground">
+                Image URL is not configured
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground">
+              <p>{image.contentType ?? "Image"}</p>
+              {image.byteSize ? (
+                <p>{Math.round(image.byteSize / 1024)} KB</p>
+              ) : null}
+              <button
+                className="mt-3 rounded-md border border-destructive px-3 py-2 font-medium text-destructive disabled:opacity-60"
+                disabled={isChangingImage || isSaving}
+                type="button"
+                onClick={() => void removeImage()}
+              >
+                {isChangingImage ? "Removing…" : "Remove image"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+            No owned image attached. The public app will use its safe fallback.
+          </p>
+        )}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-medium" htmlFor="store-image-file">
+            {image ? "Replace image" : "Choose image"}
+            <input
+              accept="image/jpeg,image/png,image/webp"
+              className="mt-1 block w-full text-sm"
+              id="store-image-file"
+              type="file"
+              onChange={(event) =>
+                setSelectedImageFile(event.target.files?.[0] ?? null)
+              }
+            />
+          </label>
+          <label className="text-sm font-medium" htmlFor="store-image-alt">
+            Alt text (optional)
+            <input
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              id="store-image-alt"
+              maxLength={200}
+              value={imageAltText}
+              onChange={(event) => setImageAltText(event.target.value)}
+            />
+          </label>
+        </div>
+        {selectedImageFile ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Selected: {selectedImageFile.name} (
+            {Math.round(selectedImageFile.size / 1024)} KB)
+          </p>
+        ) : null}
+        <button
+          className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          disabled={!selectedImageFile || isChangingImage || isSaving}
+          type="button"
+          onClick={() => void uploadImage()}
+        >
+          {isChangingImage
+            ? "Uploading…"
+            : image
+              ? "Replace image"
+              : "Upload image"}
+        </button>
+      </section>
 
       <section className="mt-8 rounded-lg border border-border bg-card p-5">
         <p className="text-xs font-semibold tracking-wide text-muted-foreground">

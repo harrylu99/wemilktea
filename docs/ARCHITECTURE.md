@@ -43,6 +43,8 @@ Store management operates only on canonical locations. An administrator can save
 
 Images are uploaded or managed by server-side code. PostgreSQL stores object keys, ownership/permission status, attribution where required, and presentation metadata; R2 stores the file itself.
 
+The `image-storage` Edge Function is the R2 boundary. An authenticated admin receives a short-lived, content-type-bound presigned PUT URL, uploads directly to R2, and asks the function to verify the object before the admin-only `attach_location_image` RPC stores metadata and a canonical relationship. Public applications only combine `VITE_R2_PUBLIC_BASE_URL` with validated keys from published image relationships. They never receive R2 credentials, list buckets, or call Google Places for image content. See [Image storage](IMAGE_STORAGE.md).
+
 ## Deployment boundaries
 
 Cloudflare Pages has one project per application. Supabase migrations are deployed through the Supabase workflow, separately from frontend deployments. Secrets are configured in Supabase Edge Functions or the approved server integration—not Cloudflare Pages client builds.

@@ -23,8 +23,20 @@ const googleMapsBrowserKey =
     ? import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY.trim()
     : "";
 
-function StoreImage({ index }: { index: number }) {
+function StoreImage({ store, index }: { store: PublicStore; index: number }) {
+  const [hasImageError, setHasImageError] = useState(false);
   const accent = index % 2 === 0 ? "bg-[#a97850]" : "bg-[#c58a62]";
+  if (store.imageUrl && !hasImageError) {
+    return (
+      <img
+        alt={store.imageAltText ?? `${store.displayName} store`}
+        className="size-[62px] shrink-0 rounded-lg border border-border object-cover md:size-[74px]"
+        src={store.imageUrl}
+        onError={() => setHasImageError(true)}
+      />
+    );
+  }
+
   return (
     <div
       aria-hidden="true"
@@ -64,7 +76,7 @@ function StoreCard({
       onFocus={onSelect}
       onMouseEnter={onSelect}
     >
-      <StoreImage index={index} />
+      <StoreImage index={index} store={store} />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-semibold leading-5 text-card-foreground">
           {store.displayName}
@@ -271,7 +283,7 @@ function StoresPage() {
       const { data, error } = await client
         .from("locations")
         .select(
-          "id, slug, display_name, suburb, address, coordinates, brands!inner(name, slug)"
+          "id, slug, display_name, suburb, address, coordinates, brands!inner(name, slug), location_images(image_assets(id, provenance, storage_key, external_url, alt_text))"
         )
         .order("display_name");
 

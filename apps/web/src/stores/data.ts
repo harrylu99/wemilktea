@@ -1,6 +1,18 @@
 import { z } from "zod";
+import { publicImageUrl } from "@wemilktea/config";
 
 const uuidSchema = z.string().uuid();
+const imageAssetSchema = z.object({
+  id: uuidSchema,
+  provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
+  storage_key: z.string().nullable().optional(),
+  external_url: z.string().url().nullable().optional(),
+  alt_text: z.string().nullable().optional()
+});
+
+const locationImageSchema = z.object({
+  image_assets: z.union([imageAssetSchema, z.array(imageAssetSchema)])
+});
 
 export const publicStoreQueryRowSchema = z.object({
   id: uuidSchema,
@@ -9,6 +21,7 @@ export const publicStoreQueryRowSchema = z.object({
   suburb: z.string().min(1),
   address: z.string().min(1),
   coordinates: z.unknown(),
+  location_images: z.array(locationImageSchema).optional().default([]),
   brands: z.union([
     z.object({ name: z.string().min(1), slug: z.string().min(1) }),
     z.array(z.object({ name: z.string().min(1), slug: z.string().min(1) }))
@@ -27,7 +40,18 @@ export type PublicStore = {
   address: string;
   latitude: number;
   longitude: number;
+  imageUrl: string | null;
+  imageAltText: string | null;
 };
+
+const r2PublicBaseUrl =
+  typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
+    ? import.meta.env.VITE_R2_PUBLIC_BASE_URL
+    : "";
+
+function firstRelation<T>(value: T | T[]) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 export function coordinatePair(value: unknown): [number, number] | null {
   if (typeof value === "string") {
@@ -102,6 +126,15 @@ export function normalizePublicStore(value: unknown): PublicStore | null {
     : parsed.data.brands;
   if (!brand) return null;
 
+  const image = parsed.data.location_images
+    .map((link) => firstRelation(link.image_assets))
+    .find((asset) => asset.provenance !== "google");
+  const imageUrl = image
+    ? image.storage_key
+      ? publicImageUrl(r2PublicBaseUrl, image.storage_key)
+      : (image.external_url ?? null)
+    : null;
+
   return {
     id: parsed.data.id,
     slug: parsed.data.slug,
@@ -111,7 +144,9 @@ export function normalizePublicStore(value: unknown): PublicStore | null {
     suburb: parsed.data.suburb,
     address: parsed.data.address,
     latitude: coordinates[0],
-    longitude: coordinates[1]
+    longitude: coordinates[1],
+    imageUrl,
+    imageAltText: image?.alt_text ?? null
   };
 }
 

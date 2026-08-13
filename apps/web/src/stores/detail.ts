@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { publicImageUrl } from "@wemilktea/config";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import { coordinatePair, type PublicStore } from "./data";
 
@@ -16,6 +17,11 @@ const imageAssetSchema = z.object({
   alt_text: z.string().nullable().optional(),
   attribution_text: z.string().nullable().optional()
 });
+
+const r2PublicBaseUrl =
+  typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
+    ? import.meta.env.VITE_R2_PUBLIC_BASE_URL
+    : "";
 
 const locationImageSchema = z.object({
   image_assets: z.union([imageAssetSchema, z.array(imageAssetSchema)])
@@ -90,7 +96,9 @@ function firstRelation<T>(value: T | T[]) {
 
 function publicImageFromAsset(value: z.infer<typeof imageAssetSchema>) {
   if (value.provenance === "google") return null;
-  const url = value.external_url ?? null;
+  const url = value.storage_key
+    ? publicImageUrl(r2PublicBaseUrl, value.storage_key)
+    : (value.external_url ?? null);
   return {
     id: value.id,
     url,
@@ -125,6 +133,8 @@ export function normalizePublicStoreDetail(
     address: parsed.data.address,
     latitude: coordinates[0],
     longitude: coordinates[1],
+    imageUrl: images[0]?.url ?? null,
+    imageAltText: images[0]?.altText ?? null,
     images,
     drinks: [],
     drinksUnavailable: false
@@ -165,7 +175,7 @@ export async function loadPublicStoreDetail(
   const locationResult = await client
     .from("locations")
     .select(
-      "id, slug, display_name, suburb, address, coordinates, brands!inner(id, name, slug), location_images(image_assets(id, provenance, storage_key, external_url, alt_text, attribution_text))"
+      "id, slug, display_name, suburb, address, coordinates, brands!inner(id, name, slug), location_images(image_assets(id, provenance, storage_key, external_url, alt_text, attribution_text, content_type, byte_size, width, height))"
     )
     .eq("slug", slug)
     .maybeSingle();

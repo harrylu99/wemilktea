@@ -31,7 +31,7 @@ auth.users 1 ── * store_submissions (reviewer, after WM-17 authorization)
 
 ## Images
 
-`image_assets` stores metadata only. WeMilktea, merchant, and user images use an R2 object key after permitted upload. Google images retain external metadata and are explicitly prevented from claiming an R2 object key. `product_images` and `location_images` are explicit links, with at most one primary image per entity.
+`image_assets` stores metadata only, including `content_type`, `byte_size`, optional dimensions, alt text, and provenance. WeMilktea, merchant, and user images use an R2 object key after permitted upload. Google images retain external metadata and are explicitly prevented from claiming an R2 object key. `product_images` and `location_images` are explicit links, with at most one primary image per entity. The admin-only `attach_location_image` and `remove_location_image` RPCs protect location image replacement/removal; direct authenticated table writes are revoked so the Edge Function remains the trusted R2 boundary.
 
 ## RLS foundation
 
@@ -51,4 +51,5 @@ docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR
 docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/store_management_workflow.sql
 docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/public_stores_workflow.sql
 docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/public_store_detail_workflow.sql
+docker exec -i supabase_db_wemilktea-v1 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /dev/stdin < supabase/tests/image_storage_workflow.sql
 ```

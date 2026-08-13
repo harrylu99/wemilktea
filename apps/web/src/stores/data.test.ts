@@ -16,7 +16,9 @@ const stores: PublicStore[] = [
     suburb: "Albany",
     address: "219 Don McKinnon Drive, Albany, Auckland",
     latitude: -36.726,
-    longitude: 174.7023
+    longitude: 174.7023,
+    imageUrl: null,
+    imageAltText: null
   },
   {
     id: "e802eb8f-1eb7-493f-b1f0-eba35a10151b",
@@ -27,7 +29,9 @@ const stores: PublicStore[] = [
     suburb: "Auckland CBD",
     address: "280 Queen Street, Auckland CBD, Auckland",
     latitude: -36.8485,
-    longitude: 174.7633
+    longitude: 174.7633,
+    imageUrl: null,
+    imageAltText: null
   }
 ];
 
