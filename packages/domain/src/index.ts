@@ -1,5 +1,8 @@
 export type StoreSuggestion = {
-  name: string;
-  address: string;
-  sourceUrl?: string;
+  storeName: string;
+  suburb: string;
+  googleMapsUrl?: string;
+  officialUrl?: string;
+  notes?: string;
+  submitterEmail?: string;
 };

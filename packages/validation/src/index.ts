@@ -4,7 +4,8 @@ import { z } from "zod";
 export const browserEnvironmentSchema = z
   .object({
     VITE_SUPABASE_URL: z.string().url().optional(),
-    VITE_SUPABASE_ANON_KEY: z.string().min(1).optional()
+    VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
+    VITE_GOOGLE_MAPS_BROWSER_KEY: z.string().min(1).optional()
   })
   .refine(
     ({ VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY }) =>
@@ -187,8 +188,43 @@ export type UpdateStoreManagementInput = z.infer<
   typeof updateStoreManagementSchema
 >;
 
+const submissionUrlSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), {
+    message: "Use an http:// or https:// URL."
+  });
+
 export const storeSuggestionSchema: z.ZodType<StoreSuggestion> = z.object({
-  name: z.string().trim().min(1),
-  address: z.string().trim().min(1),
-  sourceUrl: z.string().url().optional()
+  storeName: z.string().trim().min(1).max(160),
+  suburb: z.string().trim().min(1).max(120),
+  googleMapsUrl: submissionUrlSchema.optional(),
+  officialUrl: submissionUrlSchema.optional(),
+  notes: z.string().trim().max(2000).optional(),
+  submitterEmail: z.string().trim().max(320).email().optional()
 });
+
+export const storeSubmissionModerationStatusSchema = z.enum([
+  "pending",
+  "approved",
+  "rejected",
+  "duplicate"
+]);
+
+export const storeSubmissionRowSchema = z.object({
+  id: uuidSchema,
+  store_name: z.string().min(1),
+  suburb: z.string().min(1),
+  google_maps_url: z.string().url().nullable(),
+  official_url: z.string().url().nullable(),
+  notes: z.string().nullable(),
+  submitter_email: z.string().email().nullable(),
+  moderation_status: storeSubmissionModerationStatusSchema,
+  created_at: z.string().datetime(),
+  reviewed_at: z.string().datetime().nullable(),
+  reviewed_by: uuidSchema.nullable()
+});
+
+export type StoreSubmissionRow = z.infer<typeof storeSubmissionRowSchema>;

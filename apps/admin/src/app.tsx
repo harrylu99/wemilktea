@@ -23,6 +23,11 @@ const StoreManagementPage = lazy(() =>
     default: module.StoreManagementPage
   }))
 );
+const SubmissionsPage = lazy(() =>
+  import("./submissions").then((module) => ({
+    default: module.SubmissionsPage
+  }))
+);
 
 function RouteLoading() {
   return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -377,10 +382,9 @@ export function App() {
             <Route
               path="/submissions"
               element={
-                <PlaceholderPage
-                  title="Submissions"
-                  description="Submission review will be added in a future ticket."
-                />
+                <Suspense fallback={<RouteLoading />}>
+                  <SubmissionsPage />
+                </Suspense>
               }
             />
             <Route

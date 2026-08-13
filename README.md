@@ -53,11 +53,12 @@ Run the admin application separately with `bun run dev:admin`.
 
 ## Environment variables
 
-The browser applications may use only the Supabase project URL and publishable/anon key. Copy the relevant application `.env.example` to `.env.local`:
+The browser applications may use only the Supabase project URL and publishable/anon key. The public app may additionally use a browser-restricted Google Maps key for the Stores map. Copy the relevant application `.env.example` to `.env.local`:
 
 ```text
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+VITE_GOOGLE_MAPS_BROWSER_KEY=
 ```
 
 `supabase/functions/.env.example` lists server-only values for local function development. Do not put Supabase service-role credentials, Google Places keys, or R2 credentials in a Vite environment file or commit their values.
@@ -65,6 +66,8 @@ VITE_SUPABASE_ANON_KEY=
 The admin browser flow needs no additional environment variables. See [Admin authentication](docs/ADMIN_AUTH.md) for the Supabase Auth configuration, first-admin procedure, and database authorization model.
 
 Google Places discovery is configured only for the server-side Edge Function. See [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md) for its local variables, deployment setup, API usage boundary, and required policy checks.
+
+The public Maps key is optional for local development and must be restricted by HTTP referrer and enabled APIs in Google Cloud. It is safe to expose to the browser only under those restrictions; never put the server-only Places key in a Vite environment file. See [Design references](docs/DESIGN.md).
 
 ## Commands
 
@@ -106,5 +109,9 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md)
 - [Candidate review](docs/CANDIDATE_REVIEW.md)
 - [Store management](docs/STORE_MANAGEMENT.md)
+- [Public Stores experience](docs/STORES.md)
+- [Public Store Detail](docs/STORE_DETAIL.md)
+- [Store submissions](docs/STORE_SUBMISSIONS.md)
+- [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)

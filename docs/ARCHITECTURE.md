@@ -11,16 +11,17 @@ Server-side integrations ─────┼── Google Places API
 
 ## System responsibilities
 
-| System                                              | Owns                                                                                   | Does not own                                      |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Public application                                  | Public routes, browse/search presentation, picker interaction, suggestion form UI      | Secrets, privileged writes, canonical store data  |
-| Admin application                                   | Internal workflows for discovery, review, and catalog operations                       | Google Places credentials, image binaries         |
-| Supabase PostgreSQL + PostGIS                       | Canonical stores, drinks, locations, moderation state, user submissions, relationships | R2 image bytes, Google Places as canonical source |
-| Supabase Auth + RLS                                 | Admin identity and row-level authorization                                             | Application presentation                          |
-| Supabase Edge Functions or approved server boundary | Secret-bearing Google Places/R2 operations and privileged orchestration                | Browser UI                                        |
-| Cloudflare R2                                       | WeMilktea-owned/permitted image objects                                                | Product records and image metadata                |
-| Cloudflare Pages                                    | Independent public/admin static application deployment                                 | Server-side secrets or database migrations        |
-| Google Places API                                   | Candidate discovery and enrichment input, subject to its terms                         | Canonical WeMilktea records                       |
+| System                                              | Owns                                                                                   | Does not own                                       |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Public application                                  | Public routes, browse/search presentation, picker interaction, suggestion form UI      | Secrets, privileged writes, canonical store data   |
+| Admin application                                   | Internal workflows for discovery, review, and catalog operations                       | Google Places credentials, image binaries          |
+| Supabase PostgreSQL + PostGIS                       | Canonical stores, drinks, locations, moderation state, user submissions, relationships | R2 image bytes, Google Places as canonical source  |
+| Supabase Auth + RLS                                 | Admin identity and row-level authorization                                             | Application presentation                           |
+| Supabase Edge Functions or approved server boundary | Secret-bearing Google Places/R2 operations and privileged orchestration                | Browser UI                                         |
+| Cloudflare R2                                       | WeMilktea-owned/permitted image objects                                                | Product records and image metadata                 |
+| Cloudflare Pages                                    | Independent public/admin static application deployment                                 | Server-side secrets or database migrations         |
+| Google Places API                                   | Candidate discovery and enrichment input, subject to its terms                         | Canonical WeMilktea records                        |
+| Google Maps JavaScript API                          | Public map rendering using canonical coordinates and a browser-restricted key          | Store discovery, canonical content, server secrets |
 
 ## Data flow
 
@@ -29,6 +30,14 @@ The public app reads only published data under RLS. The admin app authenticates 
 Store discovery follows this boundary: an authorized admin invokes the `store-discovery` Edge Function, which uses the Google Places key server-side, records an operational run, and writes internal candidate records. Google results never publish or mutate canonical locations automatically. See [Google Places discovery](GOOGLE_PLACES_DISCOVERY.md).
 
 Candidate review follows the same boundary. The admin fetches Google reference data only through `candidate-google-detail`; the function returns it transiently with attribution and never writes it to the candidate record. Atomic database RPCs resolve a reviewed candidate to a canonical draft location, an existing location, or a retained rejection. See [Candidate review](CANDIDATE_REVIEW.md).
+
+The public Stores experience reads only published canonical locations and published parent brands through the anonymous Supabase boundary. It does not query candidates, discovery runs, or transient Google reference data. See [Public Stores experience](STORES.md).
+
+Public Store Detail uses the same boundary by canonical location slug and may read only published available product relationships. It reuses the browser Maps renderer with canonical coordinates; Google Places is not part of public detail rendering. See [Public Store Detail](STORE_DETAIL.md).
+
+The Stores map uses Google Maps JavaScript API only as a visual renderer for canonical coordinates. The browser receives a separately restricted Maps key through `VITE_GOOGLE_MAPS_BROWSER_KEY`; the server-only Places credential remains confined to Edge Functions. See [Design references](DESIGN.md).
+
+Suggest a Store is a separate public-input flow: the browser may insert a validated pending `store_submissions` row under RLS, while the admin queue reads it for later trusted verification. It never writes directly to `locations` or publication state. See [Store submissions](STORE_SUBMISSIONS.md).
 
 Store management operates only on canonical locations. An administrator can save validated canonical edits, publish a draft location, or unpublish a published location through admin-only database RPCs. Publishing atomically makes the parent brand publicly readable too, because public location access requires both records to be published. See [Store management](STORE_MANAGEMENT.md).
 

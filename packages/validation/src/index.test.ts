@@ -11,14 +11,20 @@ import {
 test("accepts a complete store suggestion", () => {
   expect(
     storeSuggestionSchema.parse({
-      name: "Example Tea",
-      address: "1 Queen Street, Auckland",
-      sourceUrl: "https://example.com"
+      storeName: "Example Tea",
+      suburb: "Auckland CBD",
+      googleMapsUrl: "https://maps.google.com/?q=Example+Tea",
+      officialUrl: "https://example.com",
+      notes: "Try the brown sugar milk tea.",
+      submitterEmail: "tea-fan@example.com"
     })
   ).toEqual({
-    name: "Example Tea",
-    address: "1 Queen Street, Auckland",
-    sourceUrl: "https://example.com"
+    storeName: "Example Tea",
+    suburb: "Auckland CBD",
+    googleMapsUrl: "https://maps.google.com/?q=Example+Tea",
+    officialUrl: "https://example.com",
+    notes: "Try the brown sugar milk tea.",
+    submitterEmail: "tea-fan@example.com"
   });
 });
 
@@ -44,18 +50,25 @@ test("rejects incomplete or invalid browser configuration", () => {
 test("rejects an empty store suggestion name", () => {
   expect(
     storeSuggestionSchema.safeParse({
-      name: "   ",
-      address: "1 Queen Street, Auckland"
+      storeName: "   ",
+      suburb: "Auckland CBD"
     }).success
   ).toBeFalse();
 });
 
-test("rejects an invalid store suggestion URL", () => {
+test("rejects an invalid store suggestion fields", () => {
   expect(
     storeSuggestionSchema.safeParse({
-      name: "Example Tea",
-      address: "1 Queen Street, Auckland",
-      sourceUrl: "not-a-url"
+      storeName: "Example Tea",
+      suburb: "Auckland CBD",
+      googleMapsUrl: "javascript:alert(1)"
+    }).success
+  ).toBeFalse();
+  expect(
+    storeSuggestionSchema.safeParse({
+      storeName: "Example Tea",
+      suburb: "Auckland CBD",
+      submitterEmail: "not-an-email"
     }).success
   ).toBeFalse();
 });
