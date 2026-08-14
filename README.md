@@ -107,7 +107,15 @@ Create schema changes with `supabase migration new <name>`. Commit the generated
 
 ## Deployment
 
-Cloudflare Pages deploys each app independently from this repository. Configure the public project with root directory `apps/web`, and the admin project with root directory `apps/admin`. For each, use `bun run build` and publish `dist`. Both apps ship `public/_redirects` so direct client-side routes resolve to the application shell.
+Cloudflare Pages deploys each app independently from this repository. The
+workspace-safe configuration uses repository root `/`, `bun --filter
+@wemilktea/web build` with `apps/web/dist`, and `bun --filter
+@wemilktea/admin build` with `apps/admin/dist`. A Pages project rooted at an
+individual app may instead use `bun run build` and `dist` if the build image
+resolves the Bun workspace correctly. Both apps ship `public/_redirects` so
+direct client-side routes resolve to the application shell. Follow the
+[production deployment runbook](docs/DEPLOYMENT.md) and [release checklist](docs/RELEASE_CHECKLIST.md)
+for migrations, secrets, integrations, smoke testing and rollback.
 
 Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudflare R2 owns image objects; database rows store object keys and metadata only. Configure production secrets in Supabase Edge Function secrets or another approved server-side boundary.
 
@@ -134,3 +142,5 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)
+- [Production deployment](docs/DEPLOYMENT.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
