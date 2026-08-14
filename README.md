@@ -74,6 +74,8 @@ Product catalogue management is documented in [Product catalogue management](doc
 
 The public Drinks discovery page is documented in [Public Drinks](docs/DRINKS.md). It reads published products and available public location relationships only.
 
+The public Drink Detail route is documented in [Public Drink Detail](docs/DRINK_DETAIL.md). It resolves brand-scoped products and shows only currently available published locations with location-specific prices.
+
 The public Maps key is optional for local development and must be restricted by HTTP referrer and enabled APIs in Google Cloud. It is safe to expose to the browser only under those restrictions; never put the server-only Places key in a Vite environment file. See [Design references](docs/DESIGN.md).
 
 ## Commands
@@ -122,6 +124,7 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Image storage](docs/IMAGE_STORAGE.md)
 - [Product catalogue management](docs/PRODUCTS.md)
 - [Public Drinks](docs/DRINKS.md)
+- [Public Drink Detail](docs/DRINK_DETAIL.md)
 - [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)

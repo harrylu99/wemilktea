@@ -35,3 +35,5 @@ Because WM-25 product slugs are unique per brand rather than globally, cards use
 ```
 
 WM-27 can load the product, brand, category, primary image, available published stores, and location-specific prices through the same public Supabase boundary.
+
+See [Public Drink Detail](DRINK_DETAIL.md) for the detail route, availability semantics, CTA behaviour and intentional omissions from the illustrative Figma metadata.

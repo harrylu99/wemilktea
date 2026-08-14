@@ -18,6 +18,7 @@ import { PublicHeader } from "./public-header";
 import { StoreDetailPage } from "./store-detail";
 import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
 import { DrinksPage } from "./drinks/page";
+import { DrinkDetailPage } from "./drinks/detail";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -617,12 +618,7 @@ export function App() {
       />
       <Route element={<DrinksPage />} path="/drinks" />
       <Route
-        element={
-          <PlaceholderPage
-            description="Drink detail is coming next."
-            title="Drink detail"
-          />
-        }
+        element={<DrinkDetailPage />}
         path="/drinks/:brandSlug/:productSlug"
       />
       <Route

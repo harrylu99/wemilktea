@@ -20,6 +20,14 @@ Approved public WeMilktea designs live in the [WeMilktea Figma file](https://www
 - Tablet: [83:697](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=83-697)
 - Desktop: [83:743](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=83-743)
 
+## Public Drink Detail frames
+
+- Mobile: [84:752](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=84-752)
+- Tablet: [84:791](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=84-791)
+- Desktop: [84:829](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=84-829)
+
+The Drink Detail frames are the visual source of truth. Illustrative ratings, opening status, distance, “best for” copy and flavour profile content are intentionally omitted until canonical V1 data supports them.
+
 ## Admin Products
 
 - Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)

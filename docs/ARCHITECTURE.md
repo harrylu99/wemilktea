@@ -49,6 +49,8 @@ Product management uses the same boundary: canonical product edits and publicati
 
 The public Drinks page reads the published product catalogue and performs one bounded availability query to count distinct public locations. It excludes products without an available published location, uses stable product-name ordering, and links to `/drinks/:brandSlug/:productSlug` because product slugs are scoped by brand. See [Public Drinks](DRINKS.md).
 
+Drink Detail uses the same boundary at `/drinks/:brandSlug/:productSlug`: one published canonical product, its public image metadata, and available published locations with location-specific prices. Store cards link back to canonical Store Detail routes. See [Public Drink Detail](DRINK_DETAIL.md).
+
 ## Deployment boundaries
 
 Cloudflare Pages has one project per application. Supabase migrations are deployed through the Supabase workflow, separately from frontend deployments. Secrets are configured in Supabase Edge Functions or the approved server integration—not Cloudflare Pages client builds.
