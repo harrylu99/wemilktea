@@ -35,6 +35,8 @@ The public Stores experience reads only published canonical locations and publis
 
 Public Home is a summary surface over the existing Explore, Drinks, Stores, and Picker route boundaries. It uses the same published canonical query model and does not create a separate catalogue or recommendation system. See [Public Home](HOME.md).
 
+The Daily Picker uses a public, RLS-filtered product/location candidate set and performs two-stage client-side selection: one eligible product first, then one available published location for that product. It carries only canonical slugs and a craving key to the WM-31 result route; it does not persist recommendations or call Google APIs. See [Daily Milk Tea Picker](PICKER.md).
+
 Public Explore composes the existing published Drinks and Stores boundaries for cross-entity discovery. It uses URL-backed search and a seasonal filter, with editorial sections derived from canonical records rather than a second collections model. See [Public Explore](EXPLORE.md).
 
 Public Store Detail uses the same boundary by canonical location slug and may read only published available product relationships. It reuses the browser Maps renderer with canonical coordinates; Google Places is not part of public detail rendering. See [Public Store Detail](STORE_DETAIL.md).

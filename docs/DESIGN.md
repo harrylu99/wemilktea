@@ -44,6 +44,16 @@ Explore follows these frames for hierarchy, search, filters, and editorial spaci
 
 These are the final Home frames. The desktop frame demonstrates dark tokens as a valid theme example; responsive width does not select a theme. Home uses the application’s existing theme tokens at every breakpoint.
 
+## Public Daily Picker frames
+
+- Mobile: [78:351](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=78-351)
+- Tablet: [78:392](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=78-392)
+- Desktop: [78:435](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=78-435)
+
+The final desktop frame demonstrates dark tokens as a valid theme example; viewport width does not choose a theme. Picker uses the existing public header and application tokens at every breakpoint.
+
+The approved Picker Result frames for the WM-31 handoff are Mobile `86:826`, Tablet `86:847`, and Desktop `86:875`.
+
 ## Admin Products
 
 - Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)

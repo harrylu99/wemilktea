@@ -21,6 +21,7 @@ import { DrinksPage } from "./drinks/page";
 import { DrinkDetailPage } from "./drinks/detail";
 import { ExplorePage } from "./explore/page";
 import { HomePage } from "./home/page";
+import { PickerPage, PickerResultBoundary } from "./picker/page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -608,14 +609,10 @@ export function App() {
         path="/drinks/:brandSlug/:productSlug"
       />
       <Route
-        element={
-          <PlaceholderPage
-            description="The daily picker is coming next."
-            title="Pick for me"
-          />
-        }
-        path="/picker"
+        element={<PickerResultBoundary />}
+        path="/picker/result/:brandSlug/:productSlug"
       />
+      <Route element={<PickerPage />} path="/picker" />
       <Route
         element={
           <PlaceholderPage
