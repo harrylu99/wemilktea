@@ -20,6 +20,7 @@ import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
 import { DrinksPage } from "./drinks/page";
 import { DrinkDetailPage } from "./drinks/detail";
 import { ExplorePage } from "./explore/page";
+import { HomePage } from "./home/page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -597,15 +598,7 @@ function PlaceholderPage({
 export function App() {
   return (
     <Routes>
-      <Route
-        element={
-          <PlaceholderPage
-            description="Auckland milk-tea discovery, freshly poured."
-            title="Discover your next cup"
-          />
-        }
-        path="/"
-      />
+      <Route element={<HomePage />} path="/" />
       <Route element={<StoresPage />} path="/stores" />
       <Route element={<StoreDetailPage />} path="/stores/:slug" />
       <Route element={<ExplorePage />} path="/explore" />

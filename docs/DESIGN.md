@@ -36,6 +36,14 @@ The Drink Detail frames are the visual source of truth. Illustrative ratings, op
 
 Explore follows these frames for hierarchy, search, filters, and editorial spacing. The current canonical schema has no collections, ratings, review counts, or temporal ranking fields, so the implementation uses a truthful “Worth trying” drink section and canonical store links instead of fabricating those concepts.
 
+## Public Home frames
+
+- Mobile: [74:145](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=74-145)
+- Tablet: [74:196](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=74-196)
+- Desktop: [74:248](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=74-248)
+
+These are the final Home frames. The desktop frame demonstrates dark tokens as a valid theme example; responsive width does not select a theme. Home uses the application’s existing theme tokens at every breakpoint.
+
 ## Admin Products
 
 - Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)

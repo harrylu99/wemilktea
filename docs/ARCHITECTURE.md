@@ -33,6 +33,8 @@ Candidate review follows the same boundary. The admin fetches Google reference d
 
 The public Stores experience reads only published canonical locations and published parent brands through the anonymous Supabase boundary. It does not query candidates, discovery runs, or transient Google reference data. See [Public Stores experience](STORES.md).
 
+Public Home is a summary surface over the existing Explore, Drinks, Stores, and Picker route boundaries. It uses the same published canonical query model and does not create a separate catalogue or recommendation system. See [Public Home](HOME.md).
+
 Public Explore composes the existing published Drinks and Stores boundaries for cross-entity discovery. It uses URL-backed search and a seasonal filter, with editorial sections derived from canonical records rather than a second collections model. See [Public Explore](EXPLORE.md).
 
 Public Store Detail uses the same boundary by canonical location slug and may read only published available product relationships. It reuses the browser Maps renderer with canonical coordinates; Google Places is not part of public detail rendering. See [Public Store Detail](STORE_DETAIL.md).
