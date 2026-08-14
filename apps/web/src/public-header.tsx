@@ -1,14 +1,29 @@
 import { applicationMetadata } from "@wemilktea/config";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 
 export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const links = [
     ["Explore", "/explore"],
     ["Stores", "/stores"],
     ["Drinks", "/drinks"]
   ] as const;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMenuOpen(false);
+      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [menuOpen]);
 
   return (
     <header className="border-b border-border bg-background">
@@ -31,13 +46,24 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
               {label}
             </NavLink>
           ))}
-          <button
-            className="text-xs font-medium text-muted-foreground hover:text-foreground"
-            type="button"
-            onClick={onSearch}
-          >
-            ⌕ <span className="sr-only">Focus store search</span>Search
-          </button>
+          {onSearch ? (
+            <button
+              aria-label="Search stores and drinks"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              type="button"
+              onClick={onSearch}
+            >
+              <span aria-hidden="true">⌕</span> Search
+            </button>
+          ) : (
+            <Link
+              aria-label="Search stores and drinks"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              to="/explore"
+            >
+              <span aria-hidden="true">⌕</span> Search
+            </Link>
+          )}
           <Link
             className="rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground"
             to="/picker"
@@ -46,15 +72,27 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
           </Link>
         </nav>
         <div className="flex items-center gap-3 md:hidden">
+          {onSearch ? (
+            <button
+              aria-label="Search stores and drinks"
+              className="grid size-11 place-items-center rounded-md text-xl text-primary"
+              type="button"
+              onClick={onSearch}
+            >
+              <span aria-hidden="true">⌕</span>
+            </button>
+          ) : (
+            <Link
+              aria-label="Search stores and drinks"
+              className="grid size-11 place-items-center rounded-md text-xl text-primary"
+              to="/explore"
+            >
+              <span aria-hidden="true">⌕</span>
+            </Link>
+          )}
           <button
-            aria-label="Focus store search"
-            className="grid size-11 place-items-center rounded-md text-xl text-primary"
-            type="button"
-            onClick={onSearch}
-          >
-            ⌕
-          </button>
-          <button
+            ref={menuButtonRef}
+            aria-controls="mobile-navigation"
             aria-expanded={menuOpen}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             className="grid size-11 place-items-center rounded-md text-xl"
@@ -67,6 +105,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
       </div>
       {menuOpen ? (
         <nav
+          id="mobile-navigation"
           className="border-t border-border px-4 py-3 md:hidden"
           aria-label="Mobile navigation"
         >

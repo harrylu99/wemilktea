@@ -35,7 +35,7 @@ function StoreResultCard({
       ) : (
         <div
           aria-hidden="true"
-          className={`flex size-[74px] shrink-0 items-center justify-center rounded-lg border border-border ${accent} text-[10px] text-primary`}
+          className={`flex size-[74px] shrink-0 items-center justify-center rounded-lg border border-border ${accent} text-[10px] text-[#111711]`}
         >
           Store image
         </div>

@@ -42,11 +42,6 @@ function CravingOption({
       <span className="text-sm font-semibold text-card-foreground">
         {option.label}
       </span>
-      {selected ? (
-        <span className="sr-only" role="status">
-          Selected
-        </span>
-      ) : null}
     </label>
   );
 }
@@ -167,7 +162,7 @@ export function PickerPage() {
             </h2>
             <fieldset className="mt-4">
               <legend className="sr-only">Choose one craving</legend>
-              <div className="grid grid-cols-2 gap-3" role="radiogroup">
+              <div className="grid grid-cols-2 gap-3">
                 {CRAVING_OPTIONS.map((option) => (
                   <CravingOption
                     disabled={isDrawing || status !== "ready"}

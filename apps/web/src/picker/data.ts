@@ -60,6 +60,11 @@ export function cravingOption(key: CravingKey) {
   );
 }
 
+export function parseCravingKey(value: string | null): CravingKey | null {
+  const parsed = cravingKeySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 export function filterPickerCandidates(
   candidates: PickerCandidate[],
   craving: CravingKey

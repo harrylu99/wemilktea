@@ -43,17 +43,19 @@ function StorePreviewCard({
       ) : (
         <div
           aria-hidden="true"
-          className={`flex size-[80px] shrink-0 items-center justify-center rounded-lg border border-border ${accent} text-[10px] text-primary`}
+          className={`flex size-[80px] shrink-0 items-center justify-center rounded-lg border border-border ${accent} text-[10px] text-[#111711]`}
         >
           Store image
         </div>
       )}
       <div className="min-w-0">
-        <h3 className="truncate text-base font-semibold text-card-foreground">
+        <h3 className="break-words text-base font-semibold text-card-foreground">
           {store.displayName}
         </h3>
-        <p className="truncate text-sm text-primary">{store.brandName}</p>
-        <p className="truncate text-sm text-muted-foreground">{store.suburb}</p>
+        <p className="break-words text-sm text-primary">{store.brandName}</p>
+        <p className="break-words text-sm text-muted-foreground">
+          {store.suburb}
+        </p>
       </div>
     </Link>
   );
@@ -76,7 +78,7 @@ function HeroVisual({ drink }: { drink: PublicDrink | null }) {
   return (
     <div
       aria-hidden="true"
-      className="flex min-h-[180px] items-center justify-center rounded-xl border border-border bg-[#f0a08c] text-sm text-primary md:min-h-0"
+      className="flex min-h-[180px] items-center justify-center rounded-xl border border-border bg-[#f0a08c] text-sm text-[#111711] md:min-h-0"
     >
       Hero image · drink + Auckland
     </div>

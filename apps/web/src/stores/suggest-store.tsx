@@ -119,6 +119,7 @@ function FormField({
         id={inputId}
         name={field}
         placeholder={placeholder}
+        required={required}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -186,7 +187,9 @@ export function SuggestStoreDialog({
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        const trigger = returnFocusRef.current;
         onClose();
+        trigger?.focus();
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
@@ -195,7 +198,9 @@ export function SuggestStoreDialog({
         dialogRef.current.querySelectorAll<HTMLElement>(
           "button, input, textarea, [href], select"
         )
-      ).filter((element) => !element.hasAttribute("disabled"));
+      ).filter(
+        (element) => !element.hasAttribute("disabled") && element.tabIndex >= 0
+      );
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -214,7 +219,7 @@ export function SuggestStoreDialog({
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [onClose, open]);
+  }, [onClose, open, returnFocusRef]);
 
   const close = () => {
     if (isSubmitting) return;
@@ -234,7 +239,17 @@ export function SuggestStoreDialog({
     setFormError(null);
     const validation = fieldErrorMap(values);
     setErrors(validation.errors);
-    if (!validation.payload) return;
+    if (!validation.payload) {
+      const firstInvalidField = (
+        Object.keys(validation.errors) as SuggestStoreField[]
+      )[0];
+      if (firstInvalidField) {
+        window.requestAnimationFrame(() =>
+          document.getElementById(`suggest-${firstInvalidField}`)?.focus()
+        );
+      }
+      return;
+    }
 
     if (values.honeypot.trim()) {
       setIsSuccess(true);
@@ -320,7 +335,11 @@ export function SuggestStoreDialog({
             </button>
           </div>
         ) : (
-          <form className="suggest-store-form" onSubmit={handleSubmit}>
+          <form
+            className="suggest-store-form"
+            noValidate
+            onSubmit={handleSubmit}
+          >
             <p className="suggest-store-intro">
               Know a milk-tea spot we&apos;re missing? Send us the details and
               we&apos;ll review it.

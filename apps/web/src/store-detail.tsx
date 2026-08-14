@@ -70,8 +70,8 @@ function DrinkCard({
         DRINK IMAGE
       </div>
       <div className="mt-3 min-w-0">
-        <h3 className="truncate text-sm font-semibold">{drink.name}</h3>
-        <p className="mt-1 truncate text-xs text-muted-foreground">
+        <h3 className="break-words text-sm font-semibold">{drink.name}</h3>
+        <p className="mt-1 break-words text-xs text-muted-foreground">
           {price ?? "View drink"}
         </p>
       </div>
@@ -450,7 +450,7 @@ export function StoreDetailPage() {
         ) : null}
       </main>
       {status === "ready" && store ? (
-        <div className="detail-sticky-action">
+        <aside aria-label="Store directions" className="detail-sticky-action">
           <a
             className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
             href={directionsUrl(store)}
@@ -459,7 +459,7 @@ export function StoreDetailPage() {
           >
             Get Directions
           </a>
-        </div>
+        </aside>
       ) : null}
     </div>
   );

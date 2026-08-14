@@ -552,6 +552,261 @@ body {
   }
 }
 
+.picker-result-page {
+  width: min(100% - 2.5rem, 1216px);
+  margin: 0 auto;
+  padding: 1.25rem 0 6rem;
+}
+
+.picker-result-eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1rem;
+}
+
+.picker-result-heading {
+  margin: 1rem 0 1.125rem;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.5rem;
+}
+
+.picker-result-split {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.picker-result-card {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--accent);
+}
+
+.picker-result-image,
+.picker-result-image-fallback {
+  display: grid;
+  height: 15.5rem;
+  width: 100%;
+  place-items: center;
+  object-fit: cover;
+}
+
+.picker-result-image-fallback {
+  color: #111711;
+  background: #f0a08c;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.picker-result-card-content {
+  display: grid;
+  gap: 0.625rem;
+  padding: 1.5rem;
+  background: var(--card);
+}
+
+.picker-result-fortune {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+}
+
+.picker-result-card h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+}
+
+.picker-result-store,
+.picker-result-price {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.picker-result-price {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.picker-result-primary-link,
+.picker-result-action,
+.picker-result-secondary-action {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+  text-decoration: none;
+}
+
+.picker-result-primary-link,
+.picker-result-action {
+  width: fit-content;
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.picker-result-next-step {
+  display: none;
+  min-height: 28.625rem;
+  align-content: start;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.25rem 1.5rem;
+  background: var(--card);
+}
+
+.picker-result-next-step h2,
+.picker-result-next-step p {
+  margin: 0;
+}
+
+.picker-result-next-step h2 {
+  max-width: 36rem;
+  color: var(--foreground);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+}
+
+.picker-result-next-step > p:not(.picker-result-eyebrow) {
+  max-width: 36rem;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.picker-result-next-step .picker-result-action {
+  margin-top: 0.25rem;
+  width: 11.25rem;
+}
+
+.picker-result-sticky-action {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  box-shadow: 0 -4px 8px rgba(20, 31, 20, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.picker-result-sticky-action span {
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.picker-result-sticky-action a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  border-radius: 0.75rem;
+  padding: 0 1rem;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.picker-result-message {
+  max-width: 42.5rem;
+  margin: 3rem auto 0;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 2rem;
+  background: var(--card);
+  text-align: center;
+}
+
+.picker-result-message h1 {
+  margin: 0.75rem 0 0;
+  color: var(--foreground);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.5rem;
+}
+
+.picker-result-message > p:not(.picker-result-eyebrow) {
+  margin: 0.75rem auto 0;
+  max-width: 34rem;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.picker-result-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.picker-result-secondary-action {
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.picker-result-loading {
+  display: grid;
+  gap: 1rem;
+}
+
+.picker-result-skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(100deg, #eee8dc 20%, #f7f3ea 40%, #eee8dc 60%);
+  background-size: 200% 100%;
+  animation: detail-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.picker-result-skeleton-label {
+  height: 1rem;
+  width: 10rem;
+}
+
+.picker-result-skeleton-title {
+  height: 2.5rem;
+  width: min(24rem, 80%);
+}
+
+.picker-result-skeleton-card {
+  height: 28rem;
+  width: min(32.5rem, 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-result-skeleton {
+    animation: none;
+  }
+}
+
 @media (max-width: 767px) {
   .map-surface {
     min-height: 180px;
@@ -584,6 +839,10 @@ body {
 
   .suggest-store-form {
     padding: 1rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  .picker-result-page {
+    padding-bottom: 6rem;
   }
 }
 
@@ -619,6 +878,27 @@ body {
   .detail-sticky-action {
     display: none;
   }
+
+  .picker-result-page {
+    padding-bottom: 2rem;
+  }
+
+  .picker-result-heading {
+    font-size: 2.5rem;
+    line-height: 3rem;
+  }
+
+  .picker-result-split {
+    grid-template-columns: minmax(0, 26.25rem) minmax(0, 1fr);
+  }
+
+  .picker-result-next-step {
+    display: grid;
+  }
+
+  .picker-result-sticky-action {
+    display: none;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -645,5 +925,23 @@ body {
 
   .detail-lower-grid {
     grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  }
+
+  .picker-result-page {
+    padding-top: 1.25rem;
+  }
+
+  .picker-result-split {
+    grid-template-columns: minmax(0, 32.5rem) minmax(0, 1fr);
+  }
+
+  .picker-result-next-step {
+    min-height: 28.625rem;
+    padding: 1.25rem 1.25rem 1.5rem;
+  }
+
+  .picker-result-heading {
+    font-size: 2.5rem;
+    line-height: 3rem;
   }
 }

@@ -13,13 +13,17 @@
     "dev:admin": "bun --filter @wemilktea/admin dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "e2e": "playwright test",
+    "e2e:update": "playwright test --update-snapshots",
     "build": "bun --filter @wemilktea/web build && bun --filter @wemilktea/admin build",
     "lint": "eslint .",
     "test": "bun test",
     "typecheck": "tsc --build"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^9.35.0",
+    "@playwright/test": "1.62.1",
     "eslint": "^9.35.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

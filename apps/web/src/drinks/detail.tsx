@@ -23,7 +23,7 @@ function ProductImage({ drink }: { drink: PublicDrinkDetail }) {
   return (
     <div
       aria-hidden="true"
-      className="flex h-[240px] w-full items-center justify-center rounded-xl border border-border bg-[#f0a08c] text-sm text-primary md:h-[280px] lg:h-[320px]"
+      className="flex h-[240px] w-full items-center justify-center rounded-xl border border-border bg-[#f0a08c] text-sm text-[#111711] md:h-[280px] lg:h-[320px]"
     >
       Drink image
     </div>
@@ -46,7 +46,7 @@ function StoreImage({ store }: { store: PublicDrinkAvailableStore }) {
   return (
     <div
       aria-hidden="true"
-      className="flex h-24 w-full items-center justify-center bg-[#a97850] text-xs text-primary"
+      className="flex h-24 w-full items-center justify-center bg-[#a97850] text-xs text-[#111711]"
     >
       Store image
     </div>
@@ -70,7 +70,7 @@ function AvailableStoreCard({ store }: { store: PublicDrinkAvailableStore }) {
     >
       <StoreImage store={store} />
       <div className="space-y-1 p-3">
-        <h3 className="truncate text-xl font-semibold leading-7 text-card-foreground">
+        <h3 className="break-words text-xl font-semibold leading-7 text-card-foreground">
           {store.displayName}
         </h3>
         <p className="text-sm leading-5 text-muted-foreground">

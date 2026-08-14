@@ -27,7 +27,7 @@ function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
   return (
     <div
       aria-hidden="true"
-      className={`flex h-[148px] w-full items-center justify-center ${fallbackColours[index % fallbackColours.length]} text-xs font-medium text-primary`}
+      className={`flex h-[148px] w-full items-center justify-center ${fallbackColours[index % fallbackColours.length]} text-xs font-medium text-[#111711]`}
     >
       Drink image
     </div>
@@ -44,18 +44,18 @@ export function DrinkCard({
   return (
     <Link
       aria-label={`View ${drink.name} by ${drink.brandName}`}
-      className="flex h-[284px] w-[224px] flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
+      className="flex min-h-[284px] w-[224px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
       to={drinkDetailPath(drink)}
     >
       <DrinkImage drink={drink} index={index} />
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden p-4">
-        <h2 className="truncate text-xl font-semibold leading-7 text-card-foreground">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-4">
+        <h2 className="break-words text-xl font-semibold leading-7 text-card-foreground">
           {drink.name}
         </h2>
-        <p className="truncate text-xs font-medium leading-4 text-primary">
+        <p className="break-words text-xs font-medium leading-4 text-primary">
           {drink.brandName} · {drink.categoryName}
         </p>
-        <p className="truncate text-sm leading-5 text-muted-foreground">
+        <p className="break-words text-sm leading-5 text-muted-foreground">
           Available at {drink.availableStoreCount}{" "}
           {drink.availableStoreCount === 1 ? "store" : "stores"}
         </p>
@@ -135,6 +135,7 @@ export function DrinksPage() {
 
   useEffect(() => {
     void load();
+    document.title = "Drinks | WeMilktea";
   }, [load]);
 
   const visibleDrinks = useMemo(

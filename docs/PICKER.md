@@ -46,6 +46,12 @@ Only stable canonical slugs and the craving key are carried, so direct links and
 refreshes do not depend on React location state. WM-31 must revalidate the
 product/location relationship against current public RLS.
 
+WM-31 resolves this route into one current drink/store result. If the selected
+store is no longer published or available for the drink, it shows a stale-result
+state and asks the user to pick again; it never silently substitutes a store.
+See [PICKER_RESULT.md](./PICKER_RESULT.md) for the result contract and
+unsupported illustrative Figma content.
+
 ## Interaction and accessibility
 
 One native radio is selected at a time. The draw button prevents duplicate

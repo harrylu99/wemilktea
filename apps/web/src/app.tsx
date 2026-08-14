@@ -21,7 +21,8 @@ import { DrinksPage } from "./drinks/page";
 import { DrinkDetailPage } from "./drinks/detail";
 import { ExplorePage } from "./explore/page";
 import { HomePage } from "./home/page";
-import { PickerPage, PickerResultBoundary } from "./picker/page";
+import { PickerPage } from "./picker/page";
+import { PickerResultPage } from "./picker/result-page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -45,7 +46,7 @@ function StoreImage({ store, index }: { store: PublicStore; index: number }) {
   return (
     <div
       aria-hidden="true"
-      className={`flex size-[62px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border ${accent} text-[10px] text-primary md:size-[74px]`}
+      className={`flex size-[62px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border ${accent} text-[10px] text-[#111711] md:size-[74px]`}
     >
       Store image
     </div>
@@ -83,10 +84,10 @@ function StoreCard({
     >
       <StoreImage index={index} store={store} />
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-sm font-semibold leading-5 text-card-foreground">
+        <h3 className="break-words text-sm font-semibold leading-5 text-card-foreground">
           {store.displayName}
         </h3>
-        <p className="truncate text-xs leading-4 text-muted-foreground">
+        <p className="break-words text-xs leading-4 text-muted-foreground">
           {distance === null
             ? `${store.suburb} · ${store.brandName}`
             : `${distance.toFixed(1)} km · ${store.suburb}`}
@@ -270,6 +271,7 @@ function StoresPage() {
   const [suggestStoreOpen, setSuggestStoreOpen] = useState(false);
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const filtersButtonRef = useRef<HTMLButtonElement>(null);
 
   const query = searchParams.get("q") ?? "";
   const brandSlug = searchParams.get("brand") ?? "";
@@ -277,6 +279,7 @@ function StoresPage() {
   const nearMe = searchParams.get("near") === "1";
 
   useEffect(() => {
+    document.title = "Stores | WeMilktea";
     const client = supabase;
     if (!client) {
       setErrorMessage(supabaseConfigurationError);
@@ -339,6 +342,20 @@ function StoresPage() {
       setSelectedId(visibleStores[0].id);
     }
   }, [visibleStores, selectedId]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setFiltersOpen(false);
+      filtersButtonRef.current?.focus();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [filtersOpen]);
 
   const updateSearchParam = (name: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -439,8 +456,9 @@ function StoresPage() {
           </button>
           <div className="relative">
             <button
+              ref={filtersButtonRef}
+              aria-controls="store-filters-popover"
               aria-expanded={filtersOpen}
-              aria-haspopup="dialog"
               className={`h-11 rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
               type="button"
               onClick={() => setFiltersOpen((open) => !open)}
@@ -449,8 +467,9 @@ function StoresPage() {
             </button>
             {filtersOpen ? (
               <div
+                id="store-filters-popover"
                 className="filter-popover"
-                role="dialog"
+                role="group"
                 aria-label="Store filters"
               >
                 <label htmlFor="store-area">Area</label>
@@ -609,7 +628,7 @@ export function App() {
         path="/drinks/:brandSlug/:productSlug"
       />
       <Route
-        element={<PickerResultBoundary />}
+        element={<PickerResultPage />}
         path="/picker/result/:brandSlug/:productSlug"
       />
       <Route element={<PickerPage />} path="/picker" />

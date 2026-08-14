@@ -54,6 +54,18 @@ The final desktop frame demonstrates dark tokens as a valid theme example; viewp
 
 The approved Picker Result frames for the WM-31 handoff are Mobile `86:826`, Tablet `86:847`, and Desktop `86:875`.
 
+## Public Picker Result
+
+- Mobile: [86:826](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=86-826)
+- Tablet: [86:847](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=86-847)
+- Desktop: [86:875](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=86-875)
+
+The result follows the one-drink/one-store card hierarchy and uses the
+existing semantic light/dark tokens independent of viewport. Figma's
+illustrative opening-status, distance, and nearest-store copy is intentionally
+replaced with selected canonical store and area data; see
+[PICKER_RESULT.md](./PICKER_RESULT.md).
+
 ## Admin Products
 
 - Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)
