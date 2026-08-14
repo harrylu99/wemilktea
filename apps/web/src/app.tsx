@@ -19,6 +19,7 @@ import { StoreDetailPage } from "./store-detail";
 import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
 import { DrinksPage } from "./drinks/page";
 import { DrinkDetailPage } from "./drinks/detail";
+import { ExplorePage } from "./explore/page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -607,15 +608,7 @@ export function App() {
       />
       <Route element={<StoresPage />} path="/stores" />
       <Route element={<StoreDetailPage />} path="/stores/:slug" />
-      <Route
-        element={
-          <PlaceholderPage
-            description="Explore is coming next."
-            title="Explore"
-          />
-        }
-        path="/explore"
-      />
+      <Route element={<ExplorePage />} path="/explore" />
       <Route element={<DrinksPage />} path="/drinks" />
       <Route
         element={<DrinkDetailPage />}

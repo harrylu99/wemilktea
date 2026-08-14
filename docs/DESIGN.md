@@ -28,6 +28,14 @@ Approved public WeMilktea designs live in the [WeMilktea Figma file](https://www
 
 The Drink Detail frames are the visual source of truth. Illustrative ratings, opening status, distance, “best for” copy and flavour profile content are intentionally omitted until canonical V1 data supports them.
 
+## Public Explore frames
+
+- Mobile: [80:409](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=80-409)
+- Tablet: [80:452](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=80-452)
+- Desktop: [80:526](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=80-526)
+
+Explore follows these frames for hierarchy, search, filters, and editorial spacing. The current canonical schema has no collections, ratings, review counts, or temporal ranking fields, so the implementation uses a truthful “Worth trying” drink section and canonical store links instead of fabricating those concepts.
+
 ## Admin Products
 
 - Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)

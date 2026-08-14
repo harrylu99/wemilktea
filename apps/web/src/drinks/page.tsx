@@ -34,7 +34,13 @@ function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
   );
 }
 
-function DrinkCard({ drink, index }: { drink: PublicDrink; index: number }) {
+export function DrinkCard({
+  drink,
+  index
+}: {
+  drink: PublicDrink;
+  index: number;
+}) {
   return (
     <Link
       aria-label={`View ${drink.name} by ${drink.brandName}`}
