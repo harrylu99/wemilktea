@@ -17,6 +17,7 @@ import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { PublicHeader } from "./public-header";
 import { StoreDetailPage } from "./store-detail";
 import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
+import { DrinksPage } from "./drinks/page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -614,14 +615,15 @@ export function App() {
         }
         path="/explore"
       />
+      <Route element={<DrinksPage />} path="/drinks" />
       <Route
         element={
           <PlaceholderPage
-            description="Drink discovery is coming next."
-            title="Drinks"
+            description="Drink detail is coming next."
+            title="Drink detail"
           />
         }
-        path="/drinks"
+        path="/drinks/:brandSlug/:productSlug"
       />
       <Route
         element={

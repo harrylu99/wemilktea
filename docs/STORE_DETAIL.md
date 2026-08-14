@@ -10,8 +10,8 @@ reference data are not queried.
 The detail query loads the canonical location by slug and the public
 `location_products` relationships whose status is `available`. Existing RLS
 policies also require the location, product, brand, and category to be
-published. Product links use the future `/drinks/:slug` contract; Drink Detail
-is outside WM-22.
+published. Product links use the brand-scoped future
+`/drinks/:brandSlug/:productSlug` contract; Drink Detail is outside WM-22.
 
 Location image metadata is accepted when it contains a permitted external URL.
 Google-provenance imagery is ignored. Until R2 image delivery is implemented,

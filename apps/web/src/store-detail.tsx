@@ -49,16 +49,18 @@ function formatPrice(priceCents: number | null, currency: string) {
 
 function DrinkCard({
   drink,
-  index
+  index,
+  brandSlug
 }: {
   drink: PublicStoreDrink;
   index: number;
+  brandSlug: string;
 }) {
   const price = formatPrice(drink.priceCents, drink.currency);
   return (
     <Link
       className="detail-drink-card"
-      to={`/drinks/${drink.slug}`}
+      to={`/drinks/${brandSlug}/${drink.slug}`}
       aria-label={`View ${drink.name}`}
     >
       <div
@@ -370,13 +372,16 @@ export function StoreDetailPage() {
               </section>
             </div>
 
-            <section className="mt-10" aria-labelledby="popular-drinks-heading">
+            <section
+              className="mt-10"
+              aria-labelledby="available-drinks-heading"
+            >
               <div className="flex items-end justify-between gap-4">
                 <h2
                   className="text-2xl font-semibold"
-                  id="popular-drinks-heading"
+                  id="available-drinks-heading"
                 >
-                  Popular drinks
+                  Available drinks
                 </h2>
                 {store.drinks.length > 0 ? (
                   <Link
@@ -390,7 +395,12 @@ export function StoreDetailPage() {
               {store.drinks.length > 0 ? (
                 <div className="detail-drinks-grid mt-5">
                   {store.drinks.map((drink, index) => (
-                    <DrinkCard drink={drink} index={index} key={drink.id} />
+                    <DrinkCard
+                      brandSlug={store.brandSlug}
+                      drink={drink}
+                      index={index}
+                      key={drink.id}
+                    />
                   ))}
                 </div>
               ) : (

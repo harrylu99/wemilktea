@@ -48,3 +48,5 @@ Future public queries can use the anonymous Supabase boundary to read:
 - available `location_products` relationships and local prices.
 
 Draft products, unavailable relationships, and moderation/admin metadata remain private. No future public feature needs Admin access.
+
+WM-26 excludes products with zero available published locations from `/drinks`, counts distinct publicly reachable locations only, and uses the unambiguous future Drink Detail route `/drinks/:brandSlug/:productSlug` because product slugs are scoped by brand.

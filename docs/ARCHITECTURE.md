@@ -47,6 +47,8 @@ The `image-storage` Edge Function is the R2 boundary. An authenticated admin rec
 
 Product management uses the same boundary: canonical product edits and publication use admin-authorized database RPCs, while product/location availability is stored in `location_products`. Product images use the same `image-storage` function with a `products/{product-id}/...` key and `attach_product_image`/`remove_product_image` RPCs. No product is duplicated per store and no external menu source becomes canonical automatically. See [Product catalogue management](PRODUCTS.md).
 
+The public Drinks page reads the published product catalogue and performs one bounded availability query to count distinct public locations. It excludes products without an available published location, uses stable product-name ordering, and links to `/drinks/:brandSlug/:productSlug` because product slugs are scoped by brand. See [Public Drinks](DRINKS.md).
+
 ## Deployment boundaries
 
 Cloudflare Pages has one project per application. Supabase migrations are deployed through the Supabase workflow, separately from frontend deployments. Secrets are configured in Supabase Edge Functions or the approved server integration—not Cloudflare Pages client builds.

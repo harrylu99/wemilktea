@@ -14,6 +14,12 @@ Approved public WeMilktea designs live in the [WeMilktea Figma file](https://www
 - Tablet: [27:1173](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=27-1173)
 - Desktop: [27:1209](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=27-1209)
 
+## Public Drinks frames
+
+- Mobile: [83:656](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=83-656)
+- Tablet: [83:697](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=83-697)
+- Desktop: [83:743](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=83-743)
+
 ## Admin Products
 
 - Desktop Products list: [166:982](https://www.figma.com/design/ZmTLK1qabFtL4YU9Mi51JI/Wemilktea?node-id=166-982)

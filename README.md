@@ -72,6 +72,8 @@ R2 image secrets are configured only for the `image-storage` Edge Function. The 
 
 Product catalogue management is documented in [Product catalogue management](docs/PRODUCTS.md). It uses the existing canonical `products` and `location_products` model and the WM-24 image boundary.
 
+The public Drinks discovery page is documented in [Public Drinks](docs/DRINKS.md). It reads published products and available public location relationships only.
+
 The public Maps key is optional for local development and must be restricted by HTTP referrer and enabled APIs in Google Cloud. It is safe to expose to the browser only under those restrictions; never put the server-only Places key in a Vite environment file. See [Design references](docs/DESIGN.md).
 
 ## Commands
@@ -119,6 +121,7 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Store submissions](docs/STORE_SUBMISSIONS.md)
 - [Image storage](docs/IMAGE_STORAGE.md)
 - [Product catalogue management](docs/PRODUCTS.md)
+- [Public Drinks](docs/DRINKS.md)
 - [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)
 - [Repository instructions](AGENTS.md)
