@@ -3,6 +3,7 @@ import {
   approveStoreCandidateSchema,
   browserEnvironmentSchema,
   candidateGoogleDetailSchema,
+  storeManagementListItemSchema,
   storeDiscoveryResultSchema,
   storeSuggestionSchema,
   updateStoreManagementSchema
@@ -152,4 +153,19 @@ test("validates canonical store-management updates", () => {
       }
     }).success
   ).toBeTrue();
+});
+
+test("accepts Supabase timestamptz offsets for store-management rows", () => {
+  const row = {
+    id: "a9a8eaa0-cfc0-4372-b897-66cb106a2ffd",
+    brand_id: "876d4af2-a2c5-434f-b573-78eb1ce09a74",
+    display_name: "Wucha Ormiston",
+    slug: "wucha-ormiston",
+    suburb: "Flat Bush",
+    publication_status: "draft",
+    created_at: "2026-08-15T03:35:18.842225+00:00",
+    updated_at: "2026-08-15T03:35:18.842225+00:00"
+  };
+
+  expect(storeManagementListItemSchema.safeParse(row).success).toBeTrue();
 });

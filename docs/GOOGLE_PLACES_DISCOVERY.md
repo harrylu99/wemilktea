@@ -25,7 +25,7 @@ GOOGLE_PLACES_API_KEY=
 ADMIN_APP_ORIGIN=http://127.0.0.1:5174
 ```
 
-For a deployed project, set `GOOGLE_PLACES_API_KEY` and the exact `ADMIN_APP_ORIGIN` as Supabase Edge Function secrets. Supabase provides its project URL and service-role context to deployed functions; confirm the deployed environment has the required variables before release. Restrict the Google key to the Places API, set a budget and quotas, and do not reuse the key in browser or Cloudflare Pages configuration.
+For a deployed project, set `GOOGLE_PLACES_API_KEY` and the exact `ADMIN_APP_ORIGIN` as Supabase Edge Function secrets. Supabase provides its project URL and service-role context to deployed functions; confirm the deployed environment has the required variables before release. Restrict the Google key to the Places API, set a budget and quotas, and do not reuse the key in browser or Cloudflare client configuration.
 
 Deploy after the migration is applied:
 

@@ -4,6 +4,7 @@ import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useAdminAuth } from "./auth-context";
 import { AdminAuthProvider } from "./auth-provider";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { AdminSeo } from "./seo";
 
 const CandidateQueuePage = lazy(() =>
   import("./candidates").then((module) => ({
@@ -339,82 +340,85 @@ function PlaceholderPage({
 
 export function App() {
   return (
-    <AdminAuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
-        <Route element={<RequireAdmin />}>
-          <Route element={<AdminShell />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route
-              path="/dashboard"
-              element={
-                <PlaceholderPage
-                  title="Dashboard"
-                  description="Operational overview will be added in a future ticket."
-                />
-              }
-            />
-            <Route
-              path="/stores"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <StoresPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/stores/:locationId"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <StoreManagementPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/candidates"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <CandidateQueuePage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/candidates/:candidateId"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <CandidateReviewPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/submissions"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <SubmissionsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/products"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/products/:productId"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductManagementPage />
-                </Suspense>
-              }
-            />
+    <>
+      <AdminSeo />
+      <AdminAuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <Route element={<RequireAdmin />}>
+            <Route element={<AdminShell />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <PlaceholderPage
+                    title="Dashboard"
+                    description="Operational overview will be added in a future ticket."
+                  />
+                }
+              />
+              <Route
+                path="/stores"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <StoresPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/stores/:locationId"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <StoreManagementPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/candidates"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <CandidateQueuePage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/candidates/:candidateId"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <CandidateReviewPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/submissions"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <SubmissionsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/products"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/products/:productId"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductManagementPage />
+                  </Suspense>
+                }
+              />
+            </Route>
           </Route>
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AdminAuthProvider>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AdminAuthProvider>
+    </>
   );
 }

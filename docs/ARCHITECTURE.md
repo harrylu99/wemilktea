@@ -19,7 +19,7 @@ Server-side integrations ─────┼── Google Places API
 | Supabase Auth + RLS                                 | Admin identity and row-level authorization                                             | Application presentation                           |
 | Supabase Edge Functions or approved server boundary | Secret-bearing Google Places/R2 operations and privileged orchestration                | Browser UI                                         |
 | Cloudflare R2                                       | WeMilktea-owned/permitted image objects                                                | Product records and image metadata                 |
-| Cloudflare Pages                                    | Independent public/admin static application deployment                                 | Server-side secrets or database migrations         |
+| Cloudflare Workers Static Assets                    | Independent public/admin static application deployment                                 | Server-side secrets or database migrations         |
 | Google Places API                                   | Candidate discovery and enrichment input, subject to its terms                         | Canonical WeMilktea records                        |
 | Google Maps JavaScript API                          | Public map rendering using canonical coordinates and a browser-restricted key          | Store discovery, canonical content, server secrets |
 
@@ -59,4 +59,4 @@ Drink Detail uses the same boundary at `/drinks/:brandSlug/:productSlug`: one pu
 
 ## Deployment boundaries
 
-Cloudflare Pages has one project per application. Supabase migrations are deployed through the Supabase workflow, separately from frontend deployments. Secrets are configured in Supabase Edge Functions or the approved server integration—not Cloudflare Pages client builds.
+Cloudflare Workers Static Assets has one Worker per application. Supabase migrations are deployed through the Supabase workflow, separately from frontend deployments. Secrets are configured in Supabase Edge Functions or the approved server integration—not Cloudflare client builds.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { Seo } from "../seo";
 import { DrinkCard } from "../drinks/page";
 import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
@@ -100,19 +101,6 @@ function ExploreFilterChip({
   );
 }
 
-function setPageMetadata() {
-  document.title = "Explore Auckland milk tea | WeMilktea";
-  const description =
-    "Discover canonical WeMilktea drinks and stores across Auckland.";
-  let tag = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-  if (!tag) {
-    tag = document.createElement("meta");
-    tag.name = "description";
-    document.head.appendChild(tag);
-  }
-  tag.content = description;
-}
-
 export function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -144,7 +132,6 @@ export function ExplorePage() {
 
   useEffect(() => {
     void load();
-    setPageMetadata();
   }, [load]);
 
   const matches = useMemo(
@@ -186,6 +173,12 @@ export function ExplorePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description="Explore canonical WeMilktea drinks and stores across Auckland, then find your next milk tea stop."
+        path="/explore"
+        robots={hasSearch ? "noindex, follow" : "index, follow"}
+        title="Explore Auckland Milk Tea | WeMilktea"
+      />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
       <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 lg:pt-8">
         <section className="rounded-2xl border border-border bg-[#dfead5] p-6 md:grid md:grid-cols-[1.15fr_0.85fr] md:items-center md:p-10">

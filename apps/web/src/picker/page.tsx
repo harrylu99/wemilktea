@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { Seo } from "../seo";
 import {
   cravingOption,
   CRAVING_OPTIONS,
@@ -62,19 +63,6 @@ function PickerStage({ drawing }: { drawing: boolean }) {
   );
 }
 
-function setPickerMetadata() {
-  document.title = "Daily Milk Tea Picker | WeMilktea";
-  const description =
-    "Let WeMilktea choose one Auckland milk tea drink and store for you.";
-  let tag = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-  if (!tag) {
-    tag = document.createElement("meta");
-    tag.name = "description";
-    document.head.appendChild(tag);
-  }
-  tag.content = description;
-}
-
 export function PickerPage() {
   const [selectedCraving, setSelectedCraving] = useState<CravingKey>("matcha");
   const [candidates, setCandidates] = useState<PickerCandidate[]>([]);
@@ -99,7 +87,6 @@ export function PickerPage() {
 
   useEffect(() => {
     void load();
-    setPickerMetadata();
     return () => {
       if (drawingTimer.current !== null) {
         window.clearTimeout(drawingTimer.current);
@@ -138,6 +125,11 @@ export function PickerPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description="Let WeMilktea choose a milk tea drink and real Auckland store for your next craving."
+        path="/picker"
+        title="Daily Milk Tea Picker | WeMilktea"
+      />
       <PublicHeader />
       <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <div className="mb-8">

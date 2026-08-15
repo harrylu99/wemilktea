@@ -1,5 +1,4 @@
 import {
-  approveStoreCandidateSchema,
   brandOptionSchema,
   type BrandOption,
   candidateGoogleDetailSchema,
@@ -13,7 +12,12 @@ import {
 } from "@wemilktea/validation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  type CandidateApprovalField,
+  validateCandidateApprovalForm
+} from "./candidate-review-form";
 import { DiscoveryControl } from "./discovery-control";
+import { slugify } from "./lib/slug";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 
 const candidateFilters = [
@@ -73,6 +77,34 @@ function friendlyMutationError(message: string | undefined) {
 
 function PageState({ message }: { message: string }) {
   return <p className="text-sm text-muted-foreground">{message}</p>;
+}
+
+function CandidateFieldError({
+  field,
+  errors
+}: {
+  field: CandidateApprovalField;
+  errors: Partial<Record<CandidateApprovalField, string>>;
+}) {
+  const message = errors[field];
+  return message ? (
+    <p
+      className="mt-1 text-sm text-destructive"
+      id={`candidate-review-error-${field}`}
+      role="alert"
+    >
+      {message}
+    </p>
+  ) : null;
+}
+
+function RequiredMark() {
+  return (
+    <>
+      <span aria-hidden="true"> *</span>
+      <span className="sr-only"> required</span>
+    </>
+  );
 }
 
 export function CandidateQueuePage() {
@@ -245,6 +277,9 @@ export function CandidateReviewPage() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [sourceReference, setSourceReference] = useState("");
+  const [approvalFieldErrors, setApprovalFieldErrors] = useState<
+    Partial<Record<CandidateApprovalField, string>>
+  >({});
   const [mergeSearch, setMergeSearch] = useState("");
   const [targetLocationId, setTargetLocationId] = useState("");
   const [rejectionReason, setRejectionReason] = useState("not_milk_tea");
@@ -327,6 +362,15 @@ export function CandidateReviewPage() {
       .includes(mergeSearch.toLowerCase())
   );
 
+  const clearApprovalFieldError = (field: CandidateApprovalField) => {
+    setApprovalFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
   const loadGoogleReference = async () => {
     if (!supabase || !candidate) return;
 
@@ -354,46 +398,78 @@ export function CandidateReviewPage() {
     }
 
     setGoogleDetail(parsed.data);
+
+    if (parsed.data.displayName) {
+      setDisplayName((current) => {
+        if (current.trim()) return current;
+        return parsed.data.displayName;
+      });
+      setLocationSlug((current) => {
+        if (current.trim()) return current;
+        return slugify(parsed.data.displayName);
+      });
+    }
+    if (parsed.data.formattedAddress) {
+      setAddress((current) => {
+        if (current.trim()) return current;
+        return parsed.data.formattedAddress ?? current;
+      });
+    }
+    if (parsed.data.latitude !== null) {
+      setLatitude((current) => {
+        if (current.trim()) return current;
+        return String(parsed.data.latitude);
+      });
+    }
+    if (parsed.data.longitude !== null) {
+      setLongitude((current) => {
+        if (current.trim()) return current;
+        return String(parsed.data.longitude);
+      });
+    }
+    if (parsed.data.googleMapsUri) {
+      setSourceReference((current) => {
+        if (current.trim()) return current;
+        return parsed.data.googleMapsUri ?? current;
+      });
+    }
   };
 
   const approve = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!candidate || !supabase) return;
 
-    const parsed = approveStoreCandidateSchema.safeParse({
+    const validation = validateCandidateApprovalForm({
       candidateId: candidate.id,
-      brand:
-        brandMode === "existing"
-          ? { mode: "existing", brandId: selectedBrandId }
-          : { mode: "new", name: newBrandName, slug: newBrandSlug },
-      location: {
-        displayName,
-        slug: locationSlug,
-        suburb,
-        address,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        ...(sourceReference ? { sourceReference } : {})
-      }
+      brandMode,
+      selectedBrandId,
+      newBrandName,
+      newBrandSlug,
+      displayName,
+      locationSlug,
+      suburb,
+      address,
+      latitude,
+      longitude,
+      sourceReference
     });
+    setApprovalFieldErrors(validation.errors);
 
-    if (!parsed.success) {
-      setErrorMessage(
-        "Complete the verified canonical store data with valid values."
-      );
+    if (!validation.input) {
+      setErrorMessage(null);
       return;
     }
 
     if (
       !window.confirm(
-        "Approve this candidate and create a draft canonical location?"
+        "Approve this candidate and create a draft canonical store?"
       )
     )
       return;
 
     setErrorMessage(null);
     setIsSubmitting(true);
-    const input = parsed.data;
+    const input = validation.input;
     const { error } = await supabase.rpc("approve_store_candidate", {
       p_candidate_id: input.candidateId,
       p_brand_id: input.brand.mode === "existing" ? input.brand.brandId : null,
@@ -599,27 +675,45 @@ export function CandidateReviewPage() {
         <>
           <form
             className="mt-8 rounded-lg border border-border bg-card p-5"
+            noValidate
             onSubmit={approve}
           >
             <p className="text-xs font-semibold tracking-wide text-muted-foreground">
-              WEMILKTEA STORE DATA
+              WEMILKTEA CANONICAL STORE DATA
             </p>
             <h2 className="mt-1 text-lg font-semibold">
-              Approve as new location
+              Create canonical store
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Enter independently verified canonical data. Approval creates a
-              draft location; it does not publish it.
+              Verify the business identity and physical branch separately.
+              Approval creates a draft store; it does not publish it.
             </p>
-            <fieldset className="mt-6">
-              <legend className="text-sm font-medium">Brand</legend>
-              <div className="mt-2 flex gap-4 text-sm">
+            <fieldset className="mt-6 rounded-md border border-border p-4">
+              <legend className="px-1 text-sm font-semibold">Brand</legend>
+              <p className="mt-1 text-sm text-muted-foreground">
+                The business identity. A brand can have multiple stores and does
+                not have coordinates.
+              </p>
+              <div
+                aria-describedby={
+                  approvalFieldErrors.brand
+                    ? "candidate-review-error-brand"
+                    : undefined
+                }
+                className="mt-4 flex flex-wrap gap-4 text-sm"
+                role="radiogroup"
+              >
                 <label>
                   <input
                     checked={brandMode === "existing"}
                     name="brand-mode"
                     type="radio"
-                    onChange={() => setBrandMode("existing")}
+                    onChange={() => {
+                      setBrandMode("existing");
+                      clearApprovalFieldError("brand");
+                      clearApprovalFieldError("newBrandName");
+                      clearApprovalFieldError("newBrandSlug");
+                    }}
                   />{" "}
                   Existing brand
                 </label>
@@ -628,102 +722,335 @@ export function CandidateReviewPage() {
                     checked={brandMode === "new"}
                     name="brand-mode"
                     type="radio"
-                    onChange={() => setBrandMode("new")}
+                    onChange={() => {
+                      setBrandMode("new");
+                      clearApprovalFieldError("brand");
+                    }}
                   />{" "}
                   Create new brand
                 </label>
               </div>
               {brandMode === "existing" ? (
-                <select
-                  className="mt-3 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={selectedBrandId}
-                  onChange={(event) => setSelectedBrandId(event.target.value)}
-                >
-                  <option value="">Select a brand</option>
-                  {brands.map((brand) => (
-                    <option key={brand.id} value={brand.id}>
-                      {brand.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-4">
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-brand"
+                  >
+                    Existing brand <RequiredMark />
+                  </label>
+                  <select
+                    aria-describedby={
+                      approvalFieldErrors.brand
+                        ? "candidate-review-error-brand"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.brand)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-brand"
+                    value={selectedBrandId}
+                    onChange={(event) => {
+                      setSelectedBrandId(event.target.value);
+                      clearApprovalFieldError("brand");
+                    }}
+                  >
+                    <option value="">Select a brand</option>
+                    {brands.map((brand) => (
+                      <option key={brand.id} value={brand.id}>
+                        {brand.name}
+                      </option>
+                    ))}
+                  </select>
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="brand"
+                  />
+                </div>
               ) : (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <input
-                    aria-label="New brand name"
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="Brand name"
-                    value={newBrandName}
-                    onChange={(event) => setNewBrandName(event.target.value)}
-                  />
-                  <input
-                    aria-label="New brand slug"
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="brand-slug"
-                    value={newBrandSlug}
-                    onChange={(event) => setNewBrandSlug(event.target.value)}
-                  />
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="candidate-new-brand-name"
+                    >
+                      Brand name <RequiredMark />
+                    </label>
+                    <input
+                      aria-describedby={
+                        approvalFieldErrors.newBrandName
+                          ? "candidate-review-error-newBrandName"
+                          : undefined
+                      }
+                      aria-invalid={Boolean(approvalFieldErrors.newBrandName)}
+                      aria-required="true"
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      id="candidate-new-brand-name"
+                      placeholder="Enter brand name"
+                      value={newBrandName}
+                      onChange={(event) => {
+                        setNewBrandName(event.target.value);
+                        clearApprovalFieldError("newBrandName");
+                      }}
+                    />
+                    <CandidateFieldError
+                      errors={approvalFieldErrors}
+                      field="newBrandName"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="candidate-new-brand-slug"
+                    >
+                      Brand slug <RequiredMark />
+                    </label>
+                    <input
+                      aria-describedby={
+                        approvalFieldErrors.newBrandSlug
+                          ? "candidate-review-error-newBrandSlug"
+                          : undefined
+                      }
+                      aria-invalid={Boolean(approvalFieldErrors.newBrandSlug)}
+                      aria-required="true"
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      id="candidate-new-brand-slug"
+                      placeholder="Enter brand slug"
+                      value={newBrandSlug}
+                      onChange={(event) => {
+                        setNewBrandSlug(event.target.value);
+                        clearApprovalFieldError("newBrandSlug");
+                      }}
+                    />
+                    <CandidateFieldError
+                      errors={approvalFieldErrors}
+                      field="newBrandSlug"
+                    />
+                  </div>
                 </div>
               )}
             </fieldset>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <input
-                aria-label="Location display name"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="Location display name"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-              <input
-                aria-label="Location slug"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="location-slug"
-                value={locationSlug}
-                onChange={(event) => setLocationSlug(event.target.value)}
-              />
-              <input
-                aria-label="Suburb"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="Suburb / area"
-                value={suburb}
-                onChange={(event) => setSuburb(event.target.value)}
-              />
-              <input
-                aria-label="Address"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="Verified address"
-                value={address}
-                onChange={(event) => setAddress(event.target.value)}
-              />
-              <input
-                aria-label="Latitude"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                inputMode="decimal"
-                placeholder="Latitude"
-                value={latitude}
-                onChange={(event) => setLatitude(event.target.value)}
-              />
-              <input
-                aria-label="Longitude"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                inputMode="decimal"
-                placeholder="Longitude"
-                value={longitude}
-                onChange={(event) => setLongitude(event.target.value)}
-              />
-              <input
-                aria-label="Independent verification URL"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm sm:col-span-2"
-                placeholder="Independent verification URL (optional)"
-                value={sourceReference}
-                onChange={(event) => setSourceReference(event.target.value)}
-              />
-            </div>
+
+            <fieldset className="mt-6 rounded-md border border-border p-4">
+              <legend className="px-1 text-sm font-semibold">
+                Store / Location
+              </legend>
+              <p className="mt-1 text-sm text-muted-foreground">
+                The physical branch created under the selected brand. Store
+                coordinates are required for maps and geographic discovery.
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-location-name"
+                  >
+                    Location display name <RequiredMark />
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.displayName
+                        ? "candidate-review-error-displayName"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.displayName)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-location-name"
+                    placeholder="Enter location display name"
+                    value={displayName}
+                    onChange={(event) => {
+                      setDisplayName(event.target.value);
+                      clearApprovalFieldError("displayName");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="displayName"
+                  />
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-location-slug"
+                  >
+                    Location slug <RequiredMark />
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.locationSlug
+                        ? "candidate-review-error-locationSlug"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.locationSlug)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-location-slug"
+                    placeholder="Enter location slug"
+                    value={locationSlug}
+                    onChange={(event) => {
+                      setLocationSlug(event.target.value);
+                      clearApprovalFieldError("locationSlug");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="locationSlug"
+                  />
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-suburb"
+                  >
+                    Suburb / area <RequiredMark />
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.suburb
+                        ? "candidate-review-error-suburb"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.suburb)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-suburb"
+                    placeholder="Enter suburb or area"
+                    value={suburb}
+                    onChange={(event) => {
+                      setSuburb(event.target.value);
+                      clearApprovalFieldError("suburb");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="suburb"
+                  />
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-address"
+                  >
+                    Address <RequiredMark />
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.address
+                        ? "candidate-review-error-address"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.address)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-address"
+                    placeholder="Enter verified street address"
+                    value={address}
+                    onChange={(event) => {
+                      setAddress(event.target.value);
+                      clearApprovalFieldError("address");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="address"
+                  />
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-latitude"
+                  >
+                    Latitude <RequiredMark />
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.latitude
+                        ? "candidate-review-error-latitude"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.latitude)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-latitude"
+                    inputMode="decimal"
+                    placeholder="Enter latitude"
+                    value={latitude}
+                    onChange={(event) => {
+                      setLatitude(event.target.value);
+                      clearApprovalFieldError("latitude");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="latitude"
+                  />
+                </div>
+                <div>
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-longitude"
+                  >
+                    Longitude <RequiredMark />
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.longitude
+                        ? "candidate-review-error-longitude"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.longitude)}
+                    aria-required="true"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-longitude"
+                    inputMode="decimal"
+                    placeholder="Enter longitude"
+                    value={longitude}
+                    onChange={(event) => {
+                      setLongitude(event.target.value);
+                      clearApprovalFieldError("longitude");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="longitude"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="candidate-source-reference"
+                  >
+                    Independent verification URL
+                  </label>
+                  <input
+                    aria-describedby={
+                      approvalFieldErrors.sourceReference
+                        ? "candidate-review-error-sourceReference"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(approvalFieldErrors.sourceReference)}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    id="candidate-source-reference"
+                    placeholder="Enter verification URL (optional)"
+                    value={sourceReference}
+                    onChange={(event) => {
+                      setSourceReference(event.target.value);
+                      clearApprovalFieldError("sourceReference");
+                    }}
+                  />
+                  <CandidateFieldError
+                    errors={approvalFieldErrors}
+                    field="sourceReference"
+                  />
+                </div>
+              </div>
+            </fieldset>
             <button
               className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
               disabled={isSubmitting}
               type="submit"
             >
-              {isSubmitting ? "Submitting…" : "Approve as new location"}
+              {isSubmitting ? "Creating store…" : "Approve and create store"}
             </button>
           </form>
 
@@ -746,7 +1073,7 @@ export function CandidateReviewPage() {
             <input
               aria-label="Search canonical locations"
               className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="Search canonical locations"
+              placeholder="Search locations"
               value={mergeSearch}
               onChange={(event) => setMergeSearch(event.target.value)}
             />

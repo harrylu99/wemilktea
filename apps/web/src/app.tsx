@@ -15,6 +15,7 @@ import {
 } from "./stores/google-map";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { PublicHeader } from "./public-header";
+import { Seo } from "./seo";
 import { StoreDetailPage } from "./store-detail";
 import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
 import { DrinksPage } from "./drinks/page";
@@ -279,7 +280,6 @@ function StoresPage() {
   const nearMe = searchParams.get("near") === "1";
 
   useEffect(() => {
-    document.title = "Stores | WeMilktea";
     const client = supabase;
     if (!client) {
       setErrorMessage(supabaseConfigurationError);
@@ -405,6 +405,16 @@ function StoresPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description="Explore milk tea and bubble tea stores across Auckland, browse locations and discover somewhere new to try."
+        path="/stores"
+        robots={
+          query.trim() || brandSlug || suburb || nearMe
+            ? "noindex, follow"
+            : "index, follow"
+        }
+        title="Milk Tea Stores in Auckland | WeMilktea"
+      />
       <PublicHeader onSearch={focusSearch} />
       <main className="mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">
@@ -606,6 +616,12 @@ function PlaceholderPage({
 }) {
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description={description}
+        path={typeof window === "undefined" ? "/" : window.location.pathname}
+        robots="noindex, follow"
+        title={`${title} | WeMilktea`}
+      />
       <PublicHeader />
       <main className="mx-auto max-w-[1280px] px-5 py-12 sm:px-8">
         <h1 className="text-[32px] font-semibold leading-10">{title}</h1>

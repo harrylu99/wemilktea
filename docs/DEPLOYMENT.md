@@ -1,7 +1,8 @@
 # Production deployment
 
 This runbook takes the two Vite applications and the Supabase project from a
-reviewed checkout to independently deployed Cloudflare Pages applications.
+reviewed checkout to independently deployed Cloudflare Workers Static Assets
+applications.
 It is explicit about the boundary between browser-safe values and server-only
 secrets.
 
@@ -9,7 +10,7 @@ secrets.
 
 ```text
 preflight → Supabase migrations/RLS → Edge Functions → R2/Maps/Auth config
-→ frontend builds → Pages deploy → integration checks → smoke tests → GO/NO-GO
+→ frontend builds → Workers deploy → integration checks → smoke tests → GO/NO-GO
 ```
 
 Do not run a local reset against a production project. Production schema
@@ -17,17 +18,20 @@ changes are applied by reviewed migrations only.
 
 ## Production topology
 
-| Responsibility                              | Production service                        |
-| ------------------------------------------- | ----------------------------------------- |
-| Public application                          | Cloudflare Pages project for `apps/web`   |
-| Admin application                           | Cloudflare Pages project for `apps/admin` |
-| Database, PostGIS, Auth and RLS             | Supabase Cloud                            |
-| Server-side Google Places and R2 operations | Supabase Edge Functions                   |
-| Owned/permitted image bytes                 | Cloudflare R2                             |
-| Public map rendering                        | Google Maps JavaScript API                |
+| Responsibility                              | Production service                               |
+| ------------------------------------------- | ------------------------------------------------ |
+| Public application                          | Cloudflare Worker Static Assets for `apps/web`   |
+| Admin application                           | Cloudflare Worker Static Assets for `apps/admin` |
+| Database, PostGIS, Auth and RLS             | Supabase Cloud                                   |
+| Server-side Google Places and R2 operations | Supabase Edge Functions                          |
+| Owned/permitted image bytes                 | Cloudflare R2                                    |
+| Public map rendering                        | Google Maps JavaScript API                       |
 
-The Pages applications are static SPAs. The `_redirects` file in each app
-routes direct client-side URLs to `index.html`.
+The applications are static SPAs. Each Wrangler configuration uses
+`assets.not_found_handling: "single-page-application"`, which serves
+`index.html` for direct navigation requests that do not match a static asset.
+The Admin `_headers` file is consumed by Workers Static Assets to apply the
+Admin `X-Robots-Tag` policy.
 
 ## Preflight inventory
 
@@ -37,7 +41,7 @@ file:
 | Item                                         | Value/status to record before release |
 | -------------------------------------------- | ------------------------------------- |
 | Supabase project ref, region and environment |                                       |
-| Cloudflare account and Pages project names   |                                       |
+| Cloudflare account and Worker names          |                                       |
 | Public and Admin production origins          |                                       |
 | R2 bucket and public base URL                |                                       |
 | Google Maps browser-key restrictions         |                                       |
@@ -49,9 +53,9 @@ If any value is unknown, the release is not ready for a production GO.
 
 ## Environment matrix
 
-### Browser-safe Pages variables
+### Browser-safe Workers variables
 
-Configure these in the corresponding Cloudflare Pages project. They are
+Configure these in the corresponding Cloudflare Workers project. They are
 intentionally delivered to browser code, so use only publishable values.
 
 Public (`apps/web`):
@@ -61,6 +65,7 @@ VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
 VITE_R2_PUBLIC_BASE_URL
 VITE_GOOGLE_MAPS_BROWSER_KEY
+VITE_PUBLIC_SITE_URL
 ```
 
 Admin (`apps/admin`):
@@ -75,6 +80,10 @@ The Maps key must be restricted by HTTP referrer to the final public origin
 (and any deliberately supported preview origins) and restricted to the APIs
 used by the map renderer. The R2 value is a public read base URL, never a
 credential.
+
+Set `VITE_PUBLIC_SITE_URL` to the final public HTTPS origin. The public build
+uses it for canonical/social URLs and for the generated `robots.txt` and
+`sitemap.xml`; do not deploy the local `http://localhost:5173` fallback.
 
 ### Server-only Edge Function secrets
 
@@ -218,42 +227,34 @@ If discovery is enabled for launch, run one controlled Admin discovery and
 confirm that only the durable Place ID is retained in candidate data. If it is
 disabled, record that explicitly as a launch decision.
 
-## Cloudflare Pages
+## Cloudflare Workers Static Assets
 
-The preferred Git-integrated monorepo configuration is one Pages project per
-app with repository root `/` so Bun resolves the workspace lockfile:
-
-Cloudflare's [monorepo build configuration](https://developers.cloudflare.com/pages/configuration/monorepos/)
-supports separate project roots/builds. For prebuilt assets, use the
-[Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)
-workflow.
+Use one Worker with Static Assets per app. Build from the repository root so Bun
+resolves the workspace lockfile, then deploy the matching `dist` directory with
+the app's Wrangler configuration.
 
 | Project | Build command                         | Output directory  |
 | ------- | ------------------------------------- | ----------------- |
 | Public  | `bun --filter @wemilktea/web build`   | `apps/web/dist`   |
 | Admin   | `bun --filter @wemilktea/admin build` | `apps/admin/dist` |
 
-If a Pages project is configured with root directory `apps/web` or
-`apps/admin`, use `bun run build` and `dist` and verify that the build image
-still installs from the workspace root. Do not mix the two configurations.
-
-For a prebuilt/direct upload, build from the repository root and deploy only
-the matching output directory:
+Build from the repository root and deploy the matching Worker:
 
 ```sh
 bun --filter @wemilktea/web build
-bunx wrangler pages deploy apps/web/dist --project-name <PUBLIC_PROJECT>
+bunx wrangler deploy --config apps/web/wrangler.jsonc
 
 bun --filter @wemilktea/admin build
-bunx wrangler pages deploy apps/admin/dist --project-name <ADMIN_PROJECT>
+bunx wrangler deploy --config apps/admin/wrangler.jsonc
 ```
 
 Authenticate Wrangler using the Cloudflare account that owns the projects and
-keep the account token out of the repository. Pages direct uploads are an
-alternative to Git integration; choose one project strategy and document it.
+keep the account token out of the repository. Use separate Worker names and
+custom domains for the public and Admin applications.
 
 After each deploy, verify direct navigation and reload for every public and
-protected route. The `_redirects` file must be present in the published output.
+protected route. Wrangler's SPA asset configuration, rather than a hosting-
+provider redirect file, is responsible for the application shell fallback.
 
 ## Deployed smoke test
 
@@ -281,7 +282,7 @@ certification.
 
 ## Rollback
 
-- **Pages:** promote/redeploy the prior known-good deployment.
+- **Workers:** promote/redeploy the prior known-good deployment.
 - **Edge Functions:** redeploy the prior known-good function revision.
 - **Configuration:** restore the previous environment values and origin
   allow-lists.
@@ -291,15 +292,15 @@ certification.
 
 ## Troubleshooting
 
-| Symptom                  | First place to look                                             |
-| ------------------------ | --------------------------------------------------------------- |
-| Direct route returns 404 | Pages deployment output and `_redirects`                        |
-| Public data is empty     | Supabase project URL/key, production catalogue and RLS          |
-| Admin cannot sign in     | Auth Site URL/redirects and `admin_users`                       |
-| Function returns 403     | `ADMIN_APP_ORIGIN`, JWT and `is_admin()`                        |
-| Discovery fails          | Function logs, Places quota/key restriction and migration state |
-| Image upload fails       | R2 secrets, bucket CORS, presigned URL expiry and function logs |
-| Map is unavailable       | Browser key referrer/API restriction and console errors         |
+| Symptom                  | First place to look                                                  |
+| ------------------------ | -------------------------------------------------------------------- |
+| Direct route returns 404 | Wrangler `assets.not_found_handling` and the published `dist` output |
+| Public data is empty     | Supabase project URL/key, production catalogue and RLS               |
+| Admin cannot sign in     | Auth Site URL/redirects and `admin_users`                            |
+| Function returns 403     | `ADMIN_APP_ORIGIN`, JWT and `is_admin()`                             |
+| Discovery fails          | Function logs, Places quota/key restriction and migration state      |
+| Image upload fails       | R2 secrets, bucket CORS, presigned URL expiry and function logs      |
+| Map is unavailable       | Browser key referrer/API restriction and console errors              |
 
 ## Release evidence
 

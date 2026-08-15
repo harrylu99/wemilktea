@@ -8,6 +8,8 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { Seo } from "../seo";
+import { publicSiteDescription } from "../seo-utils";
 import { DrinkCard } from "../drinks/page";
 import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
@@ -120,19 +122,6 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
   );
 }
 
-function setHomeMetadata() {
-  document.title = "WeMilktea — Auckland milk tea guide";
-  const description =
-    "Discover Auckland milk tea drinks, stores and small discoveries with WeMilktea.";
-  let tag = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-  if (!tag) {
-    tag = document.createElement("meta");
-    tag.name = "description";
-    document.head.appendChild(tag);
-  }
-  tag.content = description;
-}
-
 export function HomePage() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -159,7 +148,6 @@ export function HomePage() {
 
   useEffect(() => {
     void load();
-    setHomeMetadata();
   }, [load]);
 
   const drinks = useMemo(
@@ -183,6 +171,11 @@ export function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description={publicSiteDescription}
+        path="/"
+        title="WeMilktea | Discover Milk Tea & Bubble Tea in Auckland"
+      />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
       <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <section className="grid gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[1.05fr_0.95fr] md:items-stretch md:gap-8 md:p-8 lg:p-10">
@@ -321,7 +314,7 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-stores-heading"
                   >
-                    Around Auckland
+                    What's nearby
                   </h2>
                 </div>
                 <Link

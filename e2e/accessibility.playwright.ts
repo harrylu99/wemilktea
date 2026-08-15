@@ -18,12 +18,15 @@ const publicRoutes = [
 ] as const;
 
 const routeTitles = [
-  ["/", "WeMilktea — Auckland milk tea guide"],
-  ["/explore", "Explore Auckland milk tea | WeMilktea"],
-  ["/stores", "Stores | WeMilktea"],
-  [validStoreRoute, "Gong cha Newmarket | WeMilktea"],
-  ["/drinks", "Drinks | WeMilktea"],
-  [validDrinkRoute, "Brown Sugar Pearl Milk Tea | WeMilktea"],
+  ["/", "WeMilktea | Discover Milk Tea & Bubble Tea in Auckland"],
+  ["/explore", "Explore Auckland Milk Tea | WeMilktea"],
+  ["/stores", "Milk Tea Stores in Auckland | WeMilktea"],
+  [
+    validStoreRoute,
+    "Gong cha Newmarket | Milk Tea in Newmarket | WeMilktea"
+  ],
+  ["/drinks", "Milk Tea Drinks in Auckland | WeMilktea"],
+  [validDrinkRoute, "Brown Sugar Pearl Milk Tea | Milk Tea Drink | WeMilktea"],
   ["/picker", "Daily Milk Tea Picker | WeMilktea"],
   [
     validPickerResultRoute,

@@ -14,7 +14,7 @@ See [the architecture document](docs/ARCHITECTURE.md) for responsibilities and d
 - Tailwind CSS and shadcn/ui
 - Zod
 - Supabase: PostgreSQL, PostGIS, Auth, RLS
-- Cloudflare Pages and Cloudflare R2
+- Cloudflare Workers Static Assets and Cloudflare R2
 - Google Places API for discovery and enrichment
 
 ## Repository structure
@@ -58,6 +58,7 @@ The browser applications may use only the Supabase project URL and publishable/a
 ```text
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+VITE_PUBLIC_SITE_URL=
 VITE_GOOGLE_MAPS_BROWSER_KEY=
 VITE_R2_PUBLIC_BASE_URL=
 ```
@@ -79,6 +80,8 @@ The public Drink Detail route is documented in [Public Drink Detail](docs/DRINK_
 The Picker Result route is documented in [Picker Result](docs/PICKER_RESULT.md). It revalidates the selected published drink/store relationship on refresh and never rerolls or substitutes a stale recommendation.
 
 The public Maps key is optional for local development and must be restricted by HTTP referrer and enabled APIs in Google Cloud. It is safe to expose to the browser only under those restrictions; never put the server-only Places key in a Vite environment file. See [Design references](docs/DESIGN.md).
+
+Set `VITE_PUBLIC_SITE_URL` to the final public HTTPS origin before deploying the public app. It drives canonical URLs, social metadata, `robots.txt` and the build-time sitemap. See [SEO baseline](docs/SEO.md). The Admin app has a separate noindex configuration and must not reuse the public origin.
 
 ## Commands
 
@@ -107,13 +110,14 @@ Create schema changes with `supabase migration new <name>`. Commit the generated
 
 ## Deployment
 
-Cloudflare Pages deploys each app independently from this repository. The
-workspace-safe configuration uses repository root `/`, `bun --filter
-@wemilktea/web build` with `apps/web/dist`, and `bun --filter
-@wemilktea/admin build` with `apps/admin/dist`. A Pages project rooted at an
-individual app may instead use `bun run build` and `dist` if the build image
-resolves the Bun workspace correctly. Both apps ship `public/_redirects` so
-direct client-side routes resolve to the application shell. Follow the
+Cloudflare Workers Static Assets deploys each app independently from this
+repository. The workspace-safe configuration uses repository root `/`,
+`bun --filter @wemilktea/web build` with `apps/web/dist`, and
+`bun --filter @wemilktea/admin build` with `apps/admin/dist`. A Worker rooted at
+an individual app may instead use `bun run build` and `dist` if the build image
+resolves the Bun workspace correctly. Both Wrangler configurations use
+`not_found_handling: "single-page-application"` so direct client-side routes
+resolve to the application shell. Follow the
 [production deployment runbook](docs/DEPLOYMENT.md) and [release checklist](docs/RELEASE_CHECKLIST.md)
 for migrations, secrets, integrations, smoke testing and rollback.
 
@@ -138,6 +142,7 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Public Explore](docs/EXPLORE.md)
 - [Public Home](docs/HOME.md)
 - [Daily Milk Tea Picker](docs/PICKER.md)
+- [SEO baseline](docs/SEO.md)
 - [Picker Result](docs/PICKER_RESULT.md)
 - [Design references](docs/DESIGN.md)
 - [Engineering decisions](docs/DECISIONS.md)

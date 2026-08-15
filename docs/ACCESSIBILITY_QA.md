@@ -202,15 +202,16 @@ Suggest Store.
 
 Deployment is not started by WM-33. WM-34 should prepare:
 
-- **Production environment:** separate public and admin Cloudflare Pages
-  projects, direct-route `_redirects`, Bun build output `dist`, and production
+- **Production environment:** separate public and admin Cloudflare Workers
+  with Static Assets, Wrangler SPA fallback, Bun build output `dist`, and production
   Supabase project URL/keys.
 - **Supabase Cloud:** apply reviewed migrations in order, load the approved
   production seed/catalogue expectations, configure Auth site/redirect URLs for
   Admin, verify RLS/public publication boundaries, and deploy the required Edge
   Functions.
-- **Cloudflare Pages:** public root `apps/web`, admin root `apps/admin`, build
-  command `bun run build`, publish directory `dist`.
+- **Cloudflare Workers:** public config `apps/web/wrangler.jsonc`, admin config
+  `apps/admin/wrangler.jsonc`, build command `bun run build`, and assets directory
+  `dist`.
 - **Public browser variables:** `VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY`, `VITE_R2_PUBLIC_BASE_URL`, and the restricted
   `VITE_GOOGLE_MAPS_BROWSER_KEY` for the public app. The admin app needs the

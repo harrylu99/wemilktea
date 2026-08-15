@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { Seo } from "../seo";
 import {
   drinkDetailPath,
   filterPublicDrinks,
@@ -135,7 +136,6 @@ export function DrinksPage() {
 
   useEffect(() => {
     void load();
-    document.title = "Drinks | WeMilktea";
   }, [load]);
 
   const visibleDrinks = useMemo(
@@ -160,6 +160,14 @@ export function DrinksPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description="Browse canonical milk tea and bubble tea drinks available around Auckland."
+        path="/drinks"
+        robots={
+          query.trim() || categorySlug ? "noindex, follow" : "index, follow"
+        }
+        title="Milk Tea Drinks in Auckland | WeMilktea"
+      />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
       <main className="mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>

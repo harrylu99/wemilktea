@@ -12,6 +12,8 @@ import {
   type PublicStoreDetail,
   type PublicStoreDrink
 } from "./stores/detail";
+import { Seo } from "./seo";
+import { localBusinessJsonLd, publicUrl } from "./seo-utils";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -245,24 +247,6 @@ export function StoreDetailPage() {
     };
   }, [slug]);
 
-  useEffect(() => {
-    const title = store
-      ? `${store.displayName} | WeMilktea`
-      : "Store detail | WeMilktea";
-    document.title = title;
-    if (store) {
-      let description = document.querySelector<HTMLMetaElement>(
-        'meta[name="description"]'
-      );
-      if (!description) {
-        description = document.createElement("meta");
-        description.name = "description";
-        document.head.append(description);
-      }
-      description.content = `${store.displayName} in ${store.suburb}. Discover this Auckland milk-tea location on WeMilktea.`;
-    }
-  }, [store]);
-
   const shareStore = async () => {
     if (!store) return;
     const browserNavigator = navigator as Navigator & {
@@ -295,6 +279,34 @@ export function StoreDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description={
+          store
+            ? `Discover ${store.displayName} in ${store.suburb}, Auckland. View store details, available drinks and location information on WeMilktea.`
+            : "Discover Auckland milk tea stores and locations on WeMilktea."
+        }
+        imageUrl={store?.imageUrl}
+        jsonLd={
+          store
+            ? localBusinessJsonLd({
+                address: store.address,
+                displayName: store.displayName,
+                imageUrl: store.imageUrl,
+                latitude: store.latitude,
+                longitude: store.longitude,
+                suburb: store.suburb,
+                url: publicUrl(`/stores/${encodeURIComponent(store.slug)}`)
+              })
+            : null
+        }
+        path={slug ? `/stores/${encodeURIComponent(slug)}` : "/stores"}
+        robots={status === "ready" ? "index, follow" : "noindex, follow"}
+        title={
+          store
+            ? `${store.displayName} | Milk Tea in ${store.suburb} | WeMilktea`
+            : "Store detail | WeMilktea"
+        }
+      />
       <PublicHeader />
       <main className="mx-auto max-w-[1250px] px-5 pb-28 pt-5 sm:px-8 md:pb-10 lg:px-0">
         <Link

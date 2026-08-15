@@ -780,6 +780,7 @@ export function ProductManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="product-name"
+              placeholder="Enter product name"
               value={form.name}
               onChange={(event) => setField("name", event.target.value)}
             />
@@ -789,6 +790,7 @@ export function ProductManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="product-slug"
+              placeholder="Enter product slug"
               value={form.slug}
               onChange={(event) => setField("slug", event.target.value)}
             />
@@ -811,7 +813,7 @@ export function ProductManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="product-tags"
-              placeholder="brown-sugar, pearls"
+              placeholder="Enter comma-separated discovery tags"
               value={form.discoveryTags}
               onChange={(event) =>
                 setField("discoveryTags", event.target.value)
@@ -1004,7 +1006,7 @@ export function ProductManagementPage() {
                           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           id={`price-${location.id}`}
                           inputMode="numeric"
-                          placeholder="750"
+                          placeholder="Enter price in cents"
                           value={draft.price}
                           onChange={(event) =>
                             updateAvailability(

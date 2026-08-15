@@ -42,14 +42,16 @@ export const storeCandidateStatusSchema = z.enum([
   "rejected"
 ]);
 
+const postgresTimestampSchema = z.string().datetime({ offset: true });
+
 export const storeCandidateSummarySchema = z.object({
   id: uuidSchema,
   google_place_id: z.string().min(1),
   status: storeCandidateStatusSchema,
   source_provenance: z.string().min(1),
-  first_seen_at: z.string().datetime(),
-  last_seen_at: z.string().datetime(),
-  reviewed_at: z.string().datetime().nullable(),
+  first_seen_at: postgresTimestampSchema,
+  last_seen_at: postgresTimestampSchema,
+  reviewed_at: postgresTimestampSchema.nullable(),
   possible_location_id: uuidSchema.nullable(),
   resolved_location_id: uuidSchema.nullable(),
   rejection_reason: z.string().nullable()
@@ -149,8 +151,8 @@ export const storeManagementListItemSchema = z.object({
   slug: slugSchema,
   suburb: z.string().min(1),
   publication_status: publicationStatusSchema,
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime()
+  created_at: postgresTimestampSchema,
+  updated_at: postgresTimestampSchema
 });
 
 export type StoreManagementListItem = z.infer<
@@ -171,15 +173,15 @@ export const storeManagementDetailSchema = z.object({
   source_provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
   source_reference: z.string().url().nullable(),
   google_place_id: z.string().min(1).nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime()
+  created_at: postgresTimestampSchema,
+  updated_at: postgresTimestampSchema
 });
 
 export type StoreManagementDetail = z.infer<typeof storeManagementDetailSchema>;
 
 export const updateStoreManagementSchema = z.object({
   locationId: uuidSchema,
-  expectedUpdatedAt: z.string().datetime(),
+  expectedUpdatedAt: postgresTimestampSchema,
   brandId: uuidSchema,
   location: canonicalLocationInputSchema
 });
@@ -222,8 +224,8 @@ export const storeSubmissionRowSchema = z.object({
   notes: z.string().nullable(),
   submitter_email: z.string().email().nullable(),
   moderation_status: storeSubmissionModerationStatusSchema,
-  created_at: z.string().datetime(),
-  reviewed_at: z.string().datetime().nullable(),
+  created_at: postgresTimestampSchema,
+  reviewed_at: postgresTimestampSchema.nullable(),
   reviewed_by: uuidSchema.nullable()
 });
 
@@ -252,8 +254,8 @@ export const productManagementListItemSchema = z.object({
   description: z.string().nullable(),
   is_seasonal: z.boolean(),
   is_published: z.boolean(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: postgresTimestampSchema,
+  updated_at: postgresTimestampSchema,
   brands: z.object({ name: z.string().min(1), slug: slugSchema }),
   categories: z.object({ name: z.string().min(1), slug: slugSchema })
 });
@@ -269,7 +271,7 @@ export const productLocationManagementRowSchema = z.object({
   price_cents: z.number().int().nonnegative().nullable(),
   currency: z.string().regex(/^[A-Z]{3}$/),
   availability_status: z.enum(["available", "unavailable", "unknown"]),
-  last_verified_at: z.string().datetime().nullable(),
+  last_verified_at: postgresTimestampSchema.nullable(),
   source_provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
   source_reference: z.string().url().nullable(),
   locations: z.object({

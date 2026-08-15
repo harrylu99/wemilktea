@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { Seo } from "../seo";
 import {
   loadPublicPickerResult,
   pickerResultDrinkPath,
@@ -150,22 +151,6 @@ function PickerResultMessage({
   );
 }
 
-function setResultMetadata(result: PickerResult | null) {
-  document.title = result
-    ? `${result.drink.name} — Your Milk Tea Sign | WeMilktea`
-    : "Your Milk Tea Sign | WeMilktea";
-  const description = result
-    ? `${result.drink.name} at ${result.store.displayName}. Your canonical WeMilktea Picker result.`
-    : "Your Daily Milk Tea Picker result on WeMilktea.";
-  let tag = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-  if (!tag) {
-    tag = document.createElement("meta");
-    tag.name = "description";
-    document.head.appendChild(tag);
-  }
-  tag.content = description;
-}
-
 export function PickerResultPage() {
   const { brandSlug, productSlug } = useParams();
   const [searchParams] = useSearchParams();
@@ -203,12 +188,26 @@ export function PickerResultPage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    setResultMetadata(result);
-  }, [result]);
-
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description={
+          result
+            ? `${result.drink.name} at ${result.store.displayName}. Your canonical WeMilktea Picker result.`
+            : "Your Daily Milk Tea Picker result on WeMilktea."
+        }
+        path={
+          brandSlug && productSlug
+            ? `/picker/result/${encodeURIComponent(brandSlug)}/${encodeURIComponent(productSlug)}`
+            : "/picker/result"
+        }
+        robots="noindex, follow"
+        title={
+          result
+            ? `${result.drink.name} — Your Milk Tea Sign | WeMilktea`
+            : "Your Milk Tea Sign | WeMilktea"
+        }
+      />
       <PublicHeader />
       <main className="picker-result-page">
         {status === "loading" ? <PickerResultLoading /> : null}

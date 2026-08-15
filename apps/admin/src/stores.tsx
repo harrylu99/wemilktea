@@ -136,6 +136,33 @@ export function StoresPage() {
         .array()
         .safeParse(brandsResult.data);
 
+      if (import.meta.env.DEV) {
+        if (locationsResult.error) {
+          console.error(
+            "Stores locations request failed:",
+            locationsResult.error.message
+          );
+        }
+        if (brandsResult.error) {
+          console.error(
+            "Stores brands request failed:",
+            brandsResult.error.message
+          );
+        }
+        if (!parsedLocations.success) {
+          console.error(
+            "Invalid locations response:",
+            parsedLocations.error.flatten()
+          );
+        }
+        if (!parsedBrands.success) {
+          console.error(
+            "Invalid brands response:",
+            parsedBrands.error.flatten()
+          );
+        }
+      }
+
       if (
         locationsResult.error ||
         brandsResult.error ||
@@ -650,6 +677,7 @@ export function StoreManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="store-display-name"
+              placeholder="Enter location name"
               value={form.displayName}
               onChange={(event) => setField("displayName", event.target.value)}
             />
@@ -659,6 +687,7 @@ export function StoreManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="store-slug"
+              placeholder="Enter store slug"
               value={form.slug}
               onChange={(event) => setField("slug", event.target.value)}
             />
@@ -668,6 +697,7 @@ export function StoreManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="store-suburb"
+              placeholder="Enter suburb or area"
               value={form.suburb}
               onChange={(event) => setField("suburb", event.target.value)}
             />
@@ -680,6 +710,7 @@ export function StoreManagementPage() {
             <input
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="store-address"
+              placeholder="Enter verified street address"
               value={form.address}
               onChange={(event) => setField("address", event.target.value)}
             />
@@ -690,6 +721,7 @@ export function StoreManagementPage() {
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="store-latitude"
               inputMode="decimal"
+              placeholder="Enter latitude"
               value={form.latitude}
               onChange={(event) => setField("latitude", event.target.value)}
             />
@@ -700,6 +732,7 @@ export function StoreManagementPage() {
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               id="store-longitude"
               inputMode="decimal"
+              placeholder="Enter longitude"
               value={form.longitude}
               onChange={(event) => setField("longitude", event.target.value)}
             />

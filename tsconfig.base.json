@@ -11,11 +11,10 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
     "paths": {
-      "@wemilktea/domain": ["packages/domain/src"],
-      "@wemilktea/validation": ["packages/validation/src"],
-      "@wemilktea/config": ["packages/config/src"]
+      "@wemilktea/domain": ["./packages/domain/src"],
+      "@wemilktea/validation": ["./packages/validation/src"],
+      "@wemilktea/config": ["./packages/config/src"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,

@@ -1,9 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DiscoveryRepository, DiscoveryResult } from "./discovery.ts";
 
-function assertDatabaseSuccess(error: { message: string } | null) {
+function assertDatabaseSuccess(error: unknown) {
   if (error) {
-    throw new Error(`Database operation failed: ${error.message}`);
+    console.error("Supabase database error:", error);
+
+    const message =
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error
+        ? String(error.message)
+        : "Unknown database error";
+
+    throw new Error(`Database operation failed: ${message}`);
   }
 }
 
@@ -106,8 +115,7 @@ export function createDiscoveryRepository(
             google_place_id: place.googlePlaceId,
             source_provenance: "google",
             status,
-            possible_location_id: possibleLocationId,
-            last_seen_at: new Date().toISOString()
+            possible_location_id: possibleLocationId
           },
           { onConflict: "google_place_id", ignoreDuplicates: true }
         )

@@ -8,7 +8,7 @@ only when evidence is recorded in the release ticket.
 - [ ] Commit SHA and branch are recorded.
 - [ ] Supabase project ref/environment is confirmed.
 - [ ] Public and Admin production origins are confirmed.
-- [ ] Cloudflare Pages project names are confirmed.
+- [ ] Cloudflare Worker names are confirmed.
 - [ ] R2 bucket/public base URL and CORS origins are confirmed.
 - [ ] Google Maps browser-key restrictions are confirmed.
 - [ ] Google Places server-key restrictions are confirmed.
@@ -70,10 +70,10 @@ only when evidence is recorded in the release ticket.
 - [ ] Places key is server-only and key restrictions/quotas are reviewed.
 - [ ] Controlled discovery test passed, or discovery is explicitly disabled for launch.
 
-## Cloudflare Pages
+## Cloudflare Workers Static Assets
 
-- [ ] Public project deploy succeeded.
-- [ ] Admin project deploy succeeded.
+- [ ] Public Worker deploy succeeded.
+- [ ] Admin Worker deploy succeeded.
 - [ ] Production browser variables are configured by name and environment.
 - [ ] Direct reload works for `/`, `/explore`, `/stores`, `/stores/:slug`, `/drinks`, `/drinks/:brandSlug/:productSlug`, `/picker` and Picker Result.
 - [ ] Admin direct protected-route navigation and refresh work.

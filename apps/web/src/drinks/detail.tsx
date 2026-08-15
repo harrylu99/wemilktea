@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { Seo } from "../seo";
+import { productJsonLd, publicUrl } from "../seo-utils";
 import {
   loadPublicDrinkDetail,
   type PublicDrinkAvailableStore,
@@ -153,24 +155,6 @@ export function DrinkDetailPage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const title = drink
-      ? `${drink.name} | WeMilktea`
-      : "Drink detail | WeMilktea";
-    document.title = title;
-    let description = document.querySelector<HTMLMetaElement>(
-      'meta[name="description"]'
-    );
-    if (!description) {
-      description = document.createElement("meta");
-      description.name = "description";
-      document.head.append(description);
-    }
-    description.content = drink?.description
-      ? `${drink.name} by ${drink.brandName}. ${drink.description}`
-      : `Discover ${drink?.name ?? "milk-tea drinks"} on WeMilktea.`;
-  }, [drink]);
-
   const findDrink = () => {
     const target = availableAtRef.current;
     if (!target) return;
@@ -186,6 +170,39 @@ export function DrinkDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        description={
+          drink?.description
+            ? `${drink.name} by ${drink.brandName}. ${drink.description}`
+            : `Discover ${drink?.name ?? "milk-tea drinks"} on WeMilktea.`
+        }
+        imageUrl={drink?.imageUrl}
+        jsonLd={
+          drink
+            ? productJsonLd({
+                brandName: drink.brandName,
+                description: drink.description,
+                imageUrl: drink.imageUrl,
+                name: drink.name,
+                url: publicUrl(
+                  `/drinks/${encodeURIComponent(drink.brandSlug)}/${encodeURIComponent(drink.slug)}`
+                )
+              })
+            : null
+        }
+        path={
+          brandSlug && productSlug
+            ? `/drinks/${encodeURIComponent(brandSlug)}/${encodeURIComponent(productSlug)}`
+            : "/drinks"
+        }
+        robots={status === "ready" ? "index, follow" : "noindex, follow"}
+        title={
+          drink
+            ? `${drink.name} | Milk Tea Drink | WeMilktea`
+            : "Drink detail | WeMilktea"
+        }
+        type="product"
+      />
       <PublicHeader />
       <main className="mx-auto max-w-[1280px] px-5 pb-28 pt-5 sm:px-8 md:pb-10 lg:px-8">
         <Link
