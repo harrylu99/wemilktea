@@ -21,7 +21,7 @@ export function adminCorsHeaders(request: Request, adminOrigin: string) {
   return {
     "Access-Control-Allow-Origin": adminOrigin,
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
+      "authorization, x-client-info, apikey, content-type, x-region",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     Vary: "Origin"
   };
