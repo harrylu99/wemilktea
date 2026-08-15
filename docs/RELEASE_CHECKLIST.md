@@ -45,7 +45,7 @@ only when evidence is recorded in the release ticket.
 - [ ] `store-discovery` deployed if enabled for launch.
 - [ ] `candidate-google-detail` deployed if enabled for launch.
 - [ ] `image-storage` deployed if R2-backed uploads are part of launch.
-- [ ] Function secrets are configured server-side by name, never in Pages variables.
+- [ ] Function secrets are configured server-side by name, never in browser or Worker variables.
 - [ ] Function logs show no secret values or raw provider payloads.
 - [ ] Exact Admin origin is enforced; wildcard CORS is not used.
 
@@ -111,7 +111,7 @@ only when evidence is recorded in the release ticket.
 
 ## Rollback and decision
 
-- [ ] Prior Pages deployments identified.
+- [ ] Prior Worker deployments identified.
 - [ ] Prior Edge Function revisions identified.
 - [ ] Configuration restore path documented.
 - [ ] Database corrective-migration strategy documented; no unsafe rollback assumed.

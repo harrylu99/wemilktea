@@ -70,7 +70,7 @@ Anonymous users can read image metadata only through published canonical content
 
 ## CORS and local setup
 
-Configure the R2 bucket CORS policy for the exact Admin origins used by development and deployment (for example `http://127.0.0.1:5174` and the production Admin Pages origin), allowing the presigned `PUT` request with `Content-Type`. Keep origins and headers narrow; do not use an unrestricted wildcard in production. See [Cloudflare's R2 CORS guide](https://developers.cloudflare.com/r2/buckets/cors/).
+Configure the R2 bucket CORS policy for the exact Admin origins used by development and deployment (for example `http://127.0.0.1:5174` and the production Admin Worker origin), allowing the presigned `PUT` request with `Content-Type`. Keep origins and headers narrow; do not use an unrestricted wildcard in production. See [Cloudflare's R2 CORS guide](https://developers.cloudflare.com/r2/buckets/cors/).
 
 For local function development, copy `supabase/functions/.env.example` to the local Supabase function environment and provide development R2 values. If no development credentials are available, the application still builds and renders its fallback, but live upload/read/replace/remove verification is not complete.
 

@@ -10,7 +10,7 @@ Read this file and the relevant document in `docs/` before significant implement
 - `supabase/migrations` owns database schema history. Database changes are migration-driven.
 - `supabase/functions` owns server-side integrations and privileged workflows.
 - Share code only when it has two real consumers. Do not create placeholder shared packages or abstractions.
-- The approved stack is Bun workspaces, React, TypeScript, Vite, React Router, Tailwind CSS, shadcn/ui, Zod, Supabase, Cloudflare Pages/R2, and Google Places. Do not replace it without a technical blocker.
+- The approved stack is Bun workspaces, React, TypeScript, Vite, React Router, Tailwind CSS, shadcn/ui, Zod, Supabase, Cloudflare Workers Static Assets/R2, and Google Places. Do not replace it without a technical blocker.
 - No general-purpose Node/Fastify API is part of V1. Secret-bearing work belongs in Supabase Edge Functions or another approved server-side boundary.
 
 ## Code conventions
