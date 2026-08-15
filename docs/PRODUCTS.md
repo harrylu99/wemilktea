@@ -1,0 +1,52 @@
+# Product catalogue management
+
+WM-25 establishes the canonical drink catalogue for future public Drinks, Drink Detail, Explore, Home, and Picker work.
+
+## Canonical model
+
+```text
+brands
+  └── products
+        └── location_products ── locations
+```
+
+`products` represent curated drinks/items owned by a canonical WeMilktea brand. A product is not duplicated per branch. `location_products` records whether that product is available at a canonical location, its local price in minor units, currency, provenance, and verification timestamp.
+
+The existing schema keeps product slugs unique per brand (`brand_id, slug`). WM-27 should preserve that decision when choosing its public URL lookup strategy.
+
+## Admin workflow
+
+Admin routes:
+
+```text
+/products
+/products/new
+/products/:productId
+```
+
+New products start as drafts. Saving is separate from publishing. Publishing requires a valid product, a published parent brand, and a published category. Images and location availability are not required for publication.
+
+Admins can manage canonical fields, product publication, the primary product image, and same-brand location relationships. Availability is catalogue state (`available`, `unavailable`, or `unknown`), not inventory or POS state. Prices use integer minor units (`price_cents`) and an uppercase three-letter currency; the V1 UI uses NZD.
+
+## Images
+
+Product images reuse WM-24's `image-storage` Edge Function and metadata model. Product keys are generated under:
+
+```text
+products/{product-id}/{uuid}.{jpg|png|webp}
+```
+
+Google imagery is never copied to R2. The primary image relationship is stored in `product_images`; public image metadata is visible only when the product, brand, and category are published.
+
+## Public contract for WM-26/27
+
+Future public queries can use the anonymous Supabase boundary to read:
+
+- published products;
+- published parent brands and categories;
+- primary image metadata;
+- available `location_products` relationships and local prices.
+
+Draft products, unavailable relationships, and moderation/admin metadata remain private. No future public feature needs Admin access.
+
+WM-26 excludes products with zero available published locations from `/drinks`, counts distinct publicly reachable locations only, and uses the unambiguous future Drink Detail route `/drinks/:brandSlug/:productSlug` because product slugs are scoped by brand.
