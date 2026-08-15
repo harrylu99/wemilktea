@@ -16,6 +16,7 @@ import {
   ImageStorageError
 } from "./image-storage";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 import { filterManagedStores, type ManagedStore } from "./store-list";
 
 const publicationFilters = ["all", "draft", "published", "archived"] as const;
@@ -277,7 +278,9 @@ export function StoresPage() {
       </div>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-border bg-card">
-        {isLoading ? <PageState message="Loading stores…" /> : null}
+        {isLoading ? (
+          <ManagementTableSkeleton label="Loading stores" minWidth="44rem" />
+        ) : null}
         {errorMessage ? (
           <p className="p-4 text-sm text-destructive" role="alert">
             {errorMessage}
@@ -611,7 +614,14 @@ export function StoreManagementPage() {
     }
   };
 
-  if (isLoading) return <PageState message="Loading store…" />;
+  if (isLoading) {
+    return (
+      <ManagementDetailSkeleton
+        label="Loading store details"
+        className="max-w-4xl"
+      />
+    );
+  }
   if (!detail || !form)
     return <PageState message={errorMessage ?? "Store not found."} />;
 

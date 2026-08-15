@@ -4,6 +4,7 @@ import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useAdminAuth } from "./auth-context";
 import { AdminAuthProvider } from "./auth-provider";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { LoadingRegion, Skeleton } from "./loading";
 import { AdminSeo } from "./seo";
 
 const CandidateQueuePage = lazy(() =>
@@ -39,7 +40,12 @@ const ProductManagementPage = lazy(() =>
 );
 
 function RouteLoading() {
-  return <p className="text-sm text-muted-foreground">Loading…</p>;
+  return (
+    <LoadingRegion label="Loading page" className="space-y-3">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-4 w-72 max-w-full" />
+    </LoadingRegion>
+  );
 }
 
 const navigation = [
@@ -56,7 +62,13 @@ function LoadingState() {
       className="grid min-h-screen place-items-center p-6"
       aria-live="polite"
     >
-      <p className="text-sm text-muted-foreground">Resolving admin access…</p>
+      <LoadingRegion
+        label="Resolving admin access"
+        className="w-full max-w-md space-y-4"
+      >
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-24 w-full rounded-lg" />
+      </LoadingRegion>
     </main>
   );
 }

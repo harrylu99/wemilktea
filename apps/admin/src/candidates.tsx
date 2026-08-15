@@ -19,6 +19,7 @@ import {
 import { DiscoveryControl } from "./discovery-control";
 import { slugify } from "./lib/slug";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 
 const candidateFilters = [
   "all",
@@ -184,7 +185,12 @@ export function CandidateQueuePage() {
       </label>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-border bg-card">
-        {isLoading ? <PageState message="Loading candidates…" /> : null}
+        {isLoading ? (
+          <ManagementTableSkeleton
+            label="Loading candidates"
+            minWidth="48rem"
+          />
+        ) : null}
         {errorMessage ? (
           <p className="p-4 text-sm text-destructive" role="alert">
             {errorMessage}
@@ -563,7 +569,14 @@ export function CandidateReviewPage() {
     navigate("/candidates", { replace: true });
   };
 
-  if (isLoading) return <PageState message="Loading candidate…" />;
+  if (isLoading) {
+    return (
+      <ManagementDetailSkeleton
+        label="Loading candidate review"
+        className="max-w-4xl"
+      />
+    );
+  }
   if (!candidate)
     return <PageState message={errorMessage ?? "Candidate not found."} />;
 

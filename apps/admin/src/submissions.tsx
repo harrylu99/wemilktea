@@ -4,6 +4,7 @@ import {
 } from "@wemilktea/validation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { ManagementTableSkeleton } from "./loading";
 
 const submissionFilters = ["all", "pending", "reviewed"] as const;
 type SubmissionFilter = (typeof submissionFilters)[number];
@@ -105,9 +106,11 @@ export function SubmissionsPage() {
 
       <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
         {isLoading ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            Loading submissions…
-          </p>
+          <ManagementTableSkeleton
+            label="Loading submissions"
+            columnCount={5}
+            minWidth="58rem"
+          />
         ) : null}
         {errorMessage ? (
           <p className="p-4 text-sm text-destructive" role="alert">

@@ -16,6 +16,7 @@ import {
   type ManagedImage
 } from "./image-storage";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 
 const categorySchema = z.object({
   id: z.string().uuid(),
@@ -265,7 +266,9 @@ export function ProductsPage() {
         </label>
       </div>
       <div className="mt-6 overflow-x-auto rounded-lg border border-border bg-card">
-        {isLoading ? <PageState message="Loading products…" /> : null}
+        {isLoading ? (
+          <ManagementTableSkeleton label="Loading products" minWidth="52rem" />
+        ) : null}
         {errorMessage ? (
           <p className="p-4 text-sm text-destructive" role="alert">
             {errorMessage}
@@ -698,7 +701,14 @@ export function ProductManagementPage() {
     }
   };
 
-  if (isLoading) return <PageState message="Loading product…" />;
+  if (isLoading) {
+    return (
+      <ManagementDetailSkeleton
+        label="Loading product details"
+        className="max-w-5xl"
+      />
+    );
+  }
   if (!isNew && !product)
     return <PageState message={errorMessage ?? "Product not found."} />;
 
