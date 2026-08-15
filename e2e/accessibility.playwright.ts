@@ -21,10 +21,7 @@ const routeTitles = [
   ["/", "WeMilktea | Discover Milk Tea & Bubble Tea in Auckland"],
   ["/explore", "Explore Auckland Milk Tea | WeMilktea"],
   ["/stores", "Milk Tea Stores in Auckland | WeMilktea"],
-  [
-    validStoreRoute,
-    "Gong cha Newmarket | Milk Tea in Newmarket | WeMilktea"
-  ],
+  [validStoreRoute, "Gong cha Newmarket | Milk Tea in Newmarket | WeMilktea"],
   ["/drinks", "Milk Tea Drinks in Auckland | WeMilktea"],
   [validDrinkRoute, "Brown Sugar Pearl Milk Tea | Milk Tea Drink | WeMilktea"],
   ["/picker", "Daily Milk Tea Picker | WeMilktea"],

@@ -10,9 +10,7 @@ function assertDatabaseSuccess(error: unknown) {
     console.error("Supabase database error:", error);
 
     const message =
-      typeof error === "object" &&
-      error !== null &&
-      "message" in error
+      typeof error === "object" && error !== null && "message" in error
         ? String(error.message)
         : "Unknown database error";
 
