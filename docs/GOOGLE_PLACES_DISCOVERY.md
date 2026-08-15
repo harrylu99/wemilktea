@@ -11,6 +11,10 @@ Authorized admin browser
   -> future candidate review
 ```
 
+The Admin invocation pins `store-discovery` to `ap-south-1`, the current
+production database region, because the workflow performs many database
+round-trips. Change that client setting if the production database moves.
+
 ## Security and configuration
 
 `apps/admin` calls only the `store-discovery` Edge Function with the signed-in user's JWT. The function verifies the user and calls `is_admin()` before creating a service-role client. The Google key and Supabase service-role key are never sent to the browser.
@@ -57,7 +61,7 @@ The secondary signal never merges or publishes anything. It only surfaces a revi
 
 ## Run reliability
 
-Every invocation starts a `discovery_runs` row with `running` status and finalizes it with counts, `finished_at`, and a bounded error summary. A failed Google request is isolated to its query: other searches continue and a partially successful run is marked `succeeded` with errors. A database write failure stops the run and marks it `failed`.
+Every invocation starts a `discovery_runs` row with `running` status and finalizes it with counts, `finished_at`, and a bounded error summary. A failed Google request is isolated to its query: other searches continue and a partially successful run is marked `succeeded` with errors. A database write failure stops the run and marks it `failed`. When a new run starts, rows still marked `running` for more than ten minutes are marked `failed` with a finish time; recent runs are left alone, and existing candidates and observations are not removed.
 
 The testable `runStoreDiscovery` module is independent of the HTTP handler. A future scheduled function can call the same module with `triggerType: "scheduled"` without copying Google or classification logic.
 

@@ -2,6 +2,7 @@ import {
   storeDiscoveryResultSchema,
   type StoreDiscoveryResult
 } from "@wemilktea/validation";
+import { FunctionRegion } from "@supabase/supabase-js";
 import { useState } from "react";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 
@@ -31,7 +32,8 @@ export function DiscoveryControl() {
 
     setIsRunning(true);
     const { data, error } = await supabase.functions.invoke("store-discovery", {
-      body: {}
+      body: {},
+      region: FunctionRegion.ApSouth1
     });
     setIsRunning(false);
 

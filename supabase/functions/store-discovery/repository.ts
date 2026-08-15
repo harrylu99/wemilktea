@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DiscoveryRepository, DiscoveryResult } from "./discovery.ts";
 
+const STALE_RUN_AGE_MS = 10 * 60 * 1000;
+const STALE_RUN_ERROR =
+  "Discovery run was marked failed after exceeding the stale-run threshold.";
+
 function assertDatabaseSuccess(error: unknown) {
   if (error) {
     console.error("Supabase database error:", error);
@@ -32,6 +36,30 @@ export function createDiscoveryRepository(
 
   return {
     async startRun(triggerType) {
+      const staleBefore = new Date(Date.now() - STALE_RUN_AGE_MS).toISOString();
+      const { count: recoveredCount, error: recoveryError } = await client
+        .from("discovery_runs")
+        .update(
+          {
+            status: "failed",
+            finished_at: new Date().toISOString(),
+            error_summary: STALE_RUN_ERROR
+          },
+          { count: "exact" }
+        )
+        .eq("status", "running")
+        .is("finished_at", null)
+        .lt("started_at", staleBefore);
+
+      assertDatabaseSuccess(recoveryError);
+
+      if (recoveredCount) {
+        console.warn("Recovered stale store discovery runs.", {
+          recoveredCount,
+          staleBefore
+        });
+      }
+
       const { data, error } = await client
         .from("discovery_runs")
         .insert({ trigger_type: triggerType, status: "running" })

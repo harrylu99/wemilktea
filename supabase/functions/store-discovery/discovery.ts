@@ -61,6 +61,10 @@ function summarizeErrors(errors: string[]) {
   return `${errors.slice(0, 3).join(" ")}${suffix}`;
 }
 
+function elapsedMilliseconds(startTime: number) {
+  return Math.round(performance.now() - startTime);
+}
+
 function initialResult(runId: string): DiscoveryResult {
   return {
     runId,
@@ -133,14 +137,22 @@ export async function runStoreDiscovery({
   triggerType: "manual" | "scheduled";
   searches?: readonly string[];
 }): Promise<DiscoveryResult> {
+  const startTime = performance.now();
   const run = await repository.startRun(triggerType);
   const result = initialResult(run.id);
   const errors: string[] = [];
   const processedPlaceIds = new Set<string>();
   let successfulSearches = 0;
 
+  console.info("Store discovery started.", {
+    runId: run.id,
+    triggerType,
+    queryCount: searches.length,
+    elapsedMs: elapsedMilliseconds(startTime)
+  });
+
   try {
-    for (const query of searches) {
+    for (const [queryIndex, query] of searches.entries()) {
       result.queryCount += 1;
       let pageToken: string | undefined;
 
@@ -155,10 +167,25 @@ export async function runStoreDiscovery({
           response = await placesClient.searchText({ query, pageToken });
         } catch (error) {
           errors.push(`“${query}” failed: ${errorMessage(error)}`);
+          console.warn("Store discovery Google search page failed.", {
+            query,
+            queryIndex: queryIndex + 1,
+            page: page + 1,
+            elapsedMs: elapsedMilliseconds(startTime),
+            error: errorMessage(error)
+          });
           break;
         }
 
         successfulSearches += 1;
+
+        console.info("Store discovery Google search page completed.", {
+          query,
+          queryIndex: queryIndex + 1,
+          page: page + 1,
+          placeCount: response.places.length,
+          elapsedMs: elapsedMilliseconds(startTime)
+        });
 
         for (const place of response.places) {
           if (processedPlaceIds.has(place.googlePlaceId)) {
@@ -168,6 +195,18 @@ export async function runStoreDiscovery({
           processedPlaceIds.add(place.googlePlaceId);
           result.resultCount += 1;
           await processPlace(repository, run.id, place, result);
+
+          if (result.resultCount % 25 === 0) {
+            console.info("Store discovery progress.", {
+              runId: run.id,
+              elapsedMs: elapsedMilliseconds(startTime),
+              queryIndex: queryIndex + 1,
+              processedResultCount: result.resultCount,
+              newCandidateCount: result.newCandidateCount,
+              knownCount: result.knownCount,
+              possibleDuplicateCount: result.possibleDuplicateCount
+            });
+          }
         }
 
         if (!response.nextPageToken) {
@@ -193,6 +232,17 @@ export async function runStoreDiscovery({
   } catch (error) {
     throw new Error(`Could not finalize discovery run: ${errorMessage(error)}`);
   }
+
+  console.info("Store discovery finished.", {
+    runId: run.id,
+    status: result.status,
+    elapsedMs: elapsedMilliseconds(startTime),
+    queryCount: result.queryCount,
+    resultCount: result.resultCount,
+    newCandidateCount: result.newCandidateCount,
+    knownCount: result.knownCount,
+    possibleDuplicateCount: result.possibleDuplicateCount
+  });
 
   return result;
 }
