@@ -11,25 +11,28 @@ import {
   type StoreCandidateSummary
 } from "@wemilktea/validation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from "react-router-dom";
 import {
   type CandidateApprovalField,
   validateCandidateApprovalForm
 } from "./candidate-review-form";
+import {
+  candidateFilterFromSearchParams,
+  candidateReviewReturnPath,
+  candidateFilters,
+  type CandidateFilter,
+  searchParamsForCandidateFilter
+} from "./candidate-filter";
 import { DiscoveryControl } from "./discovery-control";
 import { slugify } from "./lib/slug";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
-
-const candidateFilters = [
-  "all",
-  "new",
-  "possible_duplicate",
-  "approved",
-  "rejected"
-] as const;
-
-type CandidateFilter = (typeof candidateFilters)[number];
 
 const rejectionReasons = [
   ["not_milk_tea", "Not a milk-tea store"],
@@ -109,10 +112,12 @@ function RequiredMark() {
 }
 
 export function CandidateQueuePage() {
-  const [filter, setFilter] = useState<CandidateFilter>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [candidates, setCandidates] = useState<StoreCandidateSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const filter = candidateFilterFromSearchParams(searchParams);
 
   useEffect(() => {
     const client = supabase;
@@ -174,7 +179,14 @@ export function CandidateQueuePage() {
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           id="candidate-filter"
           value={filter}
-          onChange={(event) => setFilter(event.target.value as CandidateFilter)}
+          onChange={(event) => {
+            setSearchParams(
+              searchParamsForCandidateFilter(
+                searchParams,
+                event.target.value as CandidateFilter
+              )
+            );
+          }}
         >
           {candidateFilters.map((value) => (
             <option key={value} value={value}>
@@ -242,6 +254,9 @@ export function CandidateQueuePage() {
                     <Link
                       className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted"
                       to={`/candidates/${candidate.id}`}
+                      state={{
+                        returnTo: `${location.pathname}${location.search}`
+                      }}
                     >
                       Review
                     </Link>
@@ -259,6 +274,7 @@ export function CandidateQueuePage() {
 
 export function CandidateReviewPage() {
   const { candidateId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [candidate, setCandidate] = useState<StoreCandidateSummary | null>(
     null
@@ -289,6 +305,7 @@ export function CandidateReviewPage() {
   const [mergeSearch, setMergeSearch] = useState("");
   const [targetLocationId, setTargetLocationId] = useState("");
   const [rejectionReason, setRejectionReason] = useState("not_milk_tea");
+  const returnToCandidates = candidateReviewReturnPath(location.state);
 
   useEffect(() => {
     const client = supabase;
@@ -496,7 +513,7 @@ export function CandidateReviewPage() {
       return;
     }
 
-    navigate("/candidates", { replace: true });
+    navigate(returnToCandidates, { replace: true });
   };
 
   const merge = async () => {
@@ -531,7 +548,7 @@ export function CandidateReviewPage() {
       return;
     }
 
-    navigate("/candidates", { replace: true });
+    navigate(returnToCandidates, { replace: true });
   };
 
   const reject = async () => {
@@ -566,7 +583,7 @@ export function CandidateReviewPage() {
       return;
     }
 
-    navigate("/candidates", { replace: true });
+    navigate(returnToCandidates, { replace: true });
   };
 
   if (isLoading) {
@@ -584,7 +601,8 @@ export function CandidateReviewPage() {
     <section className="max-w-4xl">
       <Link
         className="text-sm font-medium text-primary hover:underline"
-        to="/candidates"
+        replace
+        to={returnToCandidates}
       >
         ← Candidates
       </Link>
