@@ -93,6 +93,10 @@ body {
   border-radius: 0.75rem;
 }
 
+.map-fallback {
+  min-height: 180px;
+}
+
 .map-status {
   position: absolute;
   inset: 0;
@@ -813,7 +817,8 @@ body {
   }
 
   .google-map-panel,
-  .map-status {
+  .map-status,
+  .map-fallback {
     min-height: 180px;
   }
 
@@ -848,7 +853,8 @@ body {
 
 @media (min-width: 768px) {
   .google-map-panel,
-  .map-status {
+  .map-status,
+  .map-fallback {
     min-height: 648px;
   }
 
