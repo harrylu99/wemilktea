@@ -44,15 +44,57 @@ export type GoogleMapsApi = {
   };
 };
 
+type GoogleMapsGlobal = {
+  maps?: {
+    importLibrary?: (libraryName: "maps" | "marker") => Promise<unknown>;
+  };
+};
+
+type GoogleMapsWindow = Window & {
+  google?: GoogleMapsGlobal;
+  __wemilkteaGoogleMapsReady?: () => void;
+};
+
+type GoogleMapsLibrary = Pick<GoogleMapsApi["maps"], "Map" | "LatLngBounds">;
+type GoogleMarkerLibrary = Pick<GoogleMapsApi["maps"], "Marker">;
+
+const googleMapsCallbackName = "__wemilkteaGoogleMapsReady";
+const googleMapsLoadTimeoutMs = 15_000;
 let googleMapsPromise: Promise<GoogleMapsApi> | null = null;
 
 export function buildGoogleMapsScriptUrl(apiKey: string) {
   const params = new URLSearchParams({
+    callback: googleMapsCallbackName,
     key: apiKey,
     loading: "async",
     v: "weekly"
   });
   return `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
+}
+
+async function resolveGoogleMapsApi(): Promise<GoogleMapsApi> {
+  const googleMaps = (window as GoogleMapsWindow).google;
+  const importLibrary = googleMaps?.maps?.importLibrary;
+  if (!importLibrary) {
+    throw new Error("Google Maps loaded without its Maps API.");
+  }
+
+  const [mapsLibrary, markerLibrary] = await Promise.all([
+    importLibrary("maps") as Promise<GoogleMapsLibrary>,
+    importLibrary("marker") as Promise<GoogleMarkerLibrary>
+  ]);
+
+  if (!mapsLibrary.Map || !mapsLibrary.LatLngBounds || !markerLibrary.Marker) {
+    throw new Error("Google Maps loaded without its required libraries.");
+  }
+
+  return {
+    maps: {
+      Map: mapsLibrary.Map,
+      Marker: markerLibrary.Marker,
+      LatLngBounds: mapsLibrary.LatLngBounds
+    }
+  };
 }
 
 export function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
@@ -62,11 +104,45 @@ export function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
 
   if (googleMapsPromise) return googleMapsPromise;
 
-  googleMapsPromise = new Promise<GoogleMapsApi>((resolve, reject) => {
-    const currentGoogle = (window as Window & { google?: GoogleMapsApi })
-      .google;
-    if (currentGoogle?.maps) {
-      resolve(currentGoogle);
+  const promise = new Promise<GoogleMapsApi>((resolve, reject) => {
+    const googleWindow = window as GoogleMapsWindow;
+    let readinessStarted = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      if (googleWindow[googleMapsCallbackName] === handleReady) {
+        delete googleWindow[googleMapsCallbackName];
+      }
+    };
+
+    const handleReady = () => {
+      if (readinessStarted) return;
+      readinessStarted = true;
+      void resolveGoogleMapsApi().then(
+        (googleMaps) => {
+          cleanup();
+          resolve(googleMaps);
+        },
+        (error: unknown) => {
+          cleanup();
+          reject(error);
+        }
+      );
+    };
+
+    const handleError = () => {
+      cleanup();
+      reject(new Error("Google Maps could not be loaded."));
+    };
+
+    // With loading=async, Google’s callback is the API readiness signal.
+    googleWindow[googleMapsCallbackName] = handleReady;
+    timeoutId = setTimeout(handleError, googleMapsLoadTimeoutMs);
+
+    const currentGoogle = googleWindow.google;
+    if (currentGoogle?.maps?.importLibrary) {
+      handleReady();
       return;
     }
 
@@ -74,19 +150,8 @@ export function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
       'script[data-wemilktea-google-maps="true"]'
     );
 
-    const handleLoad = () => {
-      const googleMaps = (window as Window & { google?: GoogleMapsApi }).google;
-      if (googleMaps?.maps) resolve(googleMaps);
-      else reject(new Error("Google Maps loaded without its Maps API."));
-    };
-
     if (existingScript) {
-      existingScript.addEventListener("load", handleLoad, { once: true });
-      existingScript.addEventListener(
-        "error",
-        () => reject(new Error("Google Maps could not be loaded.")),
-        { once: true }
-      );
+      existingScript.addEventListener("error", handleError, { once: true });
       return;
     }
 
@@ -95,13 +160,16 @@ export function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
     script.defer = true;
     script.dataset.wemilkteaGoogleMaps = "true";
     script.src = buildGoogleMapsScriptUrl(apiKey);
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener(
-      "error",
-      () => reject(new Error("Google Maps could not be loaded.")),
-      { once: true }
-    );
+    script.addEventListener("error", handleError, { once: true });
     document.head.appendChild(script);
+  });
+
+  googleMapsPromise = promise.catch((error: unknown) => {
+    console.error(
+      "Google Maps loader failed.",
+      error instanceof Error ? error.message : error
+    );
+    throw error;
   });
 
   return googleMapsPromise;
