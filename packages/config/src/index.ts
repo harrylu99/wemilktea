@@ -3,6 +3,16 @@ export const applicationMetadata = {
   admin: { name: "WeMilktea Admin" }
 } as const;
 
+export function slugify(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export const imageStorageConfig = {
   maxBytes: 10 * 1024 * 1024,
   contentTypes: ["image/jpeg", "image/png", "image/webp"] as const
