@@ -1,0 +1,64 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - supabase/config.toml
+      - supabase/functions/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    name: Deploy production Edge Functions
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      SUPABASE_PROJECT_REF: tqdxmotcpogyvzdvgopi
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+    steps:
+      - name: Check out merged main
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.113.0
+
+      - name: Record deployment target
+        run: |
+          echo "commit_sha=$GITHUB_SHA"
+          echo "supabase_project_ref=$SUPABASE_PROJECT_REF"
+          echo "migration_status=not applied by this workflow"
+          supabase --version
+
+      - name: Deploy store-discovery
+        run: >-
+          supabase functions deploy store-discovery
+          --project-ref "$SUPABASE_PROJECT_REF"
+          --use-api
+
+      - name: Deploy candidate-google-detail
+        run: >-
+          supabase functions deploy candidate-google-detail
+          --project-ref "$SUPABASE_PROJECT_REF"
+          --use-api
+
+      - name: Deploy image-storage
+        run: >-
+          supabase functions deploy image-storage
+          --project-ref "$SUPABASE_PROJECT_REF"
+          --use-api
