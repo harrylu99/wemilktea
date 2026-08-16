@@ -22,13 +22,13 @@ Reviewed Edge Function changes merged into `main` are deployed by
 `.github/workflows/supabase-functions-deploy.yml`. The workflow is limited to
 changes under `supabase/functions/**` or `supabase/config.toml`, so frontend-
 only changes do not start a Supabase deployment. It always deploys the three
-production functions together because `_shared/admin-auth.ts` and the function
-import map are shared server dependencies:
+production functions together because `_shared/admin-auth.ts` is shared by all
+three functions and each function owns its deployment dependency map:
 
 ```text
 merge to main
 → path-filtered GitHub Actions run
-→ production Environment approval
+→ production Environment deployment
 → deploy store-discovery
 → deploy candidate-google-detail
 → deploy image-storage
@@ -53,9 +53,9 @@ SUPABASE_ACCESS_TOKEN
 ```
 
 Use a production-scoped Supabase access token and do not add it to repository
-files, Vite variables, workflow output or pull-request workflows. Configure at
-least one required reviewer for the `production` Environment and restrict its
-deployment branch policy to `main`. The workflow has only `contents: read`
+files, Vite variables, workflow output or pull-request workflows. The current
+Environment does not require reviewer approval; restrict its deployment branch
+policy to `main`. The workflow has only `contents: read`
 permissions and does not run on pull requests, including forked pull requests.
 The manual `workflow_dispatch` path is also guarded so it can execute only when
 `github.ref` is exactly `refs/heads/main`.
@@ -97,7 +97,7 @@ deployment job by accident.
 If the workflow fails, open the failed run for the exact commit SHA, project
 ref and function step. Correct the source or deployment issue, then use
 GitHub's **Re-run failed jobs** for that same trusted `main` commit after the
-production Environment approval is available. Do not rerun from a pull-request
+production Environment deployment is available. Do not rerun from a pull-request
 workflow or change the project ref to make a deployment pass.
 
 To verify an active function after a successful run, inspect the function's
