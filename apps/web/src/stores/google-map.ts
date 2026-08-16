@@ -46,7 +46,9 @@ export type GoogleMapsApi = {
 
 type GoogleMapsGlobal = {
   maps?: {
-    importLibrary?: (libraryName: "maps" | "marker") => Promise<unknown>;
+    importLibrary?: (
+      libraryName: "maps" | "core" | "marker"
+    ) => Promise<unknown>;
   };
 };
 
@@ -55,7 +57,8 @@ type GoogleMapsWindow = Window & {
   __wemilkteaGoogleMapsReady?: () => void;
 };
 
-type GoogleMapsLibrary = Pick<GoogleMapsApi["maps"], "Map" | "LatLngBounds">;
+type GoogleMapsLibrary = Pick<GoogleMapsApi["maps"], "Map">;
+type GoogleCoreLibrary = Pick<GoogleMapsApi["maps"], "LatLngBounds">;
 type GoogleMarkerLibrary = Pick<GoogleMapsApi["maps"], "Marker">;
 
 const googleMapsCallbackName = "__wemilkteaGoogleMapsReady";
@@ -79,12 +82,13 @@ async function resolveGoogleMapsApi(): Promise<GoogleMapsApi> {
     throw new Error("Google Maps loaded without its Maps API.");
   }
 
-  const [mapsLibrary, markerLibrary] = await Promise.all([
+  const [mapsLibrary, coreLibrary, markerLibrary] = await Promise.all([
     importLibrary("maps") as Promise<GoogleMapsLibrary>,
+    importLibrary("core") as Promise<GoogleCoreLibrary>,
     importLibrary("marker") as Promise<GoogleMarkerLibrary>
   ]);
 
-  if (!mapsLibrary.Map || !mapsLibrary.LatLngBounds || !markerLibrary.Marker) {
+  if (!mapsLibrary.Map || !coreLibrary.LatLngBounds || !markerLibrary.Marker) {
     throw new Error("Google Maps loaded without its required libraries.");
   }
 
@@ -92,7 +96,7 @@ async function resolveGoogleMapsApi(): Promise<GoogleMapsApi> {
     maps: {
       Map: mapsLibrary.Map,
       Marker: markerLibrary.Marker,
-      LatLngBounds: mapsLibrary.LatLngBounds
+      LatLngBounds: coreLibrary.LatLngBounds
     }
   };
 }
