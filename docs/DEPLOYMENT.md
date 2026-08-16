@@ -66,6 +66,7 @@ VITE_SUPABASE_ANON_KEY
 VITE_R2_PUBLIC_BASE_URL
 VITE_GOOGLE_MAPS_BROWSER_KEY
 VITE_PUBLIC_SITE_URL
+VITE_PUBLIC_NO_INDEX
 ```
 
 Admin (`apps/admin`):
@@ -84,6 +85,166 @@ credential.
 Set `VITE_PUBLIC_SITE_URL` to the final public HTTPS origin. The public build
 uses it for canonical/social URLs and for the generated `robots.txt` and
 `sitemap.xml`; do not deploy the local `http://localhost:5173` fallback.
+
+Set `VITE_PUBLIC_NO_INDEX=true` only for the persistent Web DEV Worker. This
+overrides route-level public robots values, changes the static HTML and runtime
+metadata to `noindex, nofollow, noarchive, nosnippet`, and emits a disallow-all
+`robots.txt`. Production leaves this variable unset or `false`.
+
+## Persistent Cloudflare DEV Workers
+
+The repository supports two named Wrangler environments without changing the
+production Worker names:
+
+| App   | Production config | DEV config | DEV Worker  |
+| ----- | ----------------- | ---------- | ----------- |
+| Web   | `name: "web"`     | `env.dev`  | `web-dev`   |
+| Admin | `name: "admin"`   | `env.dev`  | `admin-dev` |
+
+The named environment changes only the Worker name. The existing SPA asset
+directory and compatibility settings remain shared by the top-level config.
+Wrangler 4.123.0 dry-runs accepted `--env dev` and applied the shared asset
+configuration; the explicit names are `web-dev` and `admin-dev`. Confirm the
+active names in Cloudflare after the first DEV deployment.
+
+Local DEV deployments, after the corresponding browser-safe variables are
+configured, are:
+
+```sh
+bun --filter @wemilktea/web build
+npx wrangler deploy --env dev --config apps/web/wrangler.jsonc
+
+bun --filter @wemilktea/admin build
+npx wrangler deploy --env dev --config apps/admin/wrangler.jsonc
+```
+
+Production remains unchanged and must continue to use the commands without
+`--env dev`:
+
+```sh
+bun --filter @wemilktea/web build
+npx wrangler deploy --config apps/web/wrangler.jsonc
+
+bun --filter @wemilktea/admin build
+npx wrangler deploy --config apps/admin/wrangler.jsonc
+```
+
+### Workers Builds dashboard configuration
+
+Workers Builds settings are stored in Cloudflare rather than these Wrangler
+files. Configure the existing `web` and `admin` Workers independently with
+the following values:
+
+| Setting                       | `web`                                                            | `admin`                                                            |
+| ----------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Repository                    | `harrylu99/wemilktea`                                            | `harrylu99/wemilktea`                                              |
+| Root directory                | `/`                                                              | `/`                                                                |
+| Production branch             | `main`                                                           | `main`                                                             |
+| Build command                 | `bun --filter @wemilktea/web build`                              | `bun --filter @wemilktea/admin build`                              |
+| Production deploy command     | `npx wrangler deploy --config apps/web/wrangler.jsonc`           | `npx wrangler deploy --config apps/admin/wrangler.jsonc`           |
+| Non-production branch builds  | Enabled                                                          | Enabled                                                            |
+| Non-production deploy command | `npx wrangler deploy --env dev --config apps/web/wrangler.jsonc` | `npx wrangler deploy --env dev --config apps/admin/wrangler.jsonc` |
+
+The non-production command intentionally uses `wrangler deploy`, not the
+default `wrangler versions upload`: the latter uploads a version but does not
+make it the active deployment for a persistent DEV Worker. Cloudflare's
+Workers Builds configuration supports a custom non-production deploy command.
+
+Set the browser-safe variables separately for the production and
+non-production triggers. The Workers Builds API models build environment
+variables per trigger; do not assume a production value is suitable for DEV.
+Do not put any service-role, R2, Google Places, or Cloudflare API credentials
+in these Vite variables.
+
+### Monorepo watch paths
+
+Build Watch Paths are also dashboard-only. Replace the current `Include: *`
+configuration with an allow-list and retain `node_modules/**` and `.git/**` in
+the excludes. Enter these paths in the corresponding Worker's Include field.
+
+Web:
+
+```text
+apps/web/**
+packages/**
+package.json
+bun.lock
+tsconfig.json
+tsconfig.base.json
+apps/web/tsconfig*.json
+apps/web/vite.config.ts
+apps/web/wrangler.jsonc
+```
+
+Admin:
+
+```text
+apps/admin/**
+packages/**
+package.json
+bun.lock
+tsconfig.json
+tsconfig.base.json
+apps/admin/tsconfig*.json
+apps/admin/vite.config.ts
+apps/admin/wrangler.jsonc
+```
+
+For both Workers, use:
+
+```text
+node_modules/**
+.git/**
+```
+
+The application and shared-package entries ensure app-only changes rebuild
+only the relevant Worker, while changes to workspace dependencies, the lockfile
+or shared TypeScript configuration rebuild both. Confirm the dashboard's
+Include/Exclude fields retain these as path patterns rather than leaving the
+legacy catch-all include.
+
+### DEV backend safety
+
+`admin-dev` must not be configured with the production Supabase URL and anon
+key. The Admin can mutate brands, locations, products, candidates,
+submissions and image metadata, and can invoke the image-storage function.
+WM-55 does not create a second Supabase project, R2 bucket, or Edge Function
+deployment, so a fully functional Admin DEV environment remains a follow-up.
+Until a separate backend is provisioned, leave Admin DEV browser backend
+variables unset or treat the Worker as a static shell/configuration smoke test;
+do not use it for authenticated mutations.
+
+Web DEV may reuse production public-read values only for an explicitly
+read-only smoke test. The public Web also has a store-suggestion insert path,
+so do not submit suggestions or run other mutating scenarios from Web DEV
+until a separate development backend is available. A production public R2
+base URL is likewise read-only from the browser, but Admin uploads still need a
+development R2/function configuration.
+
+When a DEV backend is approved, add only the exact origins needed:
+
+- the actual `web-dev` origin to the browser Maps key HTTP referrer allow-list
+  if map verification is required;
+- the actual `admin-dev` origin to the DEV Supabase Auth site/redirect settings;
+- the actual `admin-dev` origin to DEV Edge Function `ADMIN_APP_ORIGIN` and R2
+  CORS settings.
+
+Do not add wildcard origins or change production CORS, RLS, Auth redirects,
+Google restrictions or Edge Function validation for this environment.
+
+The exact `*.workers.dev` origins must be recorded after the first DEV deploy;
+this repository does not guess the account-specific Workers subdomain.
+
+### DEV verification
+
+After setting the non-production build variables and backend policy, deploy
+DEV only and verify the resulting Worker names are `web-dev` and `admin-dev`.
+For Web, check the homepage, a direct SPA route, static assets, the map and
+published store reads, then inspect the bundle for production canonical URLs
+and confirm `robots.txt` disallows crawling. For Admin, check only shell
+loading and the intentionally configured backend state until a separate DEV
+Supabase/R2 environment exists. Never use a DEV command without `--env dev` as
+a test; it targets the production Worker.
 
 ### Server-only Edge Function secrets
 

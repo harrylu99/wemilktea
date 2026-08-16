@@ -13,6 +13,12 @@ is approved. The value is browser-visible and is used for canonical URLs,
 Open Graph URLs, the sitemap and `robots.txt`. Without it, local builds use
 `http://localhost:5173`; do not ship that fallback to production.
 
+The persistent Web DEV Worker sets `VITE_PUBLIC_SITE_URL` to its own exact
+Workers origin and `VITE_PUBLIC_NO_INDEX=true`. DEV then uses its own canonical
+origin while the static HTML, runtime route metadata, and generated
+`robots.txt` all prevent indexing. Production leaves `VITE_PUBLIC_NO_INDEX`
+unset or `false`.
+
 ## Crawl controls
 
 The public Vite build generates `robots.txt` and `sitemap.xml` in `dist`.

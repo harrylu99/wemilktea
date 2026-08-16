@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { publicUrl } from "./seo-utils";
 
 const defaultImagePath = "/og-default.svg";
+const publicBuildIsNoIndex = import.meta.env.VITE_PUBLIC_NO_INDEX === "true";
+const noIndexRobots = "noindex, nofollow, noarchive, nosnippet";
 
 export type SeoProps = {
   title: string;
@@ -71,10 +73,11 @@ export function Seo({
     const socialImage = imageUrl
       ? publicUrl(imageUrl)
       : publicUrl(defaultImagePath);
+    const effectiveRobots = publicBuildIsNoIndex ? noIndexRobots : robots;
 
     document.title = title;
     upsertMeta("name", "description", description);
-    upsertMeta("name", "robots", robots);
+    upsertMeta("name", "robots", effectiveRobots);
     upsertMeta("property", "og:title", title);
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:url", canonicalUrl);
