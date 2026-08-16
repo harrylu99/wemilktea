@@ -111,7 +111,7 @@ function MapFallback({
 }) {
   return (
     <section
-      className="map-surface relative min-h-[180px] overflow-hidden rounded-xl border border-border md:min-h-[648px]"
+      className="map-fallback map-surface relative min-h-[180px] overflow-hidden rounded-xl border border-border"
       aria-label="Map of Auckland stores"
     >
       <p className="absolute left-4 top-4 z-10 text-xs font-semibold text-foreground md:left-6 md:top-6 md:text-sm">
@@ -234,28 +234,27 @@ function GoogleMapPanel({
 
   return (
     <div className="relative order-1 md:order-2">
-      <div
-        ref={mapElementRef}
-        className={`google-map-panel map-surface ${state === "ready" ? "opacity-100" : "opacity-0"}`}
-        aria-hidden={state !== "ready"}
-      />
-      {state === "loading" ? (
-        <div className="map-status" role="status">
-          Loading map…
-        </div>
-      ) : null}
       {state === "unavailable" ? (
         <MapFallback
-          message={
-            googleMapsBrowserKey
-              ? "Map unavailable. You can still browse the store list."
-              : "Map preview unavailable until a browser Maps key is configured."
-          }
+          message="Map unavailable right now. You can still browse the store list."
           onSelect={onSelect}
           selectedId={selectedId}
           stores={stores}
         />
-      ) : null}
+      ) : (
+        <>
+          <div
+            ref={mapElementRef}
+            className="google-map-panel map-surface"
+            aria-hidden={state !== "ready"}
+          />
+          {state === "loading" ? (
+            <div className="map-status" role="status">
+              Loading map…
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
