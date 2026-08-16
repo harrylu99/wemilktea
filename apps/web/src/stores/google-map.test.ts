@@ -16,8 +16,9 @@ test("builds a browser-only Google Maps loader URL", () => {
   expect(url.searchParams.get("v")).toBe("weekly");
 });
 
-test("waits for the Maps callback and imports the required libraries", async () => {
+test("loads Map, LatLngBounds, and Marker from their owning libraries", async () => {
   const scriptListeners = new Map<string, () => void>();
+  const importedLibraries: string[] = [];
   const fakeScript = {
     addEventListener: (eventName: string, listener: () => void) => {
       scriptListeners.set(eventName, listener);
@@ -40,10 +41,12 @@ test("waits for the Maps callback and imports the required libraries", async () 
         class FakeMarker {}
         fakeWindow.google = {
           maps: {
-            importLibrary: async (libraryName: "maps" | "marker") =>
-              libraryName === "maps"
-                ? { LatLngBounds: FakeBounds, Map: FakeMap }
-                : { Marker: FakeMarker }
+            importLibrary: async (libraryName: "maps" | "core" | "marker") => {
+              importedLibraries.push(libraryName);
+              if (libraryName === "maps") return { Map: FakeMap };
+              if (libraryName === "core") return { LatLngBounds: FakeBounds };
+              return { Marker: FakeMarker };
+            }
           }
         };
         const callback = callbackName ? fakeWindow[callbackName] : null;
@@ -68,6 +71,7 @@ test("waits for the Maps callback and imports the required libraries", async () 
     expect(googleMaps.maps.Map.name).toBe("FakeMap");
     expect(googleMaps.maps.Marker.name).toBe("FakeMarker");
     expect(googleMaps.maps.LatLngBounds.name).toBe("FakeBounds");
+    expect(importedLibraries).toEqual(["maps", "core", "marker"]);
     expect(scriptListeners.has("load")).toBe(false);
   } finally {
     resetGoogleMapsLoaderForTests();
