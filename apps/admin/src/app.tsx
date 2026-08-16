@@ -5,6 +5,7 @@ import { useAdminAuth } from "./auth-context";
 import { AdminAuthProvider } from "./auth-provider";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { LoadingRegion, Skeleton } from "./loading";
+import { AdminRouteScroll } from "./route-scroll";
 import { AdminSeo } from "./seo";
 
 const CandidateQueuePage = lazy(() =>
@@ -286,6 +287,7 @@ function AdminShell() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AdminRouteScroll />
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
           <div>
