@@ -136,7 +136,13 @@ ${urls}
 `;
 }
 
-function robotsTxt(origin: string) {
+function robotsTxt(origin: string, noIndex: boolean) {
+  if (noIndex) {
+    return `User-agent: *
+Disallow: /
+`;
+  }
+
   return `User-agent: *
 Allow: /
 Disallow: /picker/result/
@@ -151,6 +157,7 @@ Sitemap: ${origin}/sitemap.xml
 }
 
 function seoFilesPlugin(env: Record<string, string>): Plugin {
+  const noIndex = env.VITE_PUBLIC_NO_INDEX === "true";
   const render = async () => {
     const origin = siteOrigin(env.VITE_PUBLIC_SITE_URL);
     let entries: SitemapEntry[] = [];
@@ -163,13 +170,20 @@ function seoFilesPlugin(env: Record<string, string>): Plugin {
       );
     }
     return {
-      robots: robotsTxt(origin),
+      robots: robotsTxt(origin, noIndex),
       sitemap: sitemapXml(origin, entries)
     };
   };
 
   return {
     name: "wemilktea-seo-files",
+    transformIndexHtml(html) {
+      if (!noIndex) return html;
+      return html.replace(
+        /<meta\s+name=["']robots["']\s+content=["'][^"']*["']\s*\/?\s*>/i,
+        '<meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />'
+      );
+    },
     async generateBundle() {
       const files = await render();
       this.emitFile({
