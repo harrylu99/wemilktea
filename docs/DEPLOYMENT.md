@@ -9,12 +9,114 @@ secrets.
 ## Release order
 
 ```text
-preflight → Supabase migrations/RLS → Edge Functions → R2/Maps/Auth config
+preflight → reviewed Supabase migrations/RLS → Edge Functions → R2/Maps/Auth config
 → frontend builds → Workers deploy → integration checks → smoke tests → GO/NO-GO
 ```
 
 Do not run a local reset against a production project. Production schema
 changes are applied by reviewed migrations only.
+
+## Supabase production automation
+
+Reviewed Edge Function changes merged into `main` are deployed by
+`.github/workflows/supabase-functions-deploy.yml`. The workflow is limited to
+changes under `supabase/functions/**` or `supabase/config.toml`, so frontend-
+only changes do not start a Supabase deployment. It always deploys the three
+production functions together because `_shared/admin-auth.ts` and the function
+import map are shared server dependencies:
+
+```text
+merge to main
+→ path-filtered GitHub Actions run
+→ production Environment approval
+→ deploy store-discovery
+→ deploy candidate-google-detail
+→ deploy image-storage
+```
+
+The workflow explicitly targets production project ref
+`tqdxmotcpogyvzdvgopi` and uses `--project-ref`; it does not use local link
+state. It records the commit SHA, target project ref, CLI version and migration
+status in the Actions log. Each function is deployed in its own step, so a
+failure stops the job and leaves the workflow visibly failed.
+
+The workflow uses the Supabase CLI `2.113.0` and the official pinned
+`supabase/setup-cli` action. Function deployment does not set, rotate, delete or
+print runtime secrets.
+
+### GitHub configuration required
+
+Create a GitHub Environment named `production` and add this Environment secret:
+
+```text
+SUPABASE_ACCESS_TOKEN
+```
+
+Use a production-scoped Supabase access token and do not add it to repository
+files, Vite variables, workflow output or pull-request workflows. Configure at
+least one required reviewer for the `production` Environment and restrict its
+deployment branch policy to `main`. The workflow has only `contents: read`
+permissions and does not run on pull requests, including forked pull requests.
+The manual `workflow_dispatch` path is also guarded so it can execute only when
+`github.ref` is exactly `refs/heads/main`.
+
+### Database migrations are controlled separately
+
+This workflow intentionally does **not** run `supabase db push`. A migration
+merged to `main` does not imply that the production database has changed, and a
+successful Edge Function deployment does not imply that migrations were
+applied. Review and apply migrations as a separate production release step in
+their original order.
+
+Before applying a migration, inspect the remote history and use the current
+CLI's dry-run support. The production target must be linked explicitly; never
+run `supabase db reset` against production and never use local seed data as a
+production migration.
+
+For a controlled operator-led migration, use a clean checkout of the reviewed
+`main` commit, set `SUPABASE_ACCESS_TOKEN` in the process environment, and use
+an approved database password from the password manager:
+
+```sh
+SUPABASE_TELEMETRY_DISABLED=1 supabase link \
+  --project-ref tqdxmotcpogyvzdvgopi \
+  --password "$SUPABASE_DB_PASSWORD"
+SUPABASE_TELEMETRY_DISABLED=1 supabase migration list
+SUPABASE_TELEMETRY_DISABLED=1 supabase db push --linked --dry-run
+SUPABASE_TELEMETRY_DISABLED=1 supabase db push --linked
+```
+
+The password is shown here only as an environment variable name; do not put
+its value in shell history, GitHub logs or the repository. If migration
+automation is later introduced, it needs a separately approved workflow and a
+production database-password boundary; it must not be added to the function
+deployment job by accident.
+
+### Failure and recovery
+
+If the workflow fails, open the failed run for the exact commit SHA, project
+ref and function step. Correct the source or deployment issue, then use
+GitHub's **Re-run failed jobs** for that same trusted `main` commit after the
+production Environment approval is available. Do not rerun from a pull-request
+workflow or change the project ref to make a deployment pass.
+
+To verify an active function after a successful run, inspect the function's
+deployment/version in the Supabase Dashboard and invoke it through its normal
+authenticated application path. If a function is missing from production,
+rerun the workflow or use the documented manual command from a clean reviewed
+checkout:
+
+```sh
+SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy <function-name> \
+  --project-ref tqdxmotcpogyvzdvgopi \
+  --use-api
+```
+
+If GitHub `main` is ahead of production, first determine whether the gap is an
+Edge Function deployment or a pending migration. Restore function parity by
+rerunning the function workflow; handle database drift with a reviewed
+forward migration or an approved corrective procedure. Do not reset or roll
+back the production database blindly.
 
 ## Production topology
 
@@ -307,10 +409,13 @@ not a substitute for deployed integration checks.
 
 1. Confirm the project ref and that the target is the intended production
    project.
-2. Link this checkout using the authenticated Supabase CLI:
+2. For a controlled migration release, link this checkout using the
+   authenticated Supabase CLI:
 
    ```sh
-   supabase link --project-ref <PROJECT_REF>
+   SUPABASE_TELEMETRY_DISABLED=1 supabase link \
+     --project-ref tqdxmotcpogyvzdvgopi \
+     --password "$SUPABASE_DB_PASSWORD"
    ```
 
 3. Inspect migration state before changing anything:
@@ -319,10 +424,11 @@ not a substitute for deployed integration checks.
    supabase migration list
    ```
 
-4. Apply reviewed migrations:
+4. Review the dry-run, then apply only the reviewed migrations:
 
    ```sh
-   supabase db push
+   SUPABASE_TELEMETRY_DISABLED=1 supabase db push --linked --dry-run
+   SUPABASE_TELEMETRY_DISABLED=1 supabase db push --linked
    ```
 
 5. Verify migration history, extensions, indexes, RLS and policies in the
@@ -340,19 +446,25 @@ the documented trusted procedure in [Admin authentication](ADMIN_AUTH.md).
 
 ## Edge Functions
 
-Deploy only the functions present in the repository and required for the
-release:
+Edge Functions are normally deployed by the path-filtered GitHub Actions
+workflow after a reviewed merge to `main`. If CI is unavailable, deploy only
+the functions present in the repository and required for the release from a
+clean reviewed checkout:
 
 ```sh
-supabase functions deploy store-discovery
-supabase functions deploy candidate-google-detail
-supabase functions deploy image-storage
+SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy store-discovery \
+  --project-ref tqdxmotcpogyvzdvgopi --use-api
+SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy candidate-google-detail \
+  --project-ref tqdxmotcpogyvzdvgopi --use-api
+SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy image-storage \
+  --project-ref tqdxmotcpogyvzdvgopi --use-api
 ```
 
-Set secrets without echoing values in shell history where possible, then verify
-each function's deployment and logs. Discovery and candidate detail use the
-server-only Places key; image storage uses the R2 secrets. A function must
-reject an untrusted origin and a non-admin JWT before doing privileged work.
+The CLI uses the existing server-side function secrets; do not set, rotate or
+delete them as part of source deployment. Verify each function's deployment and
+logs. Discovery and candidate detail use the server-only Places key; image
+storage uses the R2 secrets. A function must reject an untrusted origin and a
+non-admin JWT before doing privileged work.
 
 ## Cloudflare R2
 
