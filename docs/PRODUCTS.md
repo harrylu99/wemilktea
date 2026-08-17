@@ -28,6 +28,10 @@ New products start as drafts. Saving is separate from publishing. Publishing req
 
 Admins can manage canonical fields, product publication, the primary product image, and same-brand location relationships. Availability is catalogue state (`available`, `unavailable`, or `unknown`), not inventory or POS state. Prices use integer minor units (`price_cents`) and an uppercase three-letter currency; the V1 UI uses NZD.
 
+## Reviewed external menu confirmation
+
+The Admin Import Menu review is read-only until an Admin explicitly confirms selected items. Confirmation re-resolves each product by the selected location's brand and canonical `brand_id + slug` identity. Exact existing products are reused without overwriting curated fields or publication state; ambiguous same-brand names fail safely. New products are inserted as drafts, missing location relationships are added as `unknown`, and existing relationships remain unchanged. External prices, images, raw menu payloads, and tokens are not persisted. Provider-neutral item provenance is stored in `product_external_sources` and is unique per location, provider, and external item ID, making repeated confirmation idempotent.
+
 ## Images
 
 Product images reuse WM-24's `image-storage` Edge Function and metadata model. Product keys are generated under:

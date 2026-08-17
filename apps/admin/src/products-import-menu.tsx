@@ -9,6 +9,8 @@ import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import {
   buildMenuReviewItems,
+  confirmMenuErrorMessage,
+  confirmMenuResponseSchema,
   externalMenuErrorMessage,
   externalMenuResponseSchema,
   formatSourcePrice,
@@ -116,9 +118,16 @@ export function ProductsImportMenuPage() {
   const [isLoadingReferences, setIsLoadingReferences] = useState(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isFetchingMenu, setIsFetchingMenu] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [referenceError, setReferenceError] = useState<string | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
+  const [confirmationError, setConfirmationError] = useState<string | null>(
+    null
+  );
+  const [confirmationResult, setConfirmationResult] = useState<ReturnType<
+    typeof confirmMenuResponseSchema.parse
+  > | null>(null);
   const productsRequestId = useRef(0);
 
   const loadReferences = useCallback(async () => {
@@ -183,7 +192,7 @@ export function ProductsImportMenuPage() {
       setProducts([]);
       setProductsError(null);
       setIsLoadingProducts(false);
-      return;
+      return [] as ReviewProduct[];
     }
 
     setIsLoadingProducts(true);
@@ -193,7 +202,7 @@ export function ProductsImportMenuPage() {
       .select("id, brand_id, category_id, name, slug")
       .eq("brand_id", brandId)
       .order("slug");
-    if (requestId !== productsRequestId.current) return;
+    if (requestId !== productsRequestId.current) return null;
     const parsed = productSchema.array().safeParse(result.data);
 
     if (result.error || !parsed.success) {
@@ -201,19 +210,21 @@ export function ProductsImportMenuPage() {
         "Existing products could not be checked. Please try again."
       );
       setProducts([]);
-    } else {
-      setProducts(
-        parsed.data.map((product) => ({
-          id: product.id,
-          brandId: product.brand_id,
-          categoryId: product.category_id,
-          name: product.name,
-          slug: product.slug
-        }))
-      );
-      setProductsError(null);
+      setIsLoadingProducts(false);
+      return null;
     }
+
+    const nextProducts = parsed.data.map((product) => ({
+      id: product.id,
+      brandId: product.brand_id,
+      categoryId: product.category_id,
+      name: product.name,
+      slug: product.slug
+    }));
+    setProducts(nextProducts);
+    setProductsError(null);
     setIsLoadingProducts(false);
+    return nextProducts;
   }, [brandId]);
 
   useEffect(() => {
@@ -239,6 +250,8 @@ export function ProductsImportMenuPage() {
     setMenu(null);
     setReviewItems([]);
     setMenuError(null);
+    setConfirmationError(null);
+    setConfirmationResult(null);
   };
 
   const handleBrandChange = (nextBrandId: string) => {
@@ -259,6 +272,8 @@ export function ProductsImportMenuPage() {
 
     setIsFetchingMenu(true);
     setMenuError(null);
+    setConfirmationError(null);
+    setConfirmationResult(null);
     setMenu(null);
     setReviewItems([]);
     const result = await supabase.functions.invoke("external-menu", {
@@ -279,6 +294,70 @@ export function ProductsImportMenuPage() {
       );
     }
     setIsFetchingMenu(false);
+  };
+
+  const confirmImport = async () => {
+    if (
+      !supabase ||
+      !menu ||
+      !locationId ||
+      validation.selectedCount === 0 ||
+      !validation.isReady ||
+      isConfirming
+    ) {
+      return;
+    }
+
+    setIsConfirming(true);
+    setConfirmationError(null);
+    setConfirmationResult(null);
+    try {
+      const selectedItems = reviewItems
+        .filter((item) => item.selected)
+        .map((item) => ({
+          externalItemId: item.externalItemId,
+          name: item.name,
+          description: item.description,
+          targetCategoryId: item.targetCategoryId
+        }));
+      const result = await supabase.functions.invoke("confirm-menu-import", {
+        body: {
+          locationId,
+          provider: source,
+          items: selectedItems
+        }
+      });
+      const parsed = confirmMenuResponseSchema.safeParse(result.data);
+
+      if (result.error) {
+        setConfirmationError(
+          confirmMenuErrorMessage(functionErrorStatus(result.error))
+        );
+      } else if (!parsed.success) {
+        setConfirmationError("The menu import returned an invalid result.");
+      } else {
+        setConfirmationResult(parsed.data);
+        if (parsed.data.status === "success") {
+          const refreshedProducts = await loadProducts();
+          if (refreshedProducts) {
+            setReviewItems(
+              buildMenuReviewItems(
+                menu.items,
+                brandId,
+                refreshedProducts,
+                categories
+              )
+            );
+          }
+        }
+      }
+    } catch {
+      setConfirmationError(
+        "The menu import could not be completed. Please retry."
+      );
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   if (isLoadingReferences) return <ReferenceSkeleton />;
@@ -329,7 +408,7 @@ export function ProductsImportMenuPage() {
             Brand
             <select
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              disabled={isFetchingMenu}
+              disabled={isFetchingMenu || isConfirming}
               id="import-brand"
               value={brandId}
               onChange={(event) => handleBrandChange(event.target.value)}
@@ -346,7 +425,7 @@ export function ProductsImportMenuPage() {
             Store
             <select
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!brandId || isFetchingMenu}
+              disabled={!brandId || isFetchingMenu || isConfirming}
               id="import-store"
               value={locationId}
               onChange={(event) => handleLocationChange(event.target.value)}
@@ -370,7 +449,7 @@ export function ProductsImportMenuPage() {
             Source
             <select
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              disabled={isFetchingMenu}
+              disabled={isFetchingMenu || isConfirming}
               id="import-source"
               value={source}
               onChange={(event) => {
@@ -465,8 +544,8 @@ export function ProductsImportMenuPage() {
                   : `${menu.items.length} menu item${menu.items.length === 1 ? "" : "s"}`}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Existing and possible matches start unselected. All decisions
-                here are local until WM-54 is implemented.
+                Existing and possible matches start unselected. Confirmed items
+                become draft canonical products only.
               </p>
             </div>
             {reviewItems.length > 0 ? (
@@ -474,6 +553,7 @@ export function ProductsImportMenuPage() {
                 <button
                   className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted"
                   type="button"
+                  disabled={isConfirming}
                   onClick={() =>
                     setReviewItems((items) =>
                       setAllMenuReviewSelection(items, true)
@@ -485,6 +565,7 @@ export function ProductsImportMenuPage() {
                 <button
                   className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted"
                   type="button"
+                  disabled={isConfirming}
                   onClick={() =>
                     setReviewItems((items) =>
                       setAllMenuReviewSelection(items, false)
@@ -542,6 +623,7 @@ export function ProductsImportMenuPage() {
                           aria-label={`Select ${item.name}`}
                           checked={item.selected}
                           type="checkbox"
+                          disabled={isConfirming}
                           onChange={() =>
                             setReviewItems((items) =>
                               toggleMenuReviewItem(items, item.externalItemId)
@@ -587,6 +669,7 @@ export function ProductsImportMenuPage() {
                           className={`mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm ${categoryError ? "border-destructive" : "border-input"}`}
                           id={`category-${item.externalItemId}`}
                           value={item.targetCategoryId ?? ""}
+                          disabled={isConfirming}
                           onChange={(event) => {
                             const targetCategoryId = event.target.value || null;
                             setReviewItems((items) =>
@@ -622,9 +705,60 @@ export function ProductsImportMenuPage() {
             </>
           )}
 
+          {confirmationError ? (
+            <div className="mt-5 rounded-md border border-destructive/40 p-4">
+              <p className="text-sm text-destructive" role="alert">
+                {confirmationError}
+              </p>
+            </div>
+          ) : null}
+
+          {confirmationResult ? (
+            <div className="mt-5 rounded-md border border-border bg-card p-4 text-sm">
+              <p className="font-medium">
+                {confirmationResult.status === "success"
+                  ? "Import complete"
+                  : "Import needs review"}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Created: {confirmationResult.created.length} · Existing/reused:{" "}
+                {confirmationResult.reused.length} · Failed:{" "}
+                {confirmationResult.failed.length}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Newly created products remain drafts. Source prices and images
+                are not stored.
+              </p>
+              {confirmationResult.failed.length > 0 ? (
+                <ul className="mt-2 list-disc pl-5 text-destructive">
+                  {confirmationResult.failed.map((failure) => (
+                    <li key={failure.externalItemId}>
+                      {failure.externalItemId}: {failure.reason}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
+          <button
+            className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              validation.selectedCount === 0 ||
+              !validation.isReady ||
+              isConfirming
+            }
+            type="button"
+            onClick={() => void confirmImport()}
+          >
+            {isConfirming
+              ? "Confirming import…"
+              : `Import ${validation.selectedCount} draft product${validation.selectedCount === 1 ? "" : "s"}`}
+          </button>
+
           <p className="mt-6 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-            Cancel or leave this page at any time. WM-53 does not create or
-            update products, location availability, or canonical images.
+            Cancel or leave this page at any time. Confirming creates only the
+            selected draft products and missing location relationships.
           </p>
         </section>
       ) : null}

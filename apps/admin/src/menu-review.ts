@@ -53,6 +53,45 @@ export type MenuReviewItem = ExternalMenuItem & {
   targetCategoryId: string | null;
 };
 
+export const confirmMenuResponseSchema = z.object({
+  status: z.enum(["success", "validation_failed"]),
+  created: z.array(
+    z.object({
+      externalItemId: z.string(),
+      name: z.string(),
+      productId: z.string().uuid()
+    })
+  ),
+  reused: z.array(
+    z.object({
+      externalItemId: z.string(),
+      name: z.string(),
+      productId: z.string().uuid()
+    })
+  ),
+  failed: z.array(
+    z.object({
+      externalItemId: z.string(),
+      reason: z.string()
+    })
+  )
+});
+
+export type ConfirmMenuResponse = z.infer<typeof confirmMenuResponseSchema>;
+
+export function confirmMenuErrorMessage(status: number | undefined) {
+  switch (status) {
+    case 401:
+      return "Your admin session has expired. Sign in again and retry.";
+    case 403:
+      return "You do not have permission to confirm menu imports.";
+    case 409:
+      return "The catalogue changed while this menu was being reviewed. Refresh the menu and retry.";
+    default:
+      return "The menu import could not be completed. Please retry.";
+  }
+}
+
 function normalized(value: string) {
   return value.trim().toLowerCase();
 }

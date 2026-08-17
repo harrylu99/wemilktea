@@ -9,8 +9,11 @@ on:
       - supabase/config.toml
       - supabase/functions/_shared/admin-auth.ts
       - supabase/functions/external-menu/**
+      - supabase/functions/confirm-menu-import/**
       - supabase/migrations/20260817071555_add_location_external_sources.sql
+      - supabase/migrations/20260817102428_confirm_external_menu_import.sql
       - supabase/tests/location_external_sources_workflow.sql
+      - supabase/tests/product_external_sources_workflow.sql
       - scripts/uber-eats/**
       - package.json
       - bun.lock
@@ -25,7 +28,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate WM-51 and WM-52 on local Supabase
+    name: Validate WM-51, WM-52, and WM-54 on local Supabase
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -63,6 +66,8 @@ jobs:
             LOCAL_SUPABASE \
             WM51_MIGRATION \
             WM51_PGTAP \
+            WM54_MIGRATION \
+            WM54_PGTAP \
             RLS_ANONYMOUS \
             RLS_NON_ADMIN \
             RLS_ADMIN \
@@ -71,7 +76,9 @@ jobs:
             AUTH_401 \
             AUTH_403 \
             MISSING_MAPPING \
+            WM54_FUNCTION \
             UBER_E2E \
+            WM54_E2E \
             NORMALIZED_MENU \
             TOKEN_CACHE \
             SECRET_LOG_REVIEW \
@@ -221,9 +228,87 @@ jobs:
             exit 1
           fi
 
+      - name: Verify WM-54 schema and constraints
+        id: wm54-schema
+        if: steps.schema.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          cat > "$RUNNER_TEMP/wm49-wm54-schema-check.sql" <<'SQL'
+          do $$
+          declare
+            relation_security boolean;
+            constraint_count integer;
+          begin
+            if to_regclass('public.product_external_sources') is null then
+              raise exception 'product_external_sources table is missing';
+            end if;
+
+            select relrowsecurity into relation_security
+            from pg_class
+            where oid = 'public.product_external_sources'::regclass;
+            if relation_security is not true then
+              raise exception 'product_external_sources RLS is not enabled';
+            end if;
+
+            select count(*) into constraint_count
+            from pg_constraint
+            where conrelid = 'public.product_external_sources'::regclass
+              and conname = 'product_external_sources_identity_key';
+            if constraint_count <> 1 then
+              raise exception 'product_external_sources identity uniqueness is missing';
+            end if;
+
+            if not exists (
+              select 1
+              from pg_proc
+              where pronamespace = 'public'::regnamespace
+                and proname = 'confirm_external_menu_import'
+                and proargtypes = ARRAY[
+                  'uuid'::regtype::oid,
+                  'text'::regtype::oid,
+                  'jsonb'::regtype::oid
+                ]::oidvector
+            ) then
+              raise exception 'confirm_external_menu_import function is missing';
+            end if;
+          end;
+          $$;
+          SQL
+
+          if supabase db query --local --file "$RUNNER_TEMP/wm49-wm54-schema-check.sql" \
+            > "$RUNNER_TEMP/wm49-wm54-schema-check.log" 2>&1; then
+            echo "WM54_MIGRATION=PASS" >> "$GITHUB_ENV"
+          else
+            echo "WM54_MIGRATION=FAIL" >> "$GITHUB_ENV"
+            echo "WM-54 schema or constraint verification failed."
+            cat "$RUNNER_TEMP/wm49-wm54-schema-check.log"
+            exit 1
+          fi
+
+      - name: Execute WM-54 database workflow test
+        id: wm54-pgtap
+        if: steps.wm54-schema.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          if supabase test db --local supabase/tests/product_external_sources_workflow.sql \
+            > "$RUNNER_TEMP/wm49-product-external-sources-test.log" 2>&1; then
+            echo "WM54_PGTAP=PASS" >> "$GITHUB_ENV"
+          else
+            echo "WM54_PGTAP=FAIL" >> "$GITHUB_ENV"
+            echo "WM-54 database workflow test failed."
+            cat "$RUNNER_TEMP/wm49-product-external-sources-test.log"
+            exit 1
+          fi
+
       - name: Create ephemeral Auth users and catalogue fixtures
         id: fixtures
-        if: steps.pgtap.outcome == 'success'
+        if: steps.pgtap.outcome == 'success' && steps.wm54-pgtap.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -774,6 +859,63 @@ jobs:
           echo "MISSING_MAPPING: message=not connected"
           echo "MISSING_MAPPING=PASS" >> "$GITHUB_ENV"
 
+      - name: Verify WM-54 confirmation authorization and no-op
+        id: wm54-function
+        if: steps.auth-and-rls.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+          source "$RUNNER_TEMP/wm49-fixture.env"
+
+          SUPABASE_ANON_KEY="$ANON_KEY"
+          FUNCTION_URL="http://127.0.0.1:54321/functions/v1/confirm-menu-import"
+          ADMIN_TOKEN="$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
+          ORDINARY_TOKEN="$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
+          REQUEST_BODY="$(jq -nc --arg location_id "$MAPPED_LOCATION_ID" \
+            '{locationId: $location_id, provider: "uber_eats", items: []}')"
+
+          no_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-wm54-no-auth.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H 'Content-Type: application/json' \
+            --data "$REQUEST_BODY" \
+            "$FUNCTION_URL")"
+          if [[ "$no_auth_status" != "401" ]]; then
+            echo "WM-54 no-auth boundary expected 401 but received $no_auth_status."
+            exit 1
+          fi
+
+          ordinary_status="$(curl -sS -o "$RUNNER_TEMP/wm49-wm54-ordinary.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ORDINARY_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "$REQUEST_BODY" \
+            "$FUNCTION_URL")"
+          if [[ "$ordinary_status" != "403" ]]; then
+            echo "WM-54 non-admin boundary expected 403 but received $ordinary_status."
+            exit 1
+          fi
+
+          admin_status="$(curl -sS -o "$RUNNER_TEMP/wm49-wm54-admin.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "$REQUEST_BODY" \
+            "$FUNCTION_URL")"
+          if [[ "$admin_status" != "200" ]] || ! jq -e '.status == "success" and (.created | length) == 0 and (.reused | length) == 0 and (.failed | length) == 0' \
+            "$RUNNER_TEMP/wm49-wm54-admin.json" > /dev/null; then
+            echo "WM-54 Admin no-op confirmation failed (HTTP $admin_status)."
+            jq -c '{error: (.error // null), status: (.status // null)}' \
+              "$RUNNER_TEMP/wm49-wm54-admin.json" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "WM54_FUNCTION=PASS" >> "$GITHUB_ENV"
+
       - name: Execute real Uber sandbox E2E request
         id: uber-e2e
         if: steps.auth-and-rls.outcome == 'success'
@@ -842,6 +984,135 @@ jobs:
           ' "$RUNNER_TEMP/wm49-uber-menu-first.json" > /dev/null
           echo "NORMALIZED_MENU=PASS" >> "$GITHUB_ENV"
 
+          CATEGORY_ID="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode 'slug=eq.milk-tea' \
+            --data-urlencode 'select=id' \
+            "$SUPABASE_URL/rest/v1/categories" | jq -r '.[0].id // empty')"
+          if [[ -z "$CATEGORY_ID" ]]; then
+            echo "WM-54 E2E could not resolve the seeded canonical category."
+            exit 1
+          fi
+
+          ITEM_ID="$(jq -r '.items[0].externalItemId' "$RUNNER_TEMP/wm49-uber-menu-first.json")"
+          ITEM_NAME="$(jq -r '.items[0].name' "$RUNNER_TEMP/wm49-uber-menu-first.json")"
+          ITEM_DESCRIPTION_JSON="$(jq -c '.items[0].description' "$RUNNER_TEMP/wm49-uber-menu-first.json")"
+          CONFIRM_BODY="$(jq -nc \
+            --arg location_id "$MAPPED_LOCATION_ID" \
+            --arg external_item_id "$ITEM_ID" \
+            --arg name "$ITEM_NAME" \
+            --arg category_id "$CATEGORY_ID" \
+            --argjson description "$ITEM_DESCRIPTION_JSON" \
+            '{locationId: $location_id, provider: "uber_eats", items: [{externalItemId: $external_item_id, name: $name, description: $description, targetCategoryId: $category_id}]}')"
+
+          CONFIRM_URL="http://127.0.0.1:54321/functions/v1/confirm-menu-import"
+          confirm_status="$(curl -sS -o "$RUNNER_TEMP/wm49-wm54-confirm-first.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "$CONFIRM_BODY" \
+            "$CONFIRM_URL")"
+          if [[ "$confirm_status" != "200" ]] || ! jq -e '.status == "success" and ((.created | length) + (.reused | length)) == 1 and (.failed | length) == 0' \
+            "$RUNNER_TEMP/wm49-wm54-confirm-first.json" > /dev/null; then
+            echo "WM-54 first confirmation failed (HTTP $confirm_status)."
+            jq -c '{error: (.error // null), status: (.status // null), failed: (.failed // [])}' \
+              "$RUNNER_TEMP/wm49-wm54-confirm-first.json" 2>/dev/null || true
+            exit 1
+          fi
+
+          PRODUCT_ID="$(jq -r '.created[0].productId // .reused[0].productId // empty' "$RUNNER_TEMP/wm49-wm54-confirm-first.json")"
+          if [[ -z "$PRODUCT_ID" ]]; then
+            echo "WM-54 confirmation returned no canonical product ID."
+            exit 1
+          fi
+
+          relation_before="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "location_id=eq.$MAPPED_LOCATION_ID" \
+            --data-urlencode "product_id=eq.$PRODUCT_ID" \
+            --data-urlencode 'select=price_cents,currency,availability_status,source_provenance' \
+            "$SUPABASE_URL/rest/v1/location_products" | jq -cS '.')"
+
+          second_confirm_status="$(curl -sS -o "$RUNNER_TEMP/wm49-wm54-confirm-second.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "$CONFIRM_BODY" \
+            "$CONFIRM_URL")"
+          if [[ "$second_confirm_status" != "200" ]] || ! jq -e '.status == "success" and (.created | length) == 0 and (.reused | length) == 1 and (.failed | length) == 0' \
+            "$RUNNER_TEMP/wm49-wm54-confirm-second.json" > /dev/null; then
+            echo "WM-54 repeated confirmation failed (HTTP $second_confirm_status)."
+            jq -c '{error: (.error // null), status: (.status // null), failed: (.failed // [])}' \
+              "$RUNNER_TEMP/wm49-wm54-confirm-second.json" 2>/dev/null || true
+            exit 1
+          fi
+
+          location_brand_id="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "id=eq.$MAPPED_LOCATION_ID" \
+            --data-urlencode 'select=brand_id' \
+            "$SUPABASE_URL/rest/v1/locations" | jq -r '.[0].brand_id // empty')"
+          product_record="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "id=eq.$PRODUCT_ID" \
+            --data-urlencode 'select=id,brand_id,category_id,is_published' \
+            "$SUPABASE_URL/rest/v1/products" | jq -cS '.[0] // {}')"
+          relation_after="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "location_id=eq.$MAPPED_LOCATION_ID" \
+            --data-urlencode "product_id=eq.$PRODUCT_ID" \
+            --data-urlencode 'select=price_cents,currency,availability_status,source_provenance' \
+            "$SUPABASE_URL/rest/v1/location_products" | jq -cS '.')"
+          provenance_rows="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "location_id=eq.$MAPPED_LOCATION_ID" \
+            --data-urlencode 'provider=eq.uber_eats' \
+            --data-urlencode "external_item_id=eq.$ITEM_ID" \
+            --data-urlencode 'select=product_id' \
+            "$SUPABASE_URL/rest/v1/product_external_sources" | jq -c '.')"
+          image_rows="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "product_id=eq.$PRODUCT_ID" \
+            --data-urlencode 'select=id' \
+            "$SUPABASE_URL/rest/v1/product_images" | jq -c '.')"
+
+          if ! jq -e \
+            --arg location_brand_id "$location_brand_id" \
+            --arg category_id "$CATEGORY_ID" \
+            '.brand_id == $location_brand_id and .category_id == $category_id and .is_published == false' \
+            <<<"$product_record" > /dev/null; then
+            echo "WM-54 product brand/category/draft assertions failed."
+            exit 1
+          fi
+          if ! jq -e 'length == 1 and .[0].product_id != null' <<<"$provenance_rows" > /dev/null; then
+            echo "WM-54 provenance assertion failed."
+            exit 1
+          fi
+          if ! jq -e 'length == 1 and .[0].price_cents == null and .[0].currency == "NZD" and .[0].availability_status == "unknown" and .[0].source_provenance == "wemilktea"' \
+            <<<"$relation_after" > /dev/null; then
+            echo "WM-54 location relationship safety assertions failed."
+            exit 1
+          fi
+          if [[ "$relation_before" != "$relation_after" ]]; then
+            echo "WM-54 repeated confirmation changed the existing location relationship."
+            exit 1
+          fi
+          if ! jq -e 'length == 0' <<<"$image_rows" > /dev/null; then
+            echo "WM-54 unexpectedly created a product image row."
+            exit 1
+          fi
+
+          echo "WM54_E2E=PASS" >> "$GITHUB_ENV"
+
           second_headers="$RUNNER_TEMP/wm49-uber-menu-second.headers.txt"
           second_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-second.json" "$second_headers")"
           echo "UBER_E2E_SECOND: expected=200 actual=$second_status sb-error-code=$(safe_sb_error_code "$second_headers")"
@@ -868,7 +1139,9 @@ jobs:
 
           for response_file in \
             "$RUNNER_TEMP/wm49-uber-menu-first.json" \
-            "$RUNNER_TEMP/wm49-uber-menu-second.json"
+            "$RUNNER_TEMP/wm49-uber-menu-second.json" \
+            "$RUNNER_TEMP/wm49-wm54-confirm-first.json" \
+            "$RUNNER_TEMP/wm49-wm54-confirm-second.json"
           do
             if [[ -f "$response_file" ]]; then
               if grep -qE '"menus"|price_info|bundled_items|Authorization|Bearer' "$response_file"; then
@@ -979,6 +1252,8 @@ jobs:
             LOCAL_SUPABASE
             WM51_MIGRATION
             WM51_PGTAP
+            WM54_MIGRATION
+            WM54_PGTAP
             RLS_ANONYMOUS
             RLS_NON_ADMIN
             RLS_ADMIN
@@ -987,7 +1262,9 @@ jobs:
             AUTH_401
             AUTH_403
             MISSING_MAPPING
+            WM54_FUNCTION
             NORMALIZED_MENU
+            WM54_E2E
             SECRET_LOG_REVIEW
             REGRESSION
           )
@@ -1028,6 +1305,9 @@ jobs:
             "$RUNNER_TEMP/wm49-schema-check.sql" \
             "$RUNNER_TEMP/wm49-schema-check.log" \
             "$RUNNER_TEMP/wm49-location-external-sources-test.log" \
+            "$RUNNER_TEMP/wm49-wm54-schema-check.sql" \
+            "$RUNNER_TEMP/wm49-wm54-schema-check.log" \
+            "$RUNNER_TEMP/wm49-product-external-sources-test.log" \
             "$RUNNER_TEMP/wm49-admin-user.json" \
             "$RUNNER_TEMP/wm49-ordinary-user.json" \
             "$RUNNER_TEMP/wm49-fixtures.sql" \
@@ -1051,6 +1331,8 @@ jobs:
             echo "- Local Supabase: ${LOCAL_SUPABASE:-NOT_RUN}"
             echo "- WM-51 migration and constraints: ${WM51_MIGRATION:-NOT_RUN}"
             echo "- WM-51 database workflow: ${WM51_PGTAP:-NOT_RUN}"
+            echo "- WM-54 migration and constraints: ${WM54_MIGRATION:-NOT_RUN}"
+            echo "- WM-54 database workflow: ${WM54_PGTAP:-NOT_RUN}"
             echo "- Anonymous RLS: ${RLS_ANONYMOUS:-NOT_RUN}"
             echo "- Non-admin RLS: ${RLS_NON_ADMIN:-NOT_RUN}"
             echo "- Admin RLS: ${RLS_ADMIN:-NOT_RUN}"
@@ -1059,8 +1341,10 @@ jobs:
             echo "- 401 authentication test: ${AUTH_401:-NOT_RUN}"
             echo "- 403 non-admin test: ${AUTH_403:-NOT_RUN}"
             echo "- Missing mapping: ${MISSING_MAPPING:-NOT_RUN}"
+            echo "- WM-54 confirmation function boundary: ${WM54_FUNCTION:-NOT_RUN}"
             echo "- Uber sandbox E2E: ${UBER_E2E:-NOT_RUN}"
             echo "- Normalized menu: ${NORMALIZED_MENU:-NOT_RUN}"
+            echo "- WM-54 confirmation E2E: ${WM54_E2E:-NOT_RUN}"
             echo "- Repeated-call/token-cache observation: ${TOKEN_CACHE:-NOT_RUN}"
             echo "- Secret/log review: ${SECRET_LOG_REVIEW:-NOT_RUN}"
             echo "- Repository regression: ${REGRESSION:-NOT_RUN}"

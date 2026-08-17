@@ -143,6 +143,8 @@ type InvokeResult = {
 };
 
 let invokeMenu: () => Promise<InvokeResult>;
+let invokeConfirmation: (body: unknown) => Promise<InvokeResult>;
+let confirmationCalls: unknown[];
 let writeCalls: string[];
 
 function queryFor(table: string) {
@@ -180,7 +182,14 @@ function queryFor(table: string) {
 const supabaseMock = {
   from: (table: string) => queryFor(table),
   functions: {
-    invoke: () => invokeMenu()
+    invoke: (name: string, options?: { body?: unknown }) => {
+      if (name === "confirm-menu-import") {
+        const body = options?.body;
+        confirmationCalls.push(body);
+        return invokeConfirmation(body);
+      }
+      return invokeMenu();
+    }
   }
 };
 
@@ -225,7 +234,24 @@ async function fetchCompleteMenu() {
 
 beforeEach(() => {
   writeCalls = [];
+  confirmationCalls = [];
   invokeMenu = () => Promise.resolve({ data: completeMenu, error: null });
+  invokeConfirmation = () =>
+    Promise.resolve({
+      data: {
+        status: "success",
+        created: [
+          {
+            externalItemId: "external-new",
+            name: "Taro Milk Tea",
+            productId: existingProductId
+          }
+        ],
+        reused: [],
+        failed: []
+      },
+      error: null
+    });
 });
 
 afterEach(() => {
@@ -451,3 +477,168 @@ pageTest(
     expect(writeCalls).toEqual([]);
   }
 );
+
+pageTest("keeps confirmation disabled with no selected items", async () => {
+  await fetchCompleteMenu();
+  fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+
+  const confirmButton = screen.getByRole("button", {
+    name: "Import 0 draft products"
+  });
+  expect((confirmButton as HTMLButtonElement).disabled).toBeTrue();
+  expect(confirmationCalls).toEqual([]);
+});
+
+pageTest(
+  "keeps confirmation disabled until every selected item has a category",
+  async () => {
+    invokeMenu = () =>
+      Promise.resolve({
+        data: {
+          ...completeMenu,
+          items: [
+            {
+              ...completeMenu.items[2],
+              name: "Uncategorised Tea",
+              sourceCategory: null
+            }
+          ]
+        },
+        error: null
+      });
+
+    await chooseBrandAndStore();
+    fireEvent.click(screen.getByRole("button", { name: "Fetch menu" }));
+    await screen.findByText("Uncategorised Tea");
+
+    const confirmButton = screen.getByRole("button", {
+      name: "Import 1 draft product"
+    });
+    expect((confirmButton as HTMLButtonElement).disabled).toBeTrue();
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: /WeMilktea category/ }),
+      {
+        target: { value: fruitTeaCategoryId }
+      }
+    );
+    await waitFor(() => {
+      expect((confirmButton as HTMLButtonElement).disabled).toBeFalse();
+    });
+  }
+);
+
+pageTest(
+  "shows confirmation loading state and ignores a double click",
+  async () => {
+    let resolveConfirmation!: (result: InvokeResult) => void;
+    invokeConfirmation = () =>
+      new Promise((resolve) => {
+        resolveConfirmation = resolve;
+      });
+
+    await fetchCompleteMenu();
+    const confirmButton = screen.getByRole("button", {
+      name: "Import 1 draft product"
+    });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    expect((confirmButton as HTMLButtonElement).disabled).toBeTrue();
+    expect(screen.getByText("Confirming import…")).toBeTruthy();
+    expect(confirmationCalls).toHaveLength(1);
+
+    resolveConfirmation({
+      data: {
+        status: "success",
+        created: [
+          {
+            externalItemId: "external-new",
+            name: "Taro Milk Tea",
+            productId: existingProductId
+          }
+        ],
+        reused: [],
+        failed: []
+      },
+      error: null
+    });
+    expect(await screen.findByText("Import complete")).toBeTruthy();
+  }
+);
+
+pageTest(
+  "confirms selected items only and shows a draft result without price or image data",
+  async () => {
+    await fetchCompleteMenu();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Select Brown Sugar Pearl Milk Tea"
+      })
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Import 2 draft products" })
+      ).toBeTruthy();
+    });
+    const confirmButton = screen.getByRole("button", {
+      name: "Import 2 draft products"
+    });
+    fireEvent.click(confirmButton);
+    expect(await screen.findByText("Import complete")).toBeTruthy();
+
+    expect(confirmationCalls).toHaveLength(1);
+    expect(confirmationCalls[0]).toEqual({
+      locationId: locationOneId,
+      provider: "uber_eats",
+      items: [
+        {
+          externalItemId: "external-existing",
+          name: "Brown Sugar Pearl Milk Tea",
+          description: "Existing canonical item",
+          targetCategoryId: milkTeaCategoryId
+        },
+        {
+          externalItemId: "external-new",
+          name: "Taro Milk Tea",
+          description: "A new drink",
+          targetCategoryId: milkTeaCategoryId
+        }
+      ]
+    });
+    expect(JSON.stringify(confirmationCalls[0])).not.toContain("amountMinor");
+    expect(JSON.stringify(confirmationCalls[0])).not.toContain("imageUrl");
+    expect(writeCalls).toEqual([]);
+    expect(screen.getByText(/Created: 1/)).toBeTruthy();
+  }
+);
+
+pageTest("shows item failures without claiming a complete import", async () => {
+  invokeConfirmation = () =>
+    Promise.resolve({
+      data: {
+        status: "validation_failed",
+        created: [],
+        reused: [],
+        failed: [
+          {
+            externalItemId: "external-new",
+            reason: "Possible existing product requires manual resolution."
+          }
+        ]
+      },
+      error: null
+    });
+
+  await fetchCompleteMenu();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Import 1 draft product" })
+  );
+
+  expect(await screen.findByText("Import needs review")).toBeTruthy();
+  expect(
+    screen.getByText(/Possible existing product requires manual resolution\./)
+  ).toBeTruthy();
+  expect(screen.queryByText("Import complete")).toBeNull();
+  expect(writeCalls).toEqual([]);
+});
