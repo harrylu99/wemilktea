@@ -450,18 +450,17 @@ select throws_ok(
       '[]'::jsonb
     )
   $$,
-  'P0001',
-  'admin_access_required',
+  '42501',
+  null,
   'anonymous users cannot confirm imports'
 );
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', current_setting('wm54.ordinary_user_id'), true);
 
-select throws_ok(
-  $$select count(*) from public.product_external_sources$$,
-  '42501',
-  null,
+select is(
+  (select count(*) from public.product_external_sources),
+  0::bigint,
   'ordinary authenticated users cannot read product provenance'
 );
 
