@@ -39,8 +39,8 @@ begin
     is_published
   )
   values (
-    brand_id,
-    category_id,
+    v_brand_id,
+    v_category_id,
     'WM-54 Ambiguous Tea',
     'wm-54-ambiguous-tea-legacy',
     'Existing ambiguous product.',
