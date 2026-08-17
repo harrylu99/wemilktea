@@ -260,9 +260,15 @@ jobs:
               "$SUPABASE_URL/auth/v1/admin/users")"
 
             if [[ "$response_status" != "200" && "$response_status" != "201" ]]; then
+              echo "Supabase Auth fixture creation failed (HTTP $response_status)."
+              jq -c '{error: (.error // null), code: (.code // null), message: (.msg // .message // null)}' \
+                "$response_file" 2>/dev/null || true
               return 1
             fi
-            jq -e '.id and .email' "$response_file" > /dev/null
+            if ! jq -e '.id and .email' "$response_file" > /dev/null; then
+              echo "Supabase Auth fixture creation returned no usable user record."
+              exit 1
+            fi
           }
 
           create_user "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$RUNNER_TEMP/wm49-admin-user.json"
@@ -337,8 +343,12 @@ jobs:
           );
           SQL
 
-          supabase db query --local --file "$RUNNER_TEMP/wm49-fixtures.sql" \
-            > "$RUNNER_TEMP/wm49-fixtures.log" 2>&1
+          if ! supabase db query --local --file "$RUNNER_TEMP/wm49-fixtures.sql" \
+            > "$RUNNER_TEMP/wm49-fixtures.log" 2>&1; then
+            echo "Local catalogue fixture SQL failed:"
+            cat "$RUNNER_TEMP/wm49-fixtures.log"
+            exit 1
+          fi
 
           for value in \
             "ADMIN_USER_ID=$ADMIN_USER_ID" \
@@ -357,15 +367,23 @@ jobs:
             local response_file="$3"
             jq -n --arg email "$email" --arg password "$password" \
               '{email: $email, password: $password}' |
-              curl -sS -o "$response_file" -w '%{http_code}' \
-                -X POST \
-                -H "apikey: $SUPABASE_ANON_KEY" \
+            curl -sS -o "$response_file" -w '%{http_code}' \
+              -X POST \
+              -H "apikey: $SUPABASE_ANON_KEY" \
                 -H 'Content-Type: application/json' \
                 --data-binary @- \
                 "$SUPABASE_URL/auth/v1/token?grant_type=password" \
                 > "$RUNNER_TEMP/wm49-token-status.txt"
-            [[ "$(cat "$RUNNER_TEMP/wm49-token-status.txt")" == "200" ]]
-            jq -e '.access_token' "$response_file" > /dev/null
+            if [[ "$(cat "$RUNNER_TEMP/wm49-token-status.txt")" != "200" ]]; then
+              echo "Supabase Auth fixture sign-in failed (HTTP $(cat "$RUNNER_TEMP/wm49-token-status.txt"))."
+              jq -c '{error: (.error // null), code: (.code // null), message: (.msg // .message // null)}' \
+                "$response_file" 2>/dev/null || true
+              return 1
+            fi
+            if ! jq -e '.access_token' "$response_file" > /dev/null; then
+              echo "Supabase Auth fixture sign-in returned no access token."
+              return 1
+            fi
             jq -r '.access_token' "$response_file"
           }
 
