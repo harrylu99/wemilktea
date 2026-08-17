@@ -505,11 +505,17 @@ jobs:
 
       - name: Prepare local external-menu environment
         id: function-env
-        if: steps.fixtures.outcome == 'success'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ "${WM51_PGTAP:-NOT_RUN}" != "PASS" || "${WM54_PGTAP:-NOT_RUN}" != "PASS" || ! -f "$RUNNER_TEMP/wm49-supabase-status.env" || ! -f "$RUNNER_TEMP/wm49-fixture.env" ]]; then
+            echo "Database validation or fixture setup did not pass; external-menu environment cannot be prepared."
+            exit 1
+          fi
+
           source "$RUNNER_TEMP/wm49-supabase-status.env"
 
           if [[ -n "${UBER_EATS_CLIENT_ID:-}" && -n "${UBER_EATS_CLIENT_SECRET:-}" ]]; then
@@ -532,11 +538,16 @@ jobs:
 
       - name: Start the local external-menu Edge Runtime
         id: edge-runtime
-        if: steps.function-env.outcome == 'success'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ ! -f "$RUNNER_TEMP/wm49-external-menu.env" ]]; then
+            echo "The external-menu environment was not prepared; Edge Runtime cannot start."
+            exit 1
+          fi
 
           supabase functions serve \
             --env-file "$RUNNER_TEMP/wm49-external-menu.env" \
@@ -553,11 +564,17 @@ jobs:
 
       - name: Verify Auth, RLS, and missing mapping boundary
         id: auth-and-rls
-        if: steps.edge-runtime.outcome == 'success'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ ! -f "$RUNNER_TEMP/wm49-external-menu.pid" || ! -f "$RUNNER_TEMP/wm49-external-menu.log" ]]; then
+            echo "The external-menu Edge Runtime did not start; boundary checks cannot run."
+            exit 1
+          fi
+
           source "$RUNNER_TEMP/wm49-supabase-status.env"
           source "$RUNNER_TEMP/wm49-fixture.env"
 
@@ -1148,12 +1165,18 @@ jobs:
 
       - name: Review function response and logs for secret leakage
         id: security-review
-        if: steps.edge-runtime.outcome == 'success'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
           source "$RUNNER_TEMP/wm49-supabase-status.env"
+
+          if [[ ! -f "$RUNNER_TEMP/wm49-external-menu.log" ]]; then
+            echo "The external-menu runtime log is missing; secret review cannot pass."
+            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
 
           ADMIN_TOKEN=""
           ORDINARY_TOKEN=""
