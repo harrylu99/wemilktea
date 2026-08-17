@@ -67,6 +67,7 @@ jobs:
             RLS_NON_ADMIN \
             RLS_ADMIN \
             EDGE_RUNTIME \
+            HANDLER_BOOT \
             AUTH_401 \
             AUTH_403 \
             MISSING_MAPPING \
@@ -426,8 +427,6 @@ jobs:
           fi
 
           cat > "$RUNNER_TEMP/wm49-external-menu.env" <<EOF
-          SUPABASE_URL=$API_URL
-          SUPABASE_ANON_KEY=$ANON_KEY
           ADMIN_APP_ORIGIN=http://127.0.0.1:5174
           UBER_EATS_CLIENT_ID=$FUNCTION_CLIENT_ID
           UBER_EATS_CLIENT_SECRET=$FUNCTION_CLIENT_SECRET
@@ -448,24 +447,13 @@ jobs:
             > "$RUNNER_TEMP/wm49-external-menu.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/wm49-external-menu.pid"
 
-          function_url="http://127.0.0.1:54321/functions/v1/external-menu"
-          ready=0
-          for _ in $(seq 1 60); do
-            status="$(curl -sS -o /dev/null -w '%{http_code}' "$function_url" || true)"
-            if [[ "$status" != "000" && "$status" != "502" ]]; then
-              ready=1
-              break
-            fi
-            sleep 1
-          done
-
-          if [[ "$ready" == "1" ]]; then
-            echo "EDGE_RUNTIME=PASS" >> "$GITHUB_ENV"
-          else
+          sleep 2
+          if ! kill -0 "$(cat "$RUNNER_TEMP/wm49-external-menu.pid")" 2>/dev/null; then
             echo "EDGE_RUNTIME=FAIL" >> "$GITHUB_ENV"
-            echo "The local external-menu Edge Runtime did not become ready."
+            echo "The local external-menu Edge Runtime process exited before the handler probe."
             exit 1
           fi
+          echo "external-menu Edge Runtime process started; handler-level probe pending."
 
       - name: Verify Auth, RLS, and missing mapping boundary
         id: auth-and-rls
@@ -483,6 +471,52 @@ jobs:
           ADMIN_TOKEN="$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
           ORDINARY_TOKEN="$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
           MAPPING_URL="$SUPABASE_URL/rest/v1/location_external_sources"
+
+          summarize_runtime_log() {
+            local runtime_log="$1"
+            local found=0
+
+            if [[ ! -s "$runtime_log" ]]; then
+              echo "runtime_log=missing_or_empty"
+              return
+            fi
+
+            if grep -Fqi 'External menu function is missing required configuration.' "$runtime_log"; then
+              echo "runtime_log=missing_configuration"
+              found=1
+            fi
+            if grep -Eqi 'Module not found|Cannot find module|import map|module resolution' "$runtime_log"; then
+              echo "runtime_log=module_resolution_error"
+              found=1
+            fi
+            if grep -Eqi 'Uncaught|panic|worker.*(crash|error)|failed to load|boot error' "$runtime_log"; then
+              echo "runtime_log=worker_boot_error"
+              found=1
+            fi
+            if grep -Eqi 'invalid response|upstream server' "$runtime_log"; then
+              echo "runtime_log=gateway_upstream_error"
+              found=1
+            fi
+            if [[ "$found" == "0" ]]; then
+              echo "runtime_log=unclassified_error"
+            fi
+          }
+
+          safe_sb_error_code() {
+            local headers_file="${1:-}"
+            local value
+
+            if [[ ! -s "$headers_file" ]]; then
+              echo "missing"
+              return
+            fi
+
+            value="$(awk 'tolower($1) == "sb-error-code:" { $1=""; sub(/^[[:space:]]+/, ""); print; exit }' \
+              "$headers_file" 2>/dev/null || true)"
+            value="$(printf '%s' "$value" | LC_ALL=C tr -cd '[:alnum:]_.- ' | cut -c1-120)"
+            [[ -n "$value" ]] || value="missing"
+            printf '%s\n' "$value"
+          }
 
           print_safe_error() {
             local response_file="$1"
@@ -504,6 +538,7 @@ jobs:
             local expected="$2"
             local actual="$3"
             local response_file="$4"
+            local headers_file="${5:-}"
             local matches=0
 
             if [[ "$expected" == "2xx" ]]; then
@@ -512,10 +547,13 @@ jobs:
               matches=1
             fi
 
-            echo "$name: expected=$expected actual=$actual"
+            echo "$name: expected=$expected actual=$actual sb-error-code=$(safe_sb_error_code "$headers_file")"
             if [[ "$matches" != "1" ]]; then
               echo "::error::$name expected HTTP $expected but received $actual"
               print_safe_error "$response_file"
+              if [[ "$actual" == "502" ]]; then
+                summarize_runtime_log "$RUNNER_TEMP/wm49-external-menu.log"
+              fi
               return 1
             fi
           }
@@ -594,23 +632,50 @@ jobs:
             fi
           }
 
-          no_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-no-auth.json" -w '%{http_code}' \
+          handler_boot_headers="$RUNNER_TEMP/wm49-handler-boot.headers.txt"
+          handler_boot_status="$(curl -sS -D "$handler_boot_headers" -o "$RUNNER_TEMP/wm49-handler-boot.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data '{}' \
+            "$FUNCTION_URL")"
+          if ! assert_status "HANDLER_BOOT" "400" "$handler_boot_status" "$RUNNER_TEMP/wm49-handler-boot.json" "$handler_boot_headers"; then
+            echo "HANDLER_BOOT=FAIL" >> "$GITHUB_ENV"
+            echo "EDGE_RUNTIME=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          if ! jq -e '.error == "Invalid request."' "$RUNNER_TEMP/wm49-handler-boot.json" > /dev/null 2>&1; then
+            echo "::error::HANDLER_BOOT returned HTTP 400 without the expected application error message"
+            print_safe_error "$RUNNER_TEMP/wm49-handler-boot.json"
+            summarize_runtime_log "$RUNNER_TEMP/wm49-external-menu.log"
+            echo "HANDLER_BOOT=FAIL" >> "$GITHUB_ENV"
+            echo "EDGE_RUNTIME=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          echo "HANDLER_BOOT: message=Invalid request."
+          echo "HANDLER_BOOT=PASS" >> "$GITHUB_ENV"
+          echo "EDGE_RUNTIME=PASS" >> "$GITHUB_ENV"
+
+          no_auth_headers="$RUNNER_TEMP/wm49-no-auth.headers.txt"
+          no_auth_status="$(curl -sS -D "$no_auth_headers" -o "$RUNNER_TEMP/wm49-no-auth.json" -w '%{http_code}' \
             -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H 'Content-Type: application/json' \
             --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
             "$FUNCTION_URL")"
-          assert_status "AUTH_401" "401" "$no_auth_status" "$RUNNER_TEMP/wm49-no-auth.json"
+          assert_status "AUTH_401" "401" "$no_auth_status" "$RUNNER_TEMP/wm49-no-auth.json" "$no_auth_headers"
           echo "AUTH_401=PASS" >> "$GITHUB_ENV"
 
-          ordinary_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-auth.json" -w '%{http_code}' \
+          ordinary_auth_headers="$RUNNER_TEMP/wm49-ordinary-auth.headers.txt"
+          ordinary_auth_status="$(curl -sS -D "$ordinary_auth_headers" -o "$RUNNER_TEMP/wm49-ordinary-auth.json" -w '%{http_code}' \
             -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ORDINARY_TOKEN" \
             -H 'Content-Type: application/json' \
             --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
             "$FUNCTION_URL")"
-          assert_status "AUTH_403" "403" "$ordinary_auth_status" "$RUNNER_TEMP/wm49-ordinary-auth.json"
+          assert_status "AUTH_403" "403" "$ordinary_auth_status" "$RUNNER_TEMP/wm49-ordinary-auth.json" "$ordinary_auth_headers"
           echo "AUTH_403=PASS" >> "$GITHUB_ENV"
 
           anonymous_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-select.json" -w '%{http_code}' \
@@ -691,14 +756,15 @@ jobs:
           fi
           echo "RLS_ADMIN=PASS" >> "$GITHUB_ENV"
 
-          missing_mapping_status="$(curl -sS -o "$RUNNER_TEMP/wm49-missing-mapping.json" -w '%{http_code}' \
+          missing_mapping_headers="$RUNNER_TEMP/wm49-missing-mapping.headers.txt"
+          missing_mapping_status="$(curl -sS -D "$missing_mapping_headers" -o "$RUNNER_TEMP/wm49-missing-mapping.json" -w '%{http_code}' \
             -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ADMIN_TOKEN" \
             -H 'Content-Type: application/json' \
             --data "{\"locationId\":\"$UNMAPPED_LOCATION_ID\"}" \
             "$FUNCTION_URL")"
-          assert_status "MISSING_MAPPING" "404" "$missing_mapping_status" "$RUNNER_TEMP/wm49-missing-mapping.json"
+          assert_status "MISSING_MAPPING" "404" "$missing_mapping_status" "$RUNNER_TEMP/wm49-missing-mapping.json" "$missing_mapping_headers"
           if ! jq -e '(.error // .message // .msg // "") | ascii_downcase | contains("not connected")' \
             "$RUNNER_TEMP/wm49-missing-mapping.json" > /dev/null 2>&1; then
             echo "::error::MISSING_MAPPING response did not contain the expected safe not-connected message"
@@ -731,8 +797,24 @@ jobs:
           ADMIN_TOKEN="$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
           FUNCTION_URL="http://127.0.0.1:54321/functions/v1/external-menu"
 
+          safe_sb_error_code() {
+            local headers_file="$1"
+            local value
+
+            value="$(awk 'tolower($1) == "sb-error-code:" { $1=""; sub(/^[[:space:]]+/, ""); print; exit }' \
+              "$headers_file" 2>/dev/null || true)"
+            value="$(printf '%s' "$value" | LC_ALL=C tr -cd '[:alnum:]_.- ' | cut -c1-120)"
+            [[ -n "$value" ]] || value="missing"
+            printf '%s\n' "$value"
+          }
+
+          print_safe_error() {
+            jq -c '{error: (.error // null), code: (.code // null), message: (.message // .msg // null)}' \
+              "$1" 2>/dev/null || true
+          }
+
           request_menu() {
-            curl -sS -o "$2" -w '%{http_code}' \
+            curl -sS -D "$3" -o "$2" -w '%{http_code}' \
               -X POST \
               -H "apikey: $SUPABASE_ANON_KEY" \
               -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -741,8 +823,13 @@ jobs:
               "$FUNCTION_URL"
           }
 
-          first_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-first.json")"
-          [[ "$first_status" == "200" ]]
+          first_headers="$RUNNER_TEMP/wm49-uber-menu-first.headers.txt"
+          first_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-first.json" "$first_headers")"
+          echo "UBER_E2E_FIRST: expected=200 actual=$first_status sb-error-code=$(safe_sb_error_code "$first_headers")"
+          if [[ "$first_status" != "200" ]]; then
+            print_safe_error "$RUNNER_TEMP/wm49-uber-menu-first.json"
+            exit 1
+          fi
 
           jq -e '
             .provider == "uber_eats"
@@ -755,8 +842,13 @@ jobs:
           ' "$RUNNER_TEMP/wm49-uber-menu-first.json" > /dev/null
           echo "NORMALIZED_MENU=PASS" >> "$GITHUB_ENV"
 
-          second_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-second.json")"
-          [[ "$second_status" == "200" ]]
+          second_headers="$RUNNER_TEMP/wm49-uber-menu-second.headers.txt"
+          second_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-second.json" "$second_headers")"
+          echo "UBER_E2E_SECOND: expected=200 actual=$second_status sb-error-code=$(safe_sb_error_code "$second_headers")"
+          if [[ "$second_status" != "200" ]]; then
+            print_safe_error "$RUNNER_TEMP/wm49-uber-menu-second.json"
+            exit 1
+          fi
           echo "TOKEN_CACHE=PASS" >> "$GITHUB_ENV"
           echo "UBER_E2E=PASS" >> "$GITHUB_ENV"
 
@@ -891,6 +983,7 @@ jobs:
             RLS_NON_ADMIN
             RLS_ADMIN
             EDGE_RUNTIME
+            HANDLER_BOOT
             AUTH_401
             AUTH_403
             MISSING_MAPPING
@@ -944,6 +1037,7 @@ jobs:
             "$RUNNER_TEMP/wm49-external-menu.log" \
             "$RUNNER_TEMP/wm49-external-menu.pid" \
             "$RUNNER_TEMP/wm49-"*.json \
+            "$RUNNER_TEMP/wm49-"*.headers.txt \
             "$RUNNER_TEMP/wm49-"*.txt \
             "$RUNNER_TEMP/wm49-"*.log
 
@@ -961,6 +1055,7 @@ jobs:
             echo "- Non-admin RLS: ${RLS_NON_ADMIN:-NOT_RUN}"
             echo "- Admin RLS: ${RLS_ADMIN:-NOT_RUN}"
             echo "- external-menu runtime: ${EDGE_RUNTIME:-NOT_RUN}"
+            echo "- external-menu handler boot: ${HANDLER_BOOT:-NOT_RUN}"
             echo "- 401 authentication test: ${AUTH_401:-NOT_RUN}"
             echo "- 403 non-admin test: ${AUTH_403:-NOT_RUN}"
             echo "- Missing mapping: ${MISSING_MAPPING:-NOT_RUN}"
