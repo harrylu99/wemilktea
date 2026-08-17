@@ -484,13 +484,123 @@ jobs:
           ORDINARY_TOKEN="$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
           MAPPING_URL="$SUPABASE_URL/rest/v1/location_external_sources"
 
+          print_safe_error() {
+            local response_file="$1"
+
+            if [[ -s "$response_file" ]]; then
+              jq -c '
+                {
+                  error: (.error // null),
+                  code: (.code // null),
+                  message: (.message // .msg // null)
+                }
+                | select(.error != null or .code != null or .message != null)
+              ' "$response_file" 2>/dev/null || true
+            fi
+          }
+
+          assert_status() {
+            local name="$1"
+            local expected="$2"
+            local actual="$3"
+            local response_file="$4"
+            local matches=0
+
+            if [[ "$expected" == "2xx" ]]; then
+              [[ "$actual" =~ ^2 ]] && matches=1
+            elif [[ "$actual" == "$expected" ]]; then
+              matches=1
+            fi
+
+            echo "$name: expected=$expected actual=$actual"
+            if [[ "$matches" != "1" ]]; then
+              echo "::error::$name expected HTTP $expected but received $actual"
+              print_safe_error "$response_file"
+              return 1
+            fi
+          }
+
+          assert_no_visible_mapping() {
+            local name="$1"
+            local actual="$2"
+            local response_file="$3"
+            local visible_rows
+
+            if [[ "$actual" =~ ^2 ]]; then
+              visible_rows="$(jq -r --arg mapping_id "$MAPPING_ID" '
+                if type == "array" then
+                  [.[] | select(.id == $mapping_id)] | length
+                else
+                  -1
+                end
+              ' "$response_file" 2>/dev/null || echo -1)"
+            else
+              visible_rows=0
+            fi
+
+            echo "$name: status=$actual visible_rows=$visible_rows"
+            if [[ "$visible_rows" != "0" ]]; then
+              echo "::error::$name expected the mapping to be hidden"
+              print_safe_error "$response_file"
+              return 1
+            fi
+
+            if [[ ! "$actual" =~ ^2 ]]; then
+              print_safe_error "$response_file"
+            fi
+          }
+
+          assert_non_2xx() {
+            local name="$1"
+            local actual="$2"
+            local response_file="$3"
+
+            echo "$name: expected=non-2xx actual=$actual"
+            if [[ "$actual" =~ ^2 ]]; then
+              echo "::error::$name expected a non-2xx response but received $actual"
+              print_safe_error "$response_file"
+              return 1
+            fi
+            print_safe_error "$response_file"
+          }
+
+          assert_denied_mutation() {
+            local name="$1"
+            local actual="$2"
+            local response_file="$3"
+            local affected_rows=0
+
+            if [[ "$actual" =~ ^2 ]]; then
+              affected_rows="$(jq -r --arg mapping_id "$MAPPING_ID" '
+                if type == "array" then
+                  [.[] | select(.id == $mapping_id)] | length
+                elif type == "object" and .id == $mapping_id then
+                  1
+                else
+                  0
+                end
+              ' "$response_file" 2>/dev/null || echo -1)"
+            fi
+
+            echo "$name: status=$actual affected_rows=$affected_rows"
+            if [[ "$actual" =~ ^2 ]] && [[ "$affected_rows" != "0" ]]; then
+              echo "::error::$name changed the protected mapping"
+              print_safe_error "$response_file"
+              return 1
+            fi
+
+            if [[ ! "$actual" =~ ^2 ]]; then
+              print_safe_error "$response_file"
+            fi
+          }
+
           no_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-no-auth.json" -w '%{http_code}' \
             -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H 'Content-Type: application/json' \
             --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
             "$FUNCTION_URL")"
-          [[ "$no_auth_status" == "401" ]]
+          assert_status "AUTH_401" "401" "$no_auth_status" "$RUNNER_TEMP/wm49-no-auth.json"
           echo "AUTH_401=PASS" >> "$GITHUB_ENV"
 
           ordinary_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-auth.json" -w '%{http_code}' \
@@ -500,23 +610,20 @@ jobs:
             -H 'Content-Type: application/json' \
             --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
             "$FUNCTION_URL")"
-          [[ "$ordinary_auth_status" == "403" ]]
+          assert_status "AUTH_403" "403" "$ordinary_auth_status" "$RUNNER_TEMP/wm49-ordinary-auth.json"
           echo "AUTH_403=PASS" >> "$GITHUB_ENV"
 
           anonymous_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-select.json" -w '%{http_code}' \
             -H "apikey: $SUPABASE_ANON_KEY" \
             "$MAPPING_URL?select=id,external_store_id")"
-          if [[ "$anonymous_select_status" =~ ^2 ]] && \
-            grep -qF 'bff943ba-f5d8-4773-9699-f2109743369c' "$RUNNER_TEMP/wm49-anonymous-select.json"; then
-            exit 1
-          fi
+          assert_no_visible_mapping "ANON_SELECT" "$anonymous_select_status" "$RUNNER_TEMP/wm49-anonymous-select.json"
           anonymous_insert_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-insert.json" -w '%{http_code}' \
             -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H 'Content-Type: application/json' \
             --data "{\"location_id\":\"$UNMAPPED_LOCATION_ID\",\"provider\":\"uber_eats\",\"external_store_id\":\"wm49-anonymous\"}" \
             "$MAPPING_URL")"
-          [[ ! "$anonymous_insert_status" =~ ^2 ]]
+          assert_non_2xx "ANON_INSERT" "$anonymous_insert_status" "$RUNNER_TEMP/wm49-anonymous-insert.json"
           anonymous_update_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-update.json" -w '%{http_code}' \
             -X PATCH \
             -H "apikey: $SUPABASE_ANON_KEY" \
@@ -524,29 +631,20 @@ jobs:
             -H 'Prefer: return=representation' \
             --data '{"verified_at":"2026-01-01T00:00:00Z"}' \
             "$MAPPING_URL?id=eq.$MAPPING_ID")"
-          if [[ "$anonymous_update_status" =~ ^2 ]] && \
-            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-anonymous-update.json"; then
-            exit 1
-          fi
+          assert_denied_mutation "ANON_UPDATE" "$anonymous_update_status" "$RUNNER_TEMP/wm49-anonymous-update.json"
           anonymous_delete_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-delete.json" -w '%{http_code}' \
             -X DELETE \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H 'Prefer: return=representation' \
             "$MAPPING_URL?id=eq.$MAPPING_ID")"
-          if [[ "$anonymous_delete_status" =~ ^2 ]] && \
-            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-anonymous-delete.json"; then
-            exit 1
-          fi
+          assert_denied_mutation "ANON_DELETE" "$anonymous_delete_status" "$RUNNER_TEMP/wm49-anonymous-delete.json"
           echo "RLS_ANONYMOUS=PASS" >> "$GITHUB_ENV"
 
           ordinary_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-select.json" -w '%{http_code}' \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ORDINARY_TOKEN" \
             "$MAPPING_URL?select=id,external_store_id")"
-          if [[ "$ordinary_select_status" =~ ^2 ]] && \
-            grep -qF 'bff943ba-f5d8-4773-9699-f2109743369c' "$RUNNER_TEMP/wm49-ordinary-select.json"; then
-            exit 1
-          fi
+          assert_no_visible_mapping "NON_ADMIN_SELECT" "$ordinary_select_status" "$RUNNER_TEMP/wm49-ordinary-select.json"
           ordinary_insert_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-insert.json" -w '%{http_code}' \
             -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
@@ -554,7 +652,7 @@ jobs:
             -H 'Content-Type: application/json' \
             --data "{\"location_id\":\"$UNMAPPED_LOCATION_ID\",\"provider\":\"uber_eats\",\"external_store_id\":\"wm49-ordinary\"}" \
             "$MAPPING_URL")"
-          [[ ! "$ordinary_insert_status" =~ ^2 ]]
+          assert_non_2xx "NON_ADMIN_INSERT" "$ordinary_insert_status" "$RUNNER_TEMP/wm49-ordinary-insert.json"
           ordinary_update_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-update.json" -w '%{http_code}' \
             -X PATCH \
             -H "apikey: $SUPABASE_ANON_KEY" \
@@ -563,28 +661,34 @@ jobs:
             -H 'Prefer: return=representation' \
             --data '{"verified_at":"2026-01-01T00:00:00Z"}' \
             "$MAPPING_URL?id=eq.$MAPPING_ID")"
-          if [[ "$ordinary_update_status" =~ ^2 ]] && \
-            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-ordinary-update.json"; then
-            exit 1
-          fi
+          assert_denied_mutation "NON_ADMIN_UPDATE" "$ordinary_update_status" "$RUNNER_TEMP/wm49-ordinary-update.json"
           ordinary_delete_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-delete.json" -w '%{http_code}' \
             -X DELETE \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ORDINARY_TOKEN" \
             -H 'Prefer: return=representation' \
             "$MAPPING_URL?id=eq.$MAPPING_ID")"
-          if [[ "$ordinary_delete_status" =~ ^2 ]] && \
-            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-ordinary-delete.json"; then
-            exit 1
-          fi
+          assert_denied_mutation "NON_ADMIN_DELETE" "$ordinary_delete_status" "$RUNNER_TEMP/wm49-ordinary-delete.json"
           echo "RLS_NON_ADMIN=PASS" >> "$GITHUB_ENV"
 
           admin_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-admin-select.json" -w '%{http_code}' \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ADMIN_TOKEN" \
             "$MAPPING_URL?select=id,external_store_id&id=eq.$MAPPING_ID")"
-          [[ "$admin_select_status" =~ ^2 ]]
-          grep -qF 'bff943ba-f5d8-4773-9699-f2109743369c' "$RUNNER_TEMP/wm49-admin-select.json"
+          assert_status "ADMIN_SELECT" "2xx" "$admin_select_status" "$RUNNER_TEMP/wm49-admin-select.json"
+          admin_visible_rows="$(jq -r --arg mapping_id "$MAPPING_ID" '
+            if type == "array" then
+              [.[] | select(.id == $mapping_id)] | length
+            else
+              -1
+            end
+          ' "$RUNNER_TEMP/wm49-admin-select.json" 2>/dev/null || echo -1)"
+          echo "ADMIN_SELECT: visible_rows=$admin_visible_rows mapping_found=$([[ "$admin_visible_rows" == "1" ]] && echo true || echo false)"
+          if [[ "$admin_visible_rows" != "1" ]]; then
+            echo "::error::ADMIN_SELECT expected exactly one mapping row"
+            print_safe_error "$RUNNER_TEMP/wm49-admin-select.json"
+            exit 1
+          fi
           echo "RLS_ADMIN=PASS" >> "$GITHUB_ENV"
 
           missing_mapping_status="$(curl -sS -o "$RUNNER_TEMP/wm49-missing-mapping.json" -w '%{http_code}' \
@@ -594,8 +698,14 @@ jobs:
             -H 'Content-Type: application/json' \
             --data "{\"locationId\":\"$UNMAPPED_LOCATION_ID\"}" \
             "$FUNCTION_URL")"
-          [[ "$missing_mapping_status" == "404" ]]
-          grep -q 'not connected' "$RUNNER_TEMP/wm49-missing-mapping.json"
+          assert_status "MISSING_MAPPING" "404" "$missing_mapping_status" "$RUNNER_TEMP/wm49-missing-mapping.json"
+          if ! jq -e '(.error // .message // .msg // "") | ascii_downcase | contains("not connected")' \
+            "$RUNNER_TEMP/wm49-missing-mapping.json" > /dev/null 2>&1; then
+            echo "::error::MISSING_MAPPING response did not contain the expected safe not-connected message"
+            print_safe_error "$RUNNER_TEMP/wm49-missing-mapping.json"
+            exit 1
+          fi
+          echo "MISSING_MAPPING: message=not connected"
           echo "MISSING_MAPPING=PASS" >> "$GITHUB_ENV"
 
       - name: Execute real Uber sandbox E2E request
