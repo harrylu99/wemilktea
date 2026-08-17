@@ -31,8 +31,8 @@ begin
   end if;
 
   insert into public.products (
-    v_brand_id,
-    v_category_id,
+    brand_id,
+    category_id,
     name,
     slug,
     description,
