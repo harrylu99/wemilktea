@@ -215,6 +215,8 @@ jobs:
           else
             echo "WM51_PGTAP=FAIL" >> "$GITHUB_ENV"
             echo "WM-51 database workflow test failed."
+            echo "WM-51 database workflow output:"
+            cat "$RUNNER_TEMP/wm49-location-external-sources-test.log"
             exit 1
           fi
 
@@ -746,7 +748,6 @@ jobs:
         id: validation-gate
         if: always()
         shell: bash
-        continue-on-error: true
         run: |
           set -Eeuo pipefail
 
