@@ -1118,6 +1118,14 @@ jobs:
             exit 1
           fi
 
+          first_created_count="$(jq -r '(.created // []) | length' "$RUNNER_TEMP/wm49-wm54-confirm-first.json")"
+          image_rows_after_first="$(curl -sS -G \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            --data-urlencode "product_id=eq.$PRODUCT_ID" \
+            --data-urlencode 'select=id' \
+            "$SUPABASE_URL/rest/v1/product_images" | jq -cS '.')"
+
           relation_before="$(curl -sS -G \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -1168,7 +1176,7 @@ jobs:
             --data-urlencode "external_item_id=eq.$ITEM_ID" \
             --data-urlencode 'select=product_id' \
             "$SUPABASE_URL/rest/v1/product_external_sources" | jq -c '.')"
-          image_rows="$(curl -sS -G \
+          image_rows_after_second="$(curl -sS -G \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $ADMIN_TOKEN" \
             --data-urlencode "product_id=eq.$PRODUCT_ID" \
@@ -1196,8 +1204,12 @@ jobs:
             echo "WM-54 repeated confirmation changed the existing location relationship."
             exit 1
           fi
-          if ! jq -e 'length == 0' <<<"$image_rows" > /dev/null; then
-            echo "WM-54 unexpectedly created a product image row."
+          if [[ "$first_created_count" == "1" ]] && ! jq -e 'length == 0' <<<"$image_rows_after_first" > /dev/null; then
+            echo "WM-54 created a product image row for a new product."
+            exit 1
+          fi
+          if [[ "$image_rows_after_first" != "$image_rows_after_second" ]]; then
+            echo "WM-54 repeated confirmation changed product image rows."
             exit 1
           fi
 
