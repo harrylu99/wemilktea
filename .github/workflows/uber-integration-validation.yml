@@ -1,6 +1,19 @@
 name: Validate Uber Eats Integration Locally
 
 on:
+  push:
+    branches:
+      - feature/wm-49-uber-integration-foundation
+    paths:
+      - .github/workflows/uber-integration-validation.yml
+      - supabase/config.toml
+      - supabase/functions/_shared/admin-auth.ts
+      - supabase/functions/external-menu/**
+      - supabase/migrations/20260817071555_add_location_external_sources.sql
+      - supabase/tests/location_external_sources_workflow.sql
+      - scripts/uber-eats/**
+      - package.json
+      - bun.lock
   workflow_dispatch:
 
 permissions:
