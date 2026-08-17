@@ -1,0 +1,830 @@
+name: Validate Uber Eats Integration Locally
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wm49-uber-integration-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate WM-51 and WM-52 on local Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UBER_EATS_CLIENT_ID: ${{ secrets.UBER_EATS_CLIENT_ID }}
+      UBER_EATS_CLIENT_SECRET: ${{ secrets.UBER_EATS_CLIENT_SECRET }}
+      UBER_EATS_ENV: sandbox
+
+    steps:
+      - name: Check out the validation branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.113.0
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: bun install --frozen-lockfile
+
+      - name: Initialize safe validation status
+        id: initialize
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          for status in \
+            LOCAL_SUPABASE \
+            WM51_MIGRATION \
+            WM51_PGTAP \
+            RLS_ANONYMOUS \
+            RLS_NON_ADMIN \
+            RLS_ADMIN \
+            EDGE_RUNTIME \
+            AUTH_401 \
+            AUTH_403 \
+            MISSING_MAPPING \
+            UBER_E2E \
+            NORMALIZED_MENU \
+            TOKEN_CACHE \
+            SECRET_LOG_REVIEW \
+            REGRESSION \
+            VALIDATION_GATE
+          do
+            echo "$status=NOT_RUN" >> "$GITHUB_ENV"
+          done
+
+          echo "commit_sha=$GITHUB_SHA"
+          supabase --version
+
+      - name: Start isolated local Supabase
+        id: local-supabase
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          if supabase start > "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1; then
+            supabase status -o env > "$RUNNER_TEMP/wm49-supabase-status.env"
+            chmod 600 "$RUNNER_TEMP/wm49-supabase-status.env"
+            echo "LOCAL_SUPABASE=PASS" >> "$GITHUB_ENV"
+          else
+            echo "LOCAL_SUPABASE=FAIL" >> "$GITHUB_ENV"
+            echo "Local Supabase startup failed."
+            exit 1
+          fi
+
+      - name: Verify WM-51 schema and constraints
+        id: schema
+        if: steps.local-supabase.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+
+          cat > "$RUNNER_TEMP/wm49-schema-check.sql" <<'SQL'
+          do $$
+          declare
+            constraint_count integer;
+            foreign_key_delete_action "char";
+          begin
+            if to_regclass('public.location_external_sources') is null then
+              raise exception 'location_external_sources table is missing';
+            end if;
+
+            if exists (
+              select 1
+              from (values
+                ('id', 'uuid'),
+                ('location_id', 'uuid'),
+                ('provider', 'text'),
+                ('external_store_id', 'text'),
+                ('verified_at', 'timestamp with time zone'),
+                ('created_at', 'timestamp with time zone'),
+                ('updated_at', 'timestamp with time zone')
+              ) as expected(column_name, data_type)
+              where not exists (
+                select 1
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'location_external_sources'
+                  and columns.column_name = expected.column_name
+                  and columns.data_type = expected.data_type
+              )
+            ) then
+              raise exception 'location_external_sources columns or types are incorrect';
+            end if;
+
+            select count(*) into constraint_count
+            from pg_constraint
+            where conrelid = 'public.location_external_sources'::regclass
+              and conname in (
+                'location_external_sources_location_provider_key',
+                'location_external_sources_provider_external_store_id_key'
+              );
+            if constraint_count <> 2 then
+              raise exception 'location_external_sources unique constraints are incomplete';
+            end if;
+
+            select confdeltype into foreign_key_delete_action
+            from pg_constraint
+            where conrelid = 'public.location_external_sources'::regclass
+              and conname = 'location_external_sources_location_id_fkey';
+            if foreign_key_delete_action <> 'r' then
+              raise exception 'location_external_sources location FK is not RESTRICT';
+            end if;
+
+            begin
+              insert into public.location_external_sources (
+                location_id,
+                provider,
+                external_store_id
+              )
+              select id, 'unsupported_provider', 'wm49-schema-provider-check'
+              from public.locations
+              limit 1;
+              raise exception 'unsupported provider was accepted';
+            exception
+              when check_violation then null;
+            end;
+
+            begin
+              insert into public.location_external_sources (
+                location_id,
+                provider,
+                external_store_id
+              )
+              select id, 'uber_eats', '   '
+              from public.locations
+              limit 1;
+              raise exception 'blank external store ID was accepted';
+            exception
+              when check_violation then null;
+            end;
+          end;
+          $$;
+          SQL
+
+          if supabase db query --local --file "$RUNNER_TEMP/wm49-schema-check.sql" \
+            > "$RUNNER_TEMP/wm49-schema-check.log" 2>&1; then
+            echo "WM51_MIGRATION=PASS" >> "$GITHUB_ENV"
+          else
+            echo "WM51_MIGRATION=FAIL" >> "$GITHUB_ENV"
+            echo "WM-51 schema or constraint verification failed."
+            exit 1
+          fi
+
+      - name: Execute WM-51 database workflow test
+        id: pgtap
+        if: steps.schema.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          if supabase test db --local supabase/tests/location_external_sources_workflow.sql \
+            > "$RUNNER_TEMP/wm49-location-external-sources-test.log" 2>&1; then
+            echo "WM51_PGTAP=PASS" >> "$GITHUB_ENV"
+          else
+            echo "WM51_PGTAP=FAIL" >> "$GITHUB_ENV"
+            echo "WM-51 database workflow test failed."
+            exit 1
+          fi
+
+      - name: Create ephemeral Auth users and catalogue fixtures
+        id: fixtures
+        if: steps.pgtap.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+
+          SUPABASE_URL="$API_URL"
+          SUPABASE_ANON_KEY="$ANON_KEY"
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          ADMIN_PASSWORD="WM49-admin-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ORDINARY_PASSWORD="WM49-user-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ADMIN_EMAIL="wm49-admin-${GITHUB_RUN_ID}@example.test"
+          ORDINARY_EMAIL="wm49-user-${GITHUB_RUN_ID}@example.test"
+
+          printf '::add-mask::%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
+          printf '::add-mask::%s\n' "$SUPABASE_ANON_KEY"
+          printf '::add-mask::%s\n' "$ADMIN_PASSWORD"
+          printf '::add-mask::%s\n' "$ORDINARY_PASSWORD"
+
+          create_user() {
+            local email="$1"
+            local password="$2"
+            local response_file="$3"
+            local response_status
+
+            response_status="$({
+              jq -n --arg email "$email" --arg password "$password" \
+                '{email: $email, password: $password, email_confirm: true}'
+            } | curl -sS -o "$response_file" -w '%{http_code}' \
+              -X POST \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H 'Content-Type: application/json' \
+              --data-binary @- \
+              "$SUPABASE_URL/auth/v1/admin/users")"
+
+            if [[ "$response_status" != "200" && "$response_status" != "201" ]]; then
+              return 1
+            fi
+            jq -e '.id and .email' "$response_file" > /dev/null
+          }
+
+          create_user "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$RUNNER_TEMP/wm49-admin-user.json"
+          create_user "$ORDINARY_EMAIL" "$ORDINARY_PASSWORD" "$RUNNER_TEMP/wm49-ordinary-user.json"
+
+          ADMIN_USER_ID="$(jq -r '.id' "$RUNNER_TEMP/wm49-admin-user.json")"
+          ORDINARY_USER_ID="$(jq -r '.id' "$RUNNER_TEMP/wm49-ordinary-user.json")"
+
+          cat > "$RUNNER_TEMP/wm49-fixtures.sql" <<SQL
+          insert into public.admin_users (user_id)
+          values ('$ADMIN_USER_ID');
+
+          insert into public.locations (
+            id,
+            brand_id,
+            display_name,
+            slug,
+            suburb,
+            address,
+            coordinates,
+            publication_status,
+            source_provenance
+          )
+          select
+            '33333333-3333-4333-8333-333333333333',
+            brands.id,
+            'WM-49 Uber Validation Mapped',
+            'wm-49-uber-validation-mapped',
+            'Auckland CBD',
+            '1 WM-49 Validation Street, Auckland',
+            extensions.st_setsrid(extensions.st_makepoint(174.7633, -36.8485), 4326)::extensions.geography,
+            'draft',
+            'wemilktea'
+          from public.brands
+          where brands.slug = 'gong-cha';
+
+          insert into public.locations (
+            id,
+            brand_id,
+            display_name,
+            slug,
+            suburb,
+            address,
+            coordinates,
+            publication_status,
+            source_provenance
+          )
+          select
+            '44444444-4444-4444-8444-444444444444',
+            brands.id,
+            'WM-49 Uber Validation Unmapped',
+            'wm-49-uber-validation-unmapped',
+            'Auckland CBD',
+            '2 WM-49 Validation Street, Auckland',
+            extensions.st_setsrid(extensions.st_makepoint(174.7643, -36.8485), 4326)::extensions.geography,
+            'draft',
+            'wemilktea'
+          from public.brands
+          where brands.slug = 'gong-cha';
+
+          insert into public.location_external_sources (
+            id,
+            location_id,
+            provider,
+            external_store_id
+          )
+          values (
+            '55555555-5555-4555-8555-555555555555',
+            '33333333-3333-4333-8333-333333333333',
+            'uber_eats',
+            'bff943ba-f5d8-4773-9699-f2109743369c'
+          );
+          SQL
+
+          supabase db query --local --file "$RUNNER_TEMP/wm49-fixtures.sql" \
+            > "$RUNNER_TEMP/wm49-fixtures.log" 2>&1
+
+          for value in \
+            "ADMIN_USER_ID=$ADMIN_USER_ID" \
+            "ORDINARY_USER_ID=$ORDINARY_USER_ID" \
+            "MAPPED_LOCATION_ID=33333333-3333-4333-8333-333333333333" \
+            "UNMAPPED_LOCATION_ID=44444444-4444-4444-8444-444444444444" \
+            "MAPPING_ID=55555555-5555-4555-8555-555555555555"
+          do
+            echo "$value" >> "$RUNNER_TEMP/wm49-fixture.env"
+          done
+          chmod 600 "$RUNNER_TEMP/wm49-fixture.env"
+
+          sign_in() {
+            local email="$1"
+            local password="$2"
+            local response_file="$3"
+            jq -n --arg email "$email" --arg password "$password" \
+              '{email: $email, password: $password}' |
+              curl -sS -o "$response_file" -w '%{http_code}' \
+                -X POST \
+                -H "apikey: $SUPABASE_ANON_KEY" \
+                -H 'Content-Type: application/json' \
+                --data-binary @- \
+                "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+                > "$RUNNER_TEMP/wm49-token-status.txt"
+            [[ "$(cat "$RUNNER_TEMP/wm49-token-status.txt")" == "200" ]]
+            jq -e '.access_token' "$response_file" > /dev/null
+            jq -r '.access_token' "$response_file"
+          }
+
+          sign_in "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$RUNNER_TEMP/wm49-admin-token.json" \
+            > "$RUNNER_TEMP/wm49-admin-token.txt"
+          sign_in "$ORDINARY_EMAIL" "$ORDINARY_PASSWORD" "$RUNNER_TEMP/wm49-ordinary-token.json" \
+            > "$RUNNER_TEMP/wm49-ordinary-token.txt"
+          chmod 600 \
+            "$RUNNER_TEMP/wm49-admin-token.txt" \
+            "$RUNNER_TEMP/wm49-ordinary-token.txt" \
+            "$RUNNER_TEMP/wm49-admin-token.json" \
+            "$RUNNER_TEMP/wm49-ordinary-token.json"
+
+          printf '::add-mask::%s\n' "$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
+          printf '::add-mask::%s\n' "$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
+
+          echo "Fixture users and local catalogue data created."
+
+      - name: Prepare local external-menu environment
+        id: function-env
+        if: steps.fixtures.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+
+          if [[ -n "${UBER_EATS_CLIENT_ID:-}" && -n "${UBER_EATS_CLIENT_SECRET:-}" ]]; then
+            echo "UBER_SECRETS=AVAILABLE" >> "$GITHUB_ENV"
+            FUNCTION_CLIENT_ID="$UBER_EATS_CLIENT_ID"
+            FUNCTION_CLIENT_SECRET="$UBER_EATS_CLIENT_SECRET"
+          else
+            echo "UBER_SECRETS=MISSING" >> "$GITHUB_ENV"
+            FUNCTION_CLIENT_ID="wm49-uber-client-not-configured"
+            FUNCTION_CLIENT_SECRET="wm49-uber-secret-not-configured"
+          fi
+
+          cat > "$RUNNER_TEMP/wm49-external-menu.env" <<EOF
+          SUPABASE_URL=$API_URL
+          SUPABASE_ANON_KEY=$ANON_KEY
+          ADMIN_APP_ORIGIN=http://127.0.0.1:5174
+          UBER_EATS_CLIENT_ID=$FUNCTION_CLIENT_ID
+          UBER_EATS_CLIENT_SECRET=$FUNCTION_CLIENT_SECRET
+          UBER_EATS_ENV=sandbox
+          EOF
+          chmod 600 "$RUNNER_TEMP/wm49-external-menu.env"
+
+      - name: Start the local external-menu Edge Runtime
+        id: edge-runtime
+        if: steps.function-env.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          supabase functions serve \
+            --env-file "$RUNNER_TEMP/wm49-external-menu.env" \
+            > "$RUNNER_TEMP/wm49-external-menu.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/wm49-external-menu.pid"
+
+          function_url="http://127.0.0.1:54321/functions/v1/external-menu"
+          ready=0
+          for _ in $(seq 1 60); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' "$function_url" || true)"
+            if [[ "$status" != "000" ]]; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$ready" == "1" ]]; then
+            echo "EDGE_RUNTIME=PASS" >> "$GITHUB_ENV"
+          else
+            echo "EDGE_RUNTIME=FAIL" >> "$GITHUB_ENV"
+            echo "The local external-menu Edge Runtime did not become ready."
+            exit 1
+          fi
+
+      - name: Verify Auth, RLS, and missing mapping boundary
+        id: auth-and-rls
+        if: steps.edge-runtime.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+          source "$RUNNER_TEMP/wm49-fixture.env"
+
+          SUPABASE_URL="$API_URL"
+          SUPABASE_ANON_KEY="$ANON_KEY"
+          FUNCTION_URL="http://127.0.0.1:54321/functions/v1/external-menu"
+          ADMIN_TOKEN="$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
+          ORDINARY_TOKEN="$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
+          MAPPING_URL="$SUPABASE_URL/rest/v1/location_external_sources"
+
+          no_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-no-auth.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H 'Content-Type: application/json' \
+            --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
+            "$FUNCTION_URL")"
+          [[ "$no_auth_status" == "401" ]]
+          echo "AUTH_401=PASS" >> "$GITHUB_ENV"
+
+          ordinary_auth_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-auth.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ORDINARY_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
+            "$FUNCTION_URL")"
+          [[ "$ordinary_auth_status" == "403" ]]
+          echo "AUTH_403=PASS" >> "$GITHUB_ENV"
+
+          anonymous_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-select.json" -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$MAPPING_URL?select=id,external_store_id")"
+          if [[ "$anonymous_select_status" =~ ^2 ]] && \
+            grep -qF 'bff943ba-f5d8-4773-9699-f2109743369c' "$RUNNER_TEMP/wm49-anonymous-select.json"; then
+            exit 1
+          fi
+          anonymous_insert_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-insert.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H 'Content-Type: application/json' \
+            --data "{\"location_id\":\"$UNMAPPED_LOCATION_ID\",\"provider\":\"uber_eats\",\"external_store_id\":\"wm49-anonymous\"}" \
+            "$MAPPING_URL")"
+          [[ ! "$anonymous_insert_status" =~ ^2 ]]
+          anonymous_update_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-update.json" -w '%{http_code}' \
+            -X PATCH \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H 'Content-Type: application/json' \
+            -H 'Prefer: return=representation' \
+            --data '{"verified_at":"2026-01-01T00:00:00Z"}' \
+            "$MAPPING_URL?id=eq.$MAPPING_ID")"
+          if [[ "$anonymous_update_status" =~ ^2 ]] && \
+            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-anonymous-update.json"; then
+            exit 1
+          fi
+          anonymous_delete_status="$(curl -sS -o "$RUNNER_TEMP/wm49-anonymous-delete.json" -w '%{http_code}' \
+            -X DELETE \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H 'Prefer: return=representation' \
+            "$MAPPING_URL?id=eq.$MAPPING_ID")"
+          if [[ "$anonymous_delete_status" =~ ^2 ]] && \
+            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-anonymous-delete.json"; then
+            exit 1
+          fi
+          echo "RLS_ANONYMOUS=PASS" >> "$GITHUB_ENV"
+
+          ordinary_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-select.json" -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ORDINARY_TOKEN" \
+            "$MAPPING_URL?select=id,external_store_id")"
+          if [[ "$ordinary_select_status" =~ ^2 ]] && \
+            grep -qF 'bff943ba-f5d8-4773-9699-f2109743369c' "$RUNNER_TEMP/wm49-ordinary-select.json"; then
+            exit 1
+          fi
+          ordinary_insert_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-insert.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ORDINARY_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "{\"location_id\":\"$UNMAPPED_LOCATION_ID\",\"provider\":\"uber_eats\",\"external_store_id\":\"wm49-ordinary\"}" \
+            "$MAPPING_URL")"
+          [[ ! "$ordinary_insert_status" =~ ^2 ]]
+          ordinary_update_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-update.json" -w '%{http_code}' \
+            -X PATCH \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ORDINARY_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -H 'Prefer: return=representation' \
+            --data '{"verified_at":"2026-01-01T00:00:00Z"}' \
+            "$MAPPING_URL?id=eq.$MAPPING_ID")"
+          if [[ "$ordinary_update_status" =~ ^2 ]] && \
+            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-ordinary-update.json"; then
+            exit 1
+          fi
+          ordinary_delete_status="$(curl -sS -o "$RUNNER_TEMP/wm49-ordinary-delete.json" -w '%{http_code}' \
+            -X DELETE \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ORDINARY_TOKEN" \
+            -H 'Prefer: return=representation' \
+            "$MAPPING_URL?id=eq.$MAPPING_ID")"
+          if [[ "$ordinary_delete_status" =~ ^2 ]] && \
+            grep -qF "$MAPPING_ID" "$RUNNER_TEMP/wm49-ordinary-delete.json"; then
+            exit 1
+          fi
+          echo "RLS_NON_ADMIN=PASS" >> "$GITHUB_ENV"
+
+          admin_select_status="$(curl -sS -o "$RUNNER_TEMP/wm49-admin-select.json" -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$MAPPING_URL?select=id,external_store_id&id=eq.$MAPPING_ID")"
+          [[ "$admin_select_status" =~ ^2 ]]
+          grep -qF 'bff943ba-f5d8-4773-9699-f2109743369c' "$RUNNER_TEMP/wm49-admin-select.json"
+          echo "RLS_ADMIN=PASS" >> "$GITHUB_ENV"
+
+          missing_mapping_status="$(curl -sS -o "$RUNNER_TEMP/wm49-missing-mapping.json" -w '%{http_code}' \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "{\"locationId\":\"$UNMAPPED_LOCATION_ID\"}" \
+            "$FUNCTION_URL")"
+          [[ "$missing_mapping_status" == "404" ]]
+          grep -q 'not connected' "$RUNNER_TEMP/wm49-missing-mapping.json"
+          echo "MISSING_MAPPING=PASS" >> "$GITHUB_ENV"
+
+      - name: Execute real Uber sandbox E2E request
+        id: uber-e2e
+        if: steps.auth-and-rls.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+          source "$RUNNER_TEMP/wm49-fixture.env"
+
+          if [[ "${UBER_SECRETS:-MISSING}" != "AVAILABLE" ]]; then
+            echo "UBER_E2E=SKIPPED" >> "$GITHUB_ENV"
+            echo "NORMALIZED_MENU=SKIPPED" >> "$GITHUB_ENV"
+            echo "TOKEN_CACHE=SKIPPED" >> "$GITHUB_ENV"
+            echo "Uber E2E skipped; add UBER_EATS_CLIENT_ID and UBER_EATS_CLIENT_SECRET repository secrets."
+            exit 0
+          fi
+
+          SUPABASE_URL="$API_URL"
+          SUPABASE_ANON_KEY="$ANON_KEY"
+          ADMIN_TOKEN="$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
+          FUNCTION_URL="http://127.0.0.1:54321/functions/v1/external-menu"
+
+          request_menu() {
+            curl -sS -o "$2" -w '%{http_code}' \
+              -X POST \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "{\"locationId\":\"$MAPPED_LOCATION_ID\"}" \
+              "$FUNCTION_URL"
+          }
+
+          first_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-first.json")"
+          [[ "$first_status" == "200" ]]
+
+          jq -e '
+            .provider == "uber_eats"
+            and (.locationId | type == "string")
+            and (.items | type == "array" and length >= 1)
+            and (.items[0] | (.externalItemId | type == "string"))
+            and (.items[0] | (.name | type == "string"))
+            and (.items[0] | has("description") and has("sourceCategory") and has("price") and has("imageUrl"))
+            and (has("warnings"))
+          ' "$RUNNER_TEMP/wm49-uber-menu-first.json" > /dev/null
+          echo "NORMALIZED_MENU=PASS" >> "$GITHUB_ENV"
+
+          second_status="$(request_menu "$MAPPED_LOCATION_ID" "$RUNNER_TEMP/wm49-uber-menu-second.json")"
+          [[ "$second_status" == "200" ]]
+          echo "TOKEN_CACHE=PASS" >> "$GITHUB_ENV"
+          echo "UBER_E2E=PASS" >> "$GITHUB_ENV"
+
+      - name: Review function response and logs for secret leakage
+        id: security-review
+        if: steps.edge-runtime.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+
+          ADMIN_TOKEN=""
+          ORDINARY_TOKEN=""
+          [[ ! -f "$RUNNER_TEMP/wm49-admin-token.txt" ]] || ADMIN_TOKEN="$(cat "$RUNNER_TEMP/wm49-admin-token.txt")"
+          [[ ! -f "$RUNNER_TEMP/wm49-ordinary-token.txt" ]] || ORDINARY_TOKEN="$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
+
+          for response_file in \
+            "$RUNNER_TEMP/wm49-uber-menu-first.json" \
+            "$RUNNER_TEMP/wm49-uber-menu-second.json"
+          do
+            if [[ -f "$response_file" ]]; then
+              if grep -qE '"menus"|price_info|bundled_items|Authorization|Bearer' "$response_file"; then
+                echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+                exit 1
+              fi
+              if [[ -n "${UBER_EATS_CLIENT_ID:-}" ]] && grep -qF "$UBER_EATS_CLIENT_ID" "$response_file"; then
+                echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+                exit 1
+              fi
+              if [[ -n "${UBER_EATS_CLIENT_SECRET:-}" ]] && grep -qF "$UBER_EATS_CLIENT_SECRET" "$response_file"; then
+                echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+                exit 1
+              fi
+            fi
+          done
+
+          log_file="$RUNNER_TEMP/wm49-external-menu.log"
+          if [[ -f "$log_file" ]] && grep -qE 'price_info|bundled_items|modifier_groups|Authorization:|Bearer[[:space:]]' "$log_file"; then
+            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          if [[ -f "$log_file" ]] && [[ -n "${UBER_EATS_CLIENT_SECRET:-}" ]] && grep -qF "$UBER_EATS_CLIENT_SECRET" "$log_file"; then
+            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          if [[ -f "$log_file" ]] && grep -qF "$SERVICE_ROLE_KEY" "$log_file"; then
+            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          if [[ -f "$log_file" ]] && [[ -n "$ADMIN_TOKEN" ]] && grep -qF "$ADMIN_TOKEN" "$log_file"; then
+            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+          if [[ -f "$log_file" ]] && [[ -n "$ORDINARY_TOKEN" ]] && grep -qF "$ORDINARY_TOKEN" "$log_file"; then
+            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+          echo "SECRET_LOG_REVIEW=PASS" >> "$GITHUB_ENV"
+
+      - name: Run repository regression checks
+        id: regression
+        if: always()
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          failures=0
+
+          if bun test > "$RUNNER_TEMP/wm49-bun-test.log" 2>&1; then
+            echo "bun_test=PASS"
+          else
+            echo "bun_test=FAIL"
+            failures=1
+          fi
+
+          if bun run typecheck > "$RUNNER_TEMP/wm49-typecheck.log" 2>&1; then
+            echo "typecheck=PASS"
+          else
+            echo "typecheck=FAIL"
+            failures=1
+          fi
+
+          if bun run lint > "$RUNNER_TEMP/wm49-lint.log" 2>&1; then
+            echo "lint=PASS"
+          else
+            echo "lint=FAIL"
+            failures=1
+          fi
+
+          if bun run format:check > "$RUNNER_TEMP/wm49-format.log" 2>&1; then
+            echo "format=PASS"
+          else
+            echo "format=FAIL"
+            failures=1
+          fi
+
+          if bun run build > "$RUNNER_TEMP/wm49-build.log" 2>&1; then
+            echo "build=PASS"
+          else
+            echo "build=FAIL"
+            failures=1
+          fi
+
+          if git diff --check > "$RUNNER_TEMP/wm49-diff-check.log" 2>&1; then
+            echo "diff_check=PASS"
+          else
+            echo "diff_check=FAIL"
+            failures=1
+          fi
+
+          if [[ "$failures" == "0" ]]; then
+            echo "REGRESSION=PASS" >> "$GITHUB_ENV"
+          else
+            echo "REGRESSION=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      - name: Evaluate validation gate
+        id: validation-gate
+        if: always()
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          required_statuses=(
+            LOCAL_SUPABASE
+            WM51_MIGRATION
+            WM51_PGTAP
+            RLS_ANONYMOUS
+            RLS_NON_ADMIN
+            RLS_ADMIN
+            EDGE_RUNTIME
+            AUTH_401
+            AUTH_403
+            MISSING_MAPPING
+            NORMALIZED_MENU
+            SECRET_LOG_REVIEW
+            REGRESSION
+          )
+
+          gate_failed=0
+          for status_name in "${required_statuses[@]}"; do
+            status_value="${!status_name:-NOT_RUN}"
+            if [[ "$status_value" != "PASS" ]]; then
+              gate_failed=1
+            fi
+          done
+          if [[ "${UBER_E2E:-NOT_RUN}" != "PASS" || "${TOKEN_CACHE:-NOT_RUN}" != "PASS" ]]; then
+            gate_failed=1
+          fi
+
+          if [[ "$gate_failed" == "0" ]]; then
+            echo "VALIDATION_GATE=PASS" >> "$GITHUB_ENV"
+          else
+            echo "VALIDATION_GATE=FAIL" >> "$GITHUB_ENV"
+            echo "WM-49 validation gate failed or was skipped."
+            exit 1
+          fi
+
+      - name: Stop local Supabase and remove temporary secrets
+        if: always()
+        shell: bash
+        run: |
+          set +e
+
+          if [[ -f "$RUNNER_TEMP/wm49-external-menu.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/wm49-external-menu.pid")" 2>/dev/null || true
+          fi
+          supabase stop > /dev/null 2>&1 || true
+
+          rm -f \
+            "$RUNNER_TEMP/wm49-supabase-start.log" \
+            "$RUNNER_TEMP/wm49-supabase-status.env" \
+            "$RUNNER_TEMP/wm49-schema-check.sql" \
+            "$RUNNER_TEMP/wm49-schema-check.log" \
+            "$RUNNER_TEMP/wm49-location-external-sources-test.log" \
+            "$RUNNER_TEMP/wm49-admin-user.json" \
+            "$RUNNER_TEMP/wm49-ordinary-user.json" \
+            "$RUNNER_TEMP/wm49-fixtures.sql" \
+            "$RUNNER_TEMP/wm49-fixtures.log" \
+            "$RUNNER_TEMP/wm49-fixture.env" \
+            "$RUNNER_TEMP/wm49-external-menu.env" \
+            "$RUNNER_TEMP/wm49-external-menu.log" \
+            "$RUNNER_TEMP/wm49-external-menu.pid" \
+            "$RUNNER_TEMP/wm49-"*.json \
+            "$RUNNER_TEMP/wm49-"*.txt \
+            "$RUNNER_TEMP/wm49-"*.log
+
+      - name: Write safe validation summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## WM-49 Uber Integration Validation"
+            echo
+            echo "- Local Supabase: ${LOCAL_SUPABASE:-NOT_RUN}"
+            echo "- WM-51 migration and constraints: ${WM51_MIGRATION:-NOT_RUN}"
+            echo "- WM-51 database workflow: ${WM51_PGTAP:-NOT_RUN}"
+            echo "- Anonymous RLS: ${RLS_ANONYMOUS:-NOT_RUN}"
+            echo "- Non-admin RLS: ${RLS_NON_ADMIN:-NOT_RUN}"
+            echo "- Admin RLS: ${RLS_ADMIN:-NOT_RUN}"
+            echo "- external-menu runtime: ${EDGE_RUNTIME:-NOT_RUN}"
+            echo "- 401 authentication test: ${AUTH_401:-NOT_RUN}"
+            echo "- 403 non-admin test: ${AUTH_403:-NOT_RUN}"
+            echo "- Missing mapping: ${MISSING_MAPPING:-NOT_RUN}"
+            echo "- Uber sandbox E2E: ${UBER_E2E:-NOT_RUN}"
+            echo "- Normalized menu: ${NORMALIZED_MENU:-NOT_RUN}"
+            echo "- Repeated-call/token-cache observation: ${TOKEN_CACHE:-NOT_RUN}"
+            echo "- Secret/log review: ${SECRET_LOG_REVIEW:-NOT_RUN}"
+            echo "- Repository regression: ${REGRESSION:-NOT_RUN}"
+            echo "- Validation gate: ${VALIDATION_GATE:-NOT_RUN}"
+            echo
+            echo "Required repository secrets: UBER_EATS_CLIENT_ID, UBER_EATS_CLIENT_SECRET"
+            echo "No Supabase project ref or remote deployment is used by this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
