@@ -83,7 +83,10 @@ jobs:
             TOKEN_CACHE \
             SECRET_LOG_REVIEW \
             REGRESSION \
-            VALIDATION_GATE
+            VALIDATION_GATE \
+            DOCKER_PREFLIGHT \
+            SUPABASE_START \
+            SUPABASE_START_CLASSIFICATION
           do
             echo "$status=NOT_RUN" >> "$GITHUB_ENV"
           done
@@ -91,35 +94,103 @@ jobs:
           echo "commit_sha=$GITHUB_SHA"
           supabase --version
 
-      - name: Start isolated local Supabase
-        id: local-supabase
+      - name: Preflight Docker runtime
+        id: docker_preflight
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
 
+          docker_version_output=""
+          docker_info_output=""
+          docker_version_ok=1
+          docker_info_ok=1
+
+          if ! docker_version_output="$(docker version --format 'Docker client: {{.Client.Version}}; Docker server: {{.Server.Version}}' 2>&1)"; then
+            docker_version_ok=0
+          fi
+          if ! docker_info_output="$(docker info --format 'Docker server reachable: yes; memory bytes: {{.MemTotal}}; containers: {{.Containers}}' 2>&1)"; then
+            docker_info_ok=0
+          fi
+
+          if [[ "$docker_version_ok" == "1" && "$docker_info_ok" == "1" ]]; then
+            echo "$docker_version_output"
+            echo "$docker_info_output"
+            echo "Available disk: $(df -h "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+            echo "DOCKER_PREFLIGHT=PASS" >> "$GITHUB_ENV"
+          else
+            echo "Docker server reachable: no"
+            echo "Docker preflight failed; Supabase startup will not run."
+            echo "DOCKER_PREFLIGHT=FAIL" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      - name: Start isolated local Supabase
+        id: local_supabase
+        shell: bash
+        continue-on-error: true
+        if: steps.docker_preflight.outcome == 'success'
+        run: |
+          set -Eeuo pipefail
+
+          excluded_services="realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor"
           start_attempt=1
-          while (( start_attempt <= 3 )); do
-            if supabase start >> "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1; then
+          while (( start_attempt <= 2 )); do
+            start_args=(start --exclude "$excluded_services")
+            if (( start_attempt == 2 )); then
+              start_args+=(--debug)
+            fi
+
+            if supabase "${start_args[@]}" >> "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1; then
               supabase status -o env > "$RUNNER_TEMP/wm49-supabase-status.env"
               chmod 600 "$RUNNER_TEMP/wm49-supabase-status.env"
               echo "LOCAL_SUPABASE=PASS" >> "$GITHUB_ENV"
+              echo "SUPABASE_START=PASS" >> "$GITHUB_ENV"
+              echo "SUPABASE_START_CLASSIFICATION=none" >> "$GITHUB_ENV"
               exit 0
             fi
 
-            echo "Local Supabase startup attempt $start_attempt failed; retrying."
-            supabase stop >> "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1 || true
+            if grep -Eqi '(migration|sql).*(error|fail|failed)|error.*(migration|sql)|syntax error' "$RUNNER_TEMP/wm49-supabase-start.log"; then
+              classification="migration_error"
+            elif grep -Eqi 'pull access denied|failed to pull|manifest unknown|unauthorized:|image.*(pull|download).*(error|fail)|dial tcp|network.*(timeout|unreachable)' "$RUNNER_TEMP/wm49-supabase-start.log"; then
+              classification="image_pull_error"
+            elif grep -Eqi 'unhealthy|health[ -]?check|healthcheck' "$RUNNER_TEMP/wm49-supabase-start.log"; then
+              classification="container_health_error"
+            elif grep -Eqi 'no space left|out of memory|cannot allocate memory|resource temporarily unavailable' "$RUNNER_TEMP/wm49-supabase-start.log"; then
+              classification="resource_error"
+            elif grep -Eqi 'cannot connect to the docker daemon|docker daemon|is the docker daemon running|docker.*permission denied' "$RUNNER_TEMP/wm49-supabase-start.log"; then
+              classification="docker_error"
+            else
+              classification="unknown"
+            fi
+
+            echo "Local Supabase startup attempt $start_attempt failed; classification=$classification."
+            echo "SUPABASE_START_CLASSIFICATION=$classification" >> "$GITHUB_ENV"
+            if [[ "$classification" == "migration_error" ]]; then
+              break
+            fi
+            supabase stop --no-backup >> "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1 || true
             start_attempt=$((start_attempt + 1))
             sleep 5
           done
 
           echo "LOCAL_SUPABASE=FAIL" >> "$GITHUB_ENV"
-          echo "Local Supabase startup failed after 3 attempts."
+          echo "SUPABASE_START=FAIL" >> "$GITHUB_ENV"
+          echo "Supabase startup diagnostics (safe tail):"
+          echo "::group::Supabase startup diagnostics"
+          tail -n 200 "$RUNNER_TEMP/wm49-supabase-start.log" \
+            | sed -E \
+              -e 's/(UBER_EATS_CLIENT_ID=)[^[:space:]]+/\1[REDACTED]/g' \
+              -e 's/(UBER_EATS_CLIENT_SECRET=)[^[:space:]]+/\1[REDACTED]/g' \
+              -e 's/(Bearer[[:space:]]+)[^[:space:]]+/\1[REDACTED]/g'
+          echo "::endgroup::"
+          echo "Local Supabase startup failed after 2 attempts."
           exit 1
 
       - name: Verify WM-51 schema and constraints
-        id: schema
-        if: steps.local-supabase.outcome == 'success'
+        id: wm51_schema
+        if: steps.local_supabase.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -219,8 +290,8 @@ jobs:
           fi
 
       - name: Execute WM-51 database workflow test
-        id: pgtap
-        if: steps.schema.outcome == 'success'
+        id: wm51_pgtap
+        if: steps.wm51_schema.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -238,8 +309,8 @@ jobs:
           fi
 
       - name: Verify WM-54 schema and constraints
-        id: wm54-schema
-        if: steps.schema.outcome == 'success'
+        id: wm54_schema
+        if: steps.wm51_schema.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -298,17 +369,12 @@ jobs:
           fi
 
       - name: Execute WM-54 database workflow test
-        id: wm54-pgtap
-        if: always()
+        id: wm54_pgtap
+        if: steps.wm54_schema.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
-
-          if [[ "${WM54_MIGRATION:-NOT_RUN}" != "PASS" ]]; then
-            echo "WM-54 migration validation did not pass; database workflow cannot run."
-            exit 1
-          fi
 
           if supabase test db --local supabase/tests/product_external_sources_workflow.sql \
             > "$RUNNER_TEMP/wm49-product-external-sources-test.log" 2>&1; then
@@ -322,7 +388,7 @@ jobs:
 
       - name: Create ephemeral Auth users and catalogue fixtures
         id: fixtures
-        if: always()
+        if: steps.wm51_pgtap.outcome == 'success' && steps.wm54_pgtap.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -513,17 +579,12 @@ jobs:
           echo "Fixture users and local catalogue data created."
 
       - name: Prepare local external-menu environment
-        id: function-env
-        if: always()
+        id: function_env
+        if: steps.fixtures.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
-
-          if [[ "${WM51_PGTAP:-NOT_RUN}" != "PASS" || "${WM54_PGTAP:-NOT_RUN}" != "PASS" || ! -f "$RUNNER_TEMP/wm49-supabase-status.env" || ! -f "$RUNNER_TEMP/wm49-fixture.env" ]]; then
-            echo "Database validation or fixture setup did not pass; external-menu environment cannot be prepared."
-            exit 1
-          fi
 
           source "$RUNNER_TEMP/wm49-supabase-status.env"
 
@@ -546,17 +607,12 @@ jobs:
           chmod 600 "$RUNNER_TEMP/wm49-external-menu.env"
 
       - name: Start the local external-menu Edge Runtime
-        id: edge-runtime
-        if: always()
+        id: edge_runtime
+        if: steps.function_env.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
-
-          if [[ ! -f "$RUNNER_TEMP/wm49-external-menu.env" ]]; then
-            echo "The external-menu environment was not prepared; Edge Runtime cannot start."
-            exit 1
-          fi
 
           supabase functions serve \
             --env-file "$RUNNER_TEMP/wm49-external-menu.env" \
@@ -572,17 +628,12 @@ jobs:
           echo "external-menu Edge Runtime process started; handler-level probe pending."
 
       - name: Verify Auth, RLS, and missing mapping boundary
-        id: auth-and-rls
-        if: always()
+        id: auth_and_rls
+        if: steps.edge_runtime.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
-
-          if [[ ! -f "$RUNNER_TEMP/wm49-external-menu.pid" || ! -f "$RUNNER_TEMP/wm49-external-menu.log" ]]; then
-            echo "The external-menu Edge Runtime did not start; boundary checks cannot run."
-            exit 1
-          fi
 
           source "$RUNNER_TEMP/wm49-supabase-status.env"
           source "$RUNNER_TEMP/wm49-fixture.env"
@@ -897,17 +948,12 @@ jobs:
           echo "MISSING_MAPPING=PASS" >> "$GITHUB_ENV"
 
       - name: Verify WM-54 confirmation authorization and no-op
-        id: wm54-function
-        if: always()
+        id: wm54_function
+        if: steps.auth_and_rls.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
-
-          if [[ "${AUTH_403:-NOT_RUN}" != "PASS" || "${MISSING_MAPPING:-NOT_RUN}" != "PASS" ]]; then
-            echo "The existing Admin boundary validation did not pass; WM-54 function checks cannot run."
-            exit 1
-          fi
 
           source "$RUNNER_TEMP/wm49-supabase-status.env"
           source "$RUNNER_TEMP/wm49-fixture.env"
@@ -960,17 +1006,12 @@ jobs:
           echo "WM54_FUNCTION=PASS" >> "$GITHUB_ENV"
 
       - name: Execute real Uber sandbox E2E request
-        id: uber-e2e
-        if: always()
+        id: uber_e2e
+        if: steps.auth_and_rls.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
-
-          if [[ "${AUTH_403:-NOT_RUN}" != "PASS" || "${MISSING_MAPPING:-NOT_RUN}" != "PASS" ]]; then
-            echo "The existing Admin boundary validation did not pass; Uber E2E cannot run."
-            exit 1
-          fi
 
           source "$RUNNER_TEMP/wm49-supabase-status.env"
           source "$RUNNER_TEMP/wm49-fixture.env"
@@ -1173,19 +1214,13 @@ jobs:
           echo "UBER_E2E=PASS" >> "$GITHUB_ENV"
 
       - name: Review function response and logs for secret leakage
-        id: security-review
-        if: always()
+        id: security_review
+        if: steps.edge_runtime.outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
           source "$RUNNER_TEMP/wm49-supabase-status.env"
-
-          if [[ ! -f "$RUNNER_TEMP/wm49-external-menu.log" ]]; then
-            echo "The external-menu runtime log is missing; secret review cannot pass."
-            echo "SECRET_LOG_REVIEW=FAIL" >> "$GITHUB_ENV"
-            exit 1
-          fi
 
           ADMIN_TOKEN=""
           ORDINARY_TOKEN=""
@@ -1297,13 +1332,14 @@ jobs:
           fi
 
       - name: Evaluate validation gate
-        id: validation-gate
+        id: validation_gate
         if: always()
         shell: bash
         run: |
           set -Eeuo pipefail
 
           required_statuses=(
+            DOCKER_PREFLIGHT
             LOCAL_SUPABASE
             WM51_MIGRATION
             WM51_PGTAP
@@ -1352,7 +1388,7 @@ jobs:
           if [[ -f "$RUNNER_TEMP/wm49-external-menu.pid" ]]; then
             kill "$(cat "$RUNNER_TEMP/wm49-external-menu.pid")" 2>/dev/null || true
           fi
-          supabase stop > /dev/null 2>&1 || true
+          supabase stop --no-backup > /dev/null 2>&1 || true
 
           rm -f \
             "$RUNNER_TEMP/wm49-supabase-start.log" \
@@ -1383,6 +1419,9 @@ jobs:
           {
             echo "## WM-49 Uber Integration Validation"
             echo
+            echo "- Docker preflight: ${DOCKER_PREFLIGHT:-NOT_RUN}"
+            echo "- Supabase startup: ${SUPABASE_START:-NOT_RUN}"
+            echo "- Supabase startup classification: ${SUPABASE_START_CLASSIFICATION:-unknown}"
             echo "- Local Supabase: ${LOCAL_SUPABASE:-NOT_RUN}"
             echo "- WM-51 migration and constraints: ${WM51_MIGRATION:-NOT_RUN}"
             echo "- WM-51 database workflow: ${WM51_PGTAP:-NOT_RUN}"
