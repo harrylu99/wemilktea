@@ -98,15 +98,24 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          if supabase start > "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1; then
-            supabase status -o env > "$RUNNER_TEMP/wm49-supabase-status.env"
-            chmod 600 "$RUNNER_TEMP/wm49-supabase-status.env"
-            echo "LOCAL_SUPABASE=PASS" >> "$GITHUB_ENV"
-          else
-            echo "LOCAL_SUPABASE=FAIL" >> "$GITHUB_ENV"
-            echo "Local Supabase startup failed."
-            exit 1
-          fi
+          start_attempt=1
+          while (( start_attempt <= 3 )); do
+            if supabase start >> "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1; then
+              supabase status -o env > "$RUNNER_TEMP/wm49-supabase-status.env"
+              chmod 600 "$RUNNER_TEMP/wm49-supabase-status.env"
+              echo "LOCAL_SUPABASE=PASS" >> "$GITHUB_ENV"
+              exit 0
+            fi
+
+            echo "Local Supabase startup attempt $start_attempt failed; retrying."
+            supabase stop >> "$RUNNER_TEMP/wm49-supabase-start.log" 2>&1 || true
+            start_attempt=$((start_attempt + 1))
+            sleep 5
+          done
+
+          echo "LOCAL_SUPABASE=FAIL" >> "$GITHUB_ENV"
+          echo "Local Supabase startup failed after 3 attempts."
+          exit 1
 
       - name: Verify WM-51 schema and constraints
         id: schema
