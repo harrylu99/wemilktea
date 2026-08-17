@@ -290,7 +290,7 @@ jobs:
 
       - name: Execute WM-54 database workflow test
         id: wm54-pgtap
-        if: steps['wm54-schema'].outcome == 'success'
+        if: env.WM54_MIGRATION == 'PASS'
         shell: bash
         continue-on-error: true
         run: |
@@ -308,7 +308,7 @@ jobs:
 
       - name: Create ephemeral Auth users and catalogue fixtures
         id: fixtures
-        if: steps.pgtap.outcome == 'success' && steps['wm54-pgtap'].outcome == 'success'
+        if: env.WM51_PGTAP == 'PASS' && env.WM54_PGTAP == 'PASS'
         shell: bash
         continue-on-error: true
         run: |
@@ -861,7 +861,7 @@ jobs:
 
       - name: Verify WM-54 confirmation authorization and no-op
         id: wm54-function
-        if: steps.auth-and-rls.outcome == 'success'
+        if: env.AUTH_403 == 'PASS' && env.MISSING_MAPPING == 'PASS'
         shell: bash
         continue-on-error: true
         run: |
@@ -918,7 +918,7 @@ jobs:
 
       - name: Execute real Uber sandbox E2E request
         id: uber-e2e
-        if: steps.auth-and-rls.outcome == 'success'
+        if: env.AUTH_403 == 'PASS' && env.MISSING_MAPPING == 'PASS'
         shell: bash
         continue-on-error: true
         run: |
