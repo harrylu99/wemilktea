@@ -7,3 +7,9 @@ Add a function here only for a secret-bearing or privileged V1 operation, such a
 `candidate-google-detail` authorizes the same admin JWT but reads the candidate through that user's RLS-scoped client. It uses the Google key only to return transient, attributed reference data; it never persists that response. See [Candidate review](../../docs/CANDIDATE_REVIEW.md).
 
 `image-storage` authorizes an admin, issues a short-lived R2 presigned upload URL, verifies the uploaded object, and attaches only metadata through admin-only RPCs. R2 credentials stay in Edge Function secrets; the browser receives no credentials or bucket access. See [Image storage](../../docs/IMAGE_STORAGE.md).
+
+`external-menu` authorizes an admin, resolves a canonical location through the
+provider-neutral `location_external_sources` mapping, fetches the mapped Uber
+Eats menu with server-only credentials, and returns only normalized review data.
+It does not persist the raw menu or write canonical products. See [External
+menu](../../docs/EXTERNAL_MENU.md).
