@@ -290,7 +290,7 @@ jobs:
 
       - name: Execute WM-54 database workflow test
         id: wm54-pgtap
-        if: steps.wm54-schema.outcome == 'success'
+        if: steps['wm54-schema'].outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -308,7 +308,7 @@ jobs:
 
       - name: Create ephemeral Auth users and catalogue fixtures
         id: fixtures
-        if: steps.pgtap.outcome == 'success' && steps.wm54-pgtap.outcome == 'success'
+        if: steps.pgtap.outcome == 'success' && steps['wm54-pgtap'].outcome == 'success'
         shell: bash
         continue-on-error: true
         run: |
