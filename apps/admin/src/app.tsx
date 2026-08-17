@@ -39,6 +39,11 @@ const ProductManagementPage = lazy(() =>
     default: module.ProductManagementPage
   }))
 );
+const ProductsImportMenuPage = lazy(() =>
+  import("./products-import-menu").then((module) => ({
+    default: module.ProductsImportMenuPage
+  }))
+);
 
 function RouteLoading() {
   return (
@@ -417,6 +422,14 @@ export function App() {
                 element={
                   <Suspense fallback={<RouteLoading />}>
                     <ProductsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/products/import-menu"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductsImportMenuPage />
                   </Suspense>
                 }
               />
