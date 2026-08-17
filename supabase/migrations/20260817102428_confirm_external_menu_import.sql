@@ -353,10 +353,10 @@ begin
         external_item_id
       )
       values (
-        product_id,
+        confirm_import.product_id,
         p_location_id,
         p_provider,
-        external_item_id
+        confirm_import.external_item_id
       )
       on conflict (location_id, provider, external_item_id) do nothing;
     end if;
@@ -370,7 +370,7 @@ begin
     )
     values (
       p_location_id,
-      product_id,
+      confirm_import.product_id,
       location_brand_id,
       'unknown',
       'wemilktea'
