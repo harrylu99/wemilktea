@@ -358,7 +358,7 @@ begin
         p_provider,
         confirm_import.external_item_id
       )
-      on conflict (location_id, provider, external_item_id) do nothing;
+      on conflict on constraint product_external_sources_identity_key do nothing;
     end if;
 
     insert into public.location_products (
@@ -375,7 +375,7 @@ begin
       'unknown',
       'wemilktea'
     )
-    on conflict (location_id, product_id) do nothing;
+    on conflict on constraint location_products_pkey do nothing;
 
     if product_was_created then
       created := created || jsonb_build_array(jsonb_build_object(
