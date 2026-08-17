@@ -278,6 +278,8 @@ jobs:
           ORDINARY_USER_ID="$(jq -r '.id' "$RUNNER_TEMP/wm49-ordinary-user.json")"
 
           cat > "$RUNNER_TEMP/wm49-fixtures.sql" <<SQL
+          do \$\$
+          begin
           insert into public.admin_users (user_id)
           values ('$ADMIN_USER_ID');
 
@@ -341,6 +343,8 @@ jobs:
             'uber_eats',
             'bff943ba-f5d8-4773-9699-f2109743369c'
           );
+          end;
+          \$\$;
           SQL
 
           if ! supabase db query --local --file "$RUNNER_TEMP/wm49-fixtures.sql" \
