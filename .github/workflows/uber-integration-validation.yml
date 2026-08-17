@@ -452,7 +452,7 @@ jobs:
           ready=0
           for _ in $(seq 1 60); do
             status="$(curl -sS -o /dev/null -w '%{http_code}' "$function_url" || true)"
-            if [[ "$status" != "000" ]]; then
+            if [[ "$status" != "000" && "$status" != "502" ]]; then
               ready=1
               break
             fi
