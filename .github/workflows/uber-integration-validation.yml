@@ -290,11 +290,16 @@ jobs:
 
       - name: Execute WM-54 database workflow test
         id: wm54-pgtap
-        if: env.WM54_MIGRATION == 'PASS'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ "${WM54_MIGRATION:-NOT_RUN}" != "PASS" ]]; then
+            echo "WM-54 migration validation did not pass; database workflow cannot run."
+            exit 1
+          fi
 
           if supabase test db --local supabase/tests/product_external_sources_workflow.sql \
             > "$RUNNER_TEMP/wm49-product-external-sources-test.log" 2>&1; then
@@ -308,11 +313,17 @@ jobs:
 
       - name: Create ephemeral Auth users and catalogue fixtures
         id: fixtures
-        if: env.WM51_PGTAP == 'PASS' && env.WM54_PGTAP == 'PASS'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ "${WM51_PGTAP:-NOT_RUN}" != "PASS" || "${WM54_PGTAP:-NOT_RUN}" != "PASS" ]]; then
+            echo "WM-51/WM-54 database validation did not pass; fixtures cannot be created."
+            exit 1
+          fi
+
           source "$RUNNER_TEMP/wm49-supabase-status.env"
 
           SUPABASE_URL="$API_URL"
@@ -861,11 +872,17 @@ jobs:
 
       - name: Verify WM-54 confirmation authorization and no-op
         id: wm54-function
-        if: env.AUTH_403 == 'PASS' && env.MISSING_MAPPING == 'PASS'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ "${AUTH_403:-NOT_RUN}" != "PASS" || "${MISSING_MAPPING:-NOT_RUN}" != "PASS" ]]; then
+            echo "The existing Admin boundary validation did not pass; WM-54 function checks cannot run."
+            exit 1
+          fi
+
           source "$RUNNER_TEMP/wm49-supabase-status.env"
           source "$RUNNER_TEMP/wm49-fixture.env"
 
@@ -918,11 +935,17 @@ jobs:
 
       - name: Execute real Uber sandbox E2E request
         id: uber-e2e
-        if: env.AUTH_403 == 'PASS' && env.MISSING_MAPPING == 'PASS'
+        if: always()
         shell: bash
         continue-on-error: true
         run: |
           set -Eeuo pipefail
+
+          if [[ "${AUTH_403:-NOT_RUN}" != "PASS" || "${MISSING_MAPPING:-NOT_RUN}" != "PASS" ]]; then
+            echo "The existing Admin boundary validation did not pass; Uber E2E cannot run."
+            exit 1
+          fi
+
           source "$RUNNER_TEMP/wm49-supabase-status.env"
           source "$RUNNER_TEMP/wm49-fixture.env"
 
