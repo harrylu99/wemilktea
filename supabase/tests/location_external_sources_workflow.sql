@@ -95,6 +95,8 @@ begin
 
   perform set_config('wm51.admin_user_id', admin_user_id::text, true);
   perform set_config('wm51.ordinary_user_id', ordinary_user_id::text, true);
+  perform set_config('wm51.first_location_id', first_location_id::text, true);
+  perform set_config('wm51.second_location_id', second_location_id::text, true);
 end;
 $$;
 
@@ -117,13 +119,12 @@ select lives_ok(
       external_store_id,
       verified_at
     )
-    select
-      id,
+    values (
+      current_setting('wm51.first_location_id')::uuid,
       'uber_eats',
       'bff943ba-f5d8-4773-9699-f2109743369c',
       now()
-    from public.locations
-    where slug = 'wm-51-external-mapping-one'
+    )
   $$,
   'admin can create a valid Uber Eats location mapping'
 );
@@ -181,9 +182,11 @@ select throws_ok(
       provider,
       external_store_id
     )
-    select id, 'uber_eats', 'ordinary-user-store'
-    from public.locations
-    where slug = 'wm-51-external-mapping-one'
+    values (
+      current_setting('wm51.first_location_id')::uuid,
+      'uber_eats',
+      'ordinary-user-store'
+    )
   $$,
   '42501',
   null,
@@ -207,9 +210,11 @@ select throws_ok(
       provider,
       external_store_id
     )
-    select id, 'uber_eats', 'different-store'
-    from public.locations
-    where slug = 'wm-51-external-mapping-one'
+    values (
+      current_setting('wm51.first_location_id')::uuid,
+      'uber_eats',
+      'different-store'
+    )
   $$,
   '23505',
   null,
@@ -223,9 +228,11 @@ select throws_ok(
       provider,
       external_store_id
     )
-    select id, 'uber_eats', 'bff943ba-f5d8-4773-9699-f2109743369c'
-    from public.locations
-    where slug = 'wm-51-external-mapping-two'
+    values (
+      current_setting('wm51.second_location_id')::uuid,
+      'uber_eats',
+      'bff943ba-f5d8-4773-9699-f2109743369c'
+    )
   $$,
   '23505',
   null,
@@ -257,9 +264,11 @@ select throws_ok(
       provider,
       external_store_id
     )
-    select id, 'doordash', 'future-provider-store'
-    from public.locations
-    where slug = 'wm-51-external-mapping-two'
+    values (
+      current_setting('wm51.second_location_id')::uuid,
+      'doordash',
+      'future-provider-store'
+    )
   $$,
   '23514',
   null,
@@ -287,9 +296,11 @@ select throws_ok(
       provider,
       external_store_id
     )
-    select id, 'uber_eats', 'anonymous-store'
-    from public.locations
-    where slug = 'wm-51-external-mapping-two'
+    values (
+      current_setting('wm51.second_location_id')::uuid,
+      'uber_eats',
+      'anonymous-store'
+    )
   $$,
   '42501',
   null,
