@@ -73,7 +73,7 @@ declare
   seen_external_item_ids text[] := '{}'::text[];
   seen_slugs text[] := '{}'::text[];
   same_name_count integer;
-begin
+confirm_import: begin
   if not (select public.is_admin()) then
     raise exception using errcode = 'P0001', message = 'admin_access_required';
   end if;
@@ -232,7 +232,7 @@ begin
     from public.product_external_sources
     where product_external_sources.location_id = p_location_id
       and product_external_sources.provider = p_provider
-      and product_external_sources.external_item_id = external_item_id
+      and product_external_sources.external_item_id = confirm_import.external_item_id
     for update;
 
     if existing_provenance_product_id is not null
@@ -336,7 +336,7 @@ begin
     from public.product_external_sources
     where product_external_sources.location_id = p_location_id
       and product_external_sources.provider = p_provider
-      and product_external_sources.external_item_id = external_item_id
+      and product_external_sources.external_item_id = confirm_import.external_item_id
     for update;
 
     if existing_provenance_product_id is not null
