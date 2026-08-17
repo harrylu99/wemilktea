@@ -51,6 +51,7 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
+<<confirm_import>>
 declare
   location_brand_id uuid;
   item_value jsonb;
@@ -73,7 +74,6 @@ declare
   seen_external_item_ids text[] := '{}'::text[];
   seen_slugs text[] := '{}'::text[];
   same_name_count integer;
-<<confirm_import>>
 begin
   if not (select public.is_admin()) then
     raise exception using errcode = 'P0001', message = 'admin_access_required';
