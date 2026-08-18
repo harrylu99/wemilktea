@@ -599,7 +599,6 @@ jobs:
           external_item_id="wm54-concurrent-external-id"
           product_slug_a="wm-54-concurrent-tea-a"
           product_slug_b="wm-54-concurrent-tea-b"
-          advisory_class=54054
 
           cleanup() {
             set +e
@@ -665,134 +664,124 @@ jobs:
             and slug in (:'product_slug_a', :'product_slug_b');
           SQL
 
-          write_import_sql() {
-            local file="$1"
-            local lock_key="$2"
-            local product_name="$3"
-            local product_description="$4"
+          cat > "$RUNNER_TEMP/wm49-concurrent-a.sql" <<'SQL'
+          \set ON_ERROR_STOP on
+          begin;
+          set role authenticated;
+          select set_config('request.jwt.claim.sub', :'admin_user_id', false);
+          select public.confirm_external_menu_import(
+            :'mapped_location_id'::uuid,
+            'uber_eats',
+            jsonb_build_array(jsonb_build_object(
+              'externalItemId', :'external_item_id',
+              'name', 'WM-54 Concurrent Tea A',
+              'description', 'Created by the first concurrent confirmation session.',
+              'targetCategoryId', (
+                select categories.id::text
+                from public.categories
+                where categories.slug = 'milk-tea'
+              )
+            ))
+          );
+          \echo WM54_SESSION_A_READY
+          select pg_sleep(3);
+          commit;
+          SQL
 
-            cat > "$file" <<'SQL'
+          cat > "$RUNNER_TEMP/wm49-concurrent-b.sql" <<'SQL'
           \set ON_ERROR_STOP on
           set role authenticated;
           select set_config('request.jwt.claim.sub', :'admin_user_id', false);
-          select set_config('wm49.advisory_class', :'advisory_class', false);
-          select set_config('wm49.lock_key', :'lock_key', false);
-          select set_config('wm49.mapped_location_id', :'mapped_location_id', false);
-          select set_config('wm49.external_item_id', :'external_item_id', false);
-          select set_config('wm49.product_name', :'product_name', false);
-          select set_config('wm49.product_description', :'product_description', false);
-          select pg_advisory_lock(
-            current_setting('wm49.advisory_class')::integer,
-            current_setting('wm49.lock_key')::integer
+          select public.confirm_external_menu_import(
+            :'mapped_location_id'::uuid,
+            'uber_eats',
+            jsonb_build_array(jsonb_build_object(
+              'externalItemId', :'external_item_id',
+              'name', 'WM-54 Concurrent Tea B',
+              'description', 'Created by the second concurrent confirmation session.',
+              'targetCategoryId', (
+                select categories.id::text
+                from public.categories
+                where categories.slug = 'milk-tea'
+              )
+            ))
           );
-          do $$
-          begin
-            loop
-              exit when (
-                select count(*)
-                from pg_locks
-                where locktype = 'advisory'
-                  and classid = current_setting('wm49.advisory_class')::integer
-                  and objid in (1, 2)
-                  and granted
-              ) = 2;
-              perform pg_sleep(0.05);
-            end loop;
-          end;
-          $$;
-          select pg_advisory_unlock(
-            current_setting('wm49.advisory_class')::integer,
-            current_setting('wm49.lock_key')::integer
-          );
-          select pg_sleep(0.1);
-          do $$
-          declare
-            result jsonb;
-          begin
-            begin
-              result := public.confirm_external_menu_import(
-                current_setting('wm49.mapped_location_id')::uuid,
-                'uber_eats',
-                jsonb_build_array(jsonb_build_object(
-                  'externalItemId', current_setting('wm49.external_item_id'),
-                  'name', current_setting('wm49.product_name'),
-                  'description', current_setting('wm49.product_description'),
-                  'targetCategoryId', (
-                    select categories.id::text
-                    from public.categories
-                    where categories.slug = 'milk-tea'
-                  )
-                ))
-              );
-              if result->>'status' = 'success' then
-                raise notice 'concurrent result=success';
-              elsif result->>'status' = 'validation_failed'
-                and result #>> '{failed,0,reason}' = 'This external item is already linked to another canonical product.' then
-                raise notice 'concurrent result=expected validation conflict';
-              else
-                raise exception 'unexpected concurrent import result';
-              end if;
-            exception when others then
-              if SQLSTATE = 'P0001' and SQLERRM = 'external_identity_conflict' then
-                raise notice 'concurrent result=expected external identity conflict';
-              else
-                raise;
-              end if;
-            end;
-          end;
-          $$;
           SQL
-          }
 
-          write_import_sql \
-            "$RUNNER_TEMP/wm49-concurrent-a.sql" \
-            1 \
-            "WM-54 Concurrent Tea A" \
-            "Created by the first concurrent confirmation session."
-          write_import_sql \
-            "$RUNNER_TEMP/wm49-concurrent-b.sql" \
-            2 \
-            "WM-54 Concurrent Tea B" \
-            "Created by the second concurrent confirmation session."
-
-          timeout 20s psql -X "$DB_URL" \
+          timeout 10s psql -X "$DB_URL" \
             --set=admin_user_id="$ADMIN_USER_ID" \
             --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=external_item_id="$external_item_id" \
-            --set=advisory_class="$advisory_class" \
-            --set=lock_key=1 \
-            --set=product_name="WM-54 Concurrent Tea A" \
-            --set=product_description="Created by the first concurrent confirmation session." \
             --file="$RUNNER_TEMP/wm49-concurrent-a.sql" \
             > "$RUNNER_TEMP/wm49-concurrent-a.log" 2>&1 &
           first_pid=$!
 
-          timeout 20s psql -X "$DB_URL" \
+          ready=0
+          for attempt in {1..50}; do
+            if grep -Fq 'WM54_SESSION_A_READY' "$RUNNER_TEMP/wm49-concurrent-a.log"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$first_pid" 2>/dev/null; then
+              echo "Session A exited before the ready marker."
+              wait "$first_pid" || true
+              cat "$RUNNER_TEMP/wm49-concurrent-a.log"
+              exit 1
+            fi
+            sleep 0.1
+          done
+
+          if [[ "$ready" != "1" ]]; then
+            echo "Session A did not emit the ready marker within 5 seconds."
+            cat "$RUNNER_TEMP/wm49-concurrent-a.log"
+            exit 1
+          fi
+
+          timeout 10s psql -X "$DB_URL" \
             --set=admin_user_id="$ADMIN_USER_ID" \
             --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=external_item_id="$external_item_id" \
-            --set=advisory_class="$advisory_class" \
-            --set=lock_key=2 \
-            --set=product_name="WM-54 Concurrent Tea B" \
-            --set=product_description="Created by the second concurrent confirmation session." \
             --file="$RUNNER_TEMP/wm49-concurrent-b.sql" \
             > "$RUNNER_TEMP/wm49-concurrent-b.log" 2>&1 &
           second_pid=$!
 
-          first_status=0
           second_status=0
-          wait "$first_pid" || first_status=$?
           wait "$second_pid" || second_status=$?
-          if [[ "$first_status" != "0" || "$second_status" != "0" ]]; then
-            echo "Concurrent provenance sessions failed (session A=$first_status, session B=$second_status)."
+          first_status=0
+          wait "$first_pid" || first_status=$?
+
+          if [[ "$first_status" != "0" ]]; then
+            echo "Session A failed (exit $first_status)."
             cat "$RUNNER_TEMP/wm49-concurrent-a.log"
+            exit 1
+          fi
+          if [[ "$second_status" == "0" ]]; then
+            echo "Session B unexpectedly succeeded; the concurrency conflict did not activate."
+            cat "$RUNNER_TEMP/wm49-concurrent-b.log"
+            exit 1
+          fi
+          if ! grep -Fq 'external_identity_conflict' "$RUNNER_TEMP/wm49-concurrent-b.log"; then
+            echo "Session B failed without the expected external_identity_conflict error."
             cat "$RUNNER_TEMP/wm49-concurrent-b.log"
             exit 1
           fi
 
-          product_count="$(psql -X -Atq "$DB_URL" \
+          product_a_count="$(psql -X -Atq "$DB_URL" \
             --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=product_slug_a="$product_slug_a" \
+            --file=/dev/stdin <<'SQL'
+          select count(*)
+          from public.products
+          where brand_id = (
+            select locations.brand_id
+            from public.locations
+            where locations.id = :'mapped_location_id'::uuid
+          )
+            and slug = :'product_slug_a';
+          SQL
+          )"
+          product_b_count="$(psql -X -Atq "$DB_URL" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=product_slug_b="$product_slug_b" \
             --file=/dev/stdin <<'SQL'
           select count(*)
@@ -802,42 +791,77 @@ jobs:
             from public.locations
             where locations.id = :'mapped_location_id'::uuid
           )
-            and slug in (:'product_slug_a', :'product_slug_b');
+            and slug = :'product_slug_b';
           SQL
           )"
           provenance_count="$(psql -X -Atq "$DB_URL" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=external_item_id="$external_item_id" \
             --file=/dev/stdin <<'SQL'
           select count(*)
           from public.product_external_sources
-          where provider = 'uber_eats'
+          where location_id = :'mapped_location_id'::uuid
+            and provider = 'uber_eats'
             and external_item_id = :'external_item_id';
           SQL
           )"
-          relationship_count="$(psql -X -Atq "$DB_URL" \
+          provenance_owner_count="$(psql -X -Atq "$DB_URL" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+            --set=external_item_id="$external_item_id" \
+            --set=product_slug_a="$product_slug_a" \
+            --file=/dev/stdin <<'SQL'
+          select count(*)
+          from public.product_external_sources
+          join public.products
+            on products.id = product_external_sources.product_id
+          where product_external_sources.location_id = :'mapped_location_id'::uuid
+            and product_external_sources.provider = 'uber_eats'
+            and product_external_sources.external_item_id = :'external_item_id'
+            and products.slug = :'product_slug_a';
+          SQL
+          )"
+          product_a_relationship_count="$(psql -X -Atq "$DB_URL" \
             --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=product_slug_a="$product_slug_a" \
+            --file=/dev/stdin <<'SQL'
+          select count(*)
+          from public.location_products
+          where location_id = :'mapped_location_id'::uuid
+            and product_id = (
+              select products.id
+              from public.products
+              where products.slug = :'product_slug_a'
+            );
+          SQL
+          )"
+          product_b_relationship_count="$(psql -X -Atq "$DB_URL" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
             --set=product_slug_b="$product_slug_b" \
             --file=/dev/stdin <<'SQL'
           select count(*)
           from public.location_products
           where location_id = :'mapped_location_id'::uuid
-            and product_id in (
+            and product_id = (
               select products.id
               from public.products
-              where products.slug in (:'product_slug_a', :'product_slug_b')
+              where products.slug = :'product_slug_b'
             );
           SQL
           )"
 
-          if [[ "$product_count" != "1" || "$provenance_count" != "1" || "$relationship_count" != "1" ]]; then
-            echo "Concurrent provenance invariant failed (products=$product_count, provenance=$provenance_count, location_relationships=$relationship_count)."
+          if [[ "$product_a_count" != "1" \
+            || "$product_b_count" != "0" \
+            || "$provenance_count" != "1" \
+            || "$provenance_owner_count" != "1" \
+            || "$product_a_relationship_count" != "1" \
+            || "$product_b_relationship_count" != "0" ]]; then
+            echo "Concurrent provenance invariant failed (product_a=$product_a_count, product_b=$product_b_count, provenance=$provenance_count, provenance_owner_a=$provenance_owner_count, product_a_relationships=$product_a_relationship_count, product_b_relationships=$product_b_relationship_count)."
             cat "$RUNNER_TEMP/wm49-concurrent-a.log"
             cat "$RUNNER_TEMP/wm49-concurrent-b.log"
             exit 1
           fi
 
-          echo "Two concurrent confirmations produced one canonical product, one provenance row, and one location relationship."
+          echo "Concurrent invariants: product_a=$product_a_count product_b=$product_b_count provenance=$provenance_count provenance_owner_a=$provenance_owner_count product_a_relationships=$product_a_relationship_count product_b_relationships=$product_b_relationship_count"
           echo "WM54_CONCURRENCY=PASS" >> "$GITHUB_ENV"
 
       - name: Prepare local external-menu environment
