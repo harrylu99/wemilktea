@@ -10,7 +10,7 @@ import {
   storeCandidateSummarySchema,
   type StoreCandidateSummary
 } from "@wemilktea/validation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Link,
   useLocation,
@@ -119,40 +119,44 @@ export function CandidateQueuePage() {
   const [isLoading, setIsLoading] = useState(true);
   const filter = candidateFilterFromSearchParams(searchParams);
 
-  useEffect(() => {
+  const loadCandidates = useCallback(async () => {
     const client = supabase;
 
     if (!client) {
       setErrorMessage(supabaseConfigurationError);
       setIsLoading(false);
-      return;
+      return false;
     }
 
-    const loadCandidates = async () => {
-      setIsLoading(true);
-      const { data, error } = await client
-        .from("store_candidates")
-        .select(
-          "id, google_place_id, status, source_provenance, first_seen_at, last_seen_at, reviewed_at, possible_location_id, resolved_location_id, rejection_reason"
-        )
-        .order("last_seen_at", { ascending: false });
+    setIsLoading(true);
+    const { data, error } = await client
+      .from("store_candidates")
+      .select(
+        "id, google_place_id, status, source_provenance, first_seen_at, last_seen_at, reviewed_at, possible_location_id, resolved_location_id, rejection_reason"
+      )
+      .order("last_seen_at", { ascending: false });
 
-      if (error) {
-        setErrorMessage("Candidates could not be loaded. Please try again.");
+    let loaded = false;
+    if (error) {
+      setErrorMessage("Candidates could not be loaded. Please try again.");
+    } else {
+      const parsed = storeCandidateSummarySchema.array().safeParse(data);
+      if (!parsed.success) {
+        setErrorMessage("Candidates returned an invalid response.");
       } else {
-        const parsed = storeCandidateSummarySchema.array().safeParse(data);
-        if (!parsed.success) {
-          setErrorMessage("Candidates returned an invalid response.");
-        } else {
-          setCandidates(parsed.data);
-        }
+        setErrorMessage(null);
+        setCandidates(parsed.data);
+        loaded = true;
       }
+    }
 
-      setIsLoading(false);
-    };
-
-    void loadCandidates();
+    setIsLoading(false);
+    return loaded;
   }, []);
+
+  useEffect(() => {
+    void loadCandidates();
+  }, [loadCandidates]);
 
   const visibleCandidates = useMemo(
     () =>
@@ -267,7 +271,7 @@ export function CandidateQueuePage() {
           </table>
         ) : null}
       </div>
-      <DiscoveryControl />
+      <DiscoveryControl onDiscoverySuccess={loadCandidates} />
     </section>
   );
 }
