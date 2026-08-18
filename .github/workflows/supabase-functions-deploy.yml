@@ -62,3 +62,15 @@ jobs:
           supabase functions deploy image-storage
           --project-ref "$SUPABASE_PROJECT_REF"
           --use-api
+
+      - name: Deploy external-menu
+        run: >-
+          supabase functions deploy external-menu
+          --project-ref "$SUPABASE_PROJECT_REF"
+          --use-api
+
+      - name: Deploy confirm-menu-import
+        run: >-
+          supabase functions deploy confirm-menu-import
+          --project-ref "$SUPABASE_PROJECT_REF"
+          --use-api
