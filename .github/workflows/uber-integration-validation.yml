@@ -675,7 +675,16 @@ jobs:
           \set ON_ERROR_STOP on
           set role authenticated;
           select set_config('request.jwt.claim.sub', :'admin_user_id', false);
-          select pg_advisory_lock(:'advisory_class'::integer, :'lock_key'::integer);
+          select set_config('wm49.advisory_class', :'advisory_class', false);
+          select set_config('wm49.lock_key', :'lock_key', false);
+          select set_config('wm49.mapped_location_id', :'mapped_location_id', false);
+          select set_config('wm49.external_item_id', :'external_item_id', false);
+          select set_config('wm49.product_name', :'product_name', false);
+          select set_config('wm49.product_description', :'product_description', false);
+          select pg_advisory_lock(
+            current_setting('wm49.advisory_class')::integer,
+            current_setting('wm49.lock_key')::integer
+          );
           do $$
           begin
             loop
@@ -683,7 +692,7 @@ jobs:
                 select count(*)
                 from pg_locks
                 where locktype = 'advisory'
-                  and classid = :'advisory_class'::integer
+                  and classid = current_setting('wm49.advisory_class')::integer
                   and objid in (1, 2)
                   and granted
               ) = 2;
@@ -691,7 +700,10 @@ jobs:
             end loop;
           end;
           $$;
-          select pg_advisory_unlock(:'advisory_class'::integer, :'lock_key'::integer);
+          select pg_advisory_unlock(
+            current_setting('wm49.advisory_class')::integer,
+            current_setting('wm49.lock_key')::integer
+          );
           select pg_sleep(0.1);
           do $$
           declare
@@ -699,12 +711,12 @@ jobs:
           begin
             begin
               result := public.confirm_external_menu_import(
-                :'mapped_location_id'::uuid,
+                current_setting('wm49.mapped_location_id')::uuid,
                 'uber_eats',
                 jsonb_build_array(jsonb_build_object(
-                  'externalItemId', :'external_item_id',
-                  'name', :'product_name',
-                  'description', :'product_description',
+                  'externalItemId', current_setting('wm49.external_item_id'),
+                  'name', current_setting('wm49.product_name'),
+                  'description', current_setting('wm49.product_description'),
                   'targetCategoryId', (
                     select categories.id::text
                     from public.categories
