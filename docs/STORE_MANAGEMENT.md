@@ -29,3 +29,18 @@ The browser calls these authenticated admin-only RPCs:
 - `unpublish_location` removes a published location from public visibility.
 
 Candidate history, discovery observations, and Google retention boundaries are not changed by these operations.
+
+## Archive and permanent deletion
+
+`archive_location` removes a draft or published location from public visibility
+by setting `publication_status = 'archived'`. It preserves the canonical row,
+Google identity, catalogue relationships, images, candidate history, and
+external provenance. `restore_archived_location` returns an archived location
+to `draft`; it never publishes automatically.
+
+`delete_location_if_safe` is a separate admin-only operation for accidental or
+test records. It allows only draft or archived locations with WeMilktea-owned
+provenance and no catalogue, image, external integration, or candidate-review
+history. Protected records must be archived instead. The checks run in the same
+transaction as the delete, and no dependent records are cascade-deleted by
+this workflow.

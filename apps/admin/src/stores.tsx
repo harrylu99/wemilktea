@@ -6,7 +6,7 @@ import {
   updateStoreManagementSchema
 } from "@wemilktea/validation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import {
   managedImageUrl,
@@ -93,6 +93,24 @@ function friendlyStoreError(message: string | undefined) {
       return "This store is not currently published.";
     case "location_not_publishable":
       return "Only draft stores can be published.";
+    case "location_already_archived":
+      return "This store is already archived.";
+    case "location_not_archived":
+      return "This store is not currently archived.";
+    case "location_not_archivable":
+      return "This store cannot be archived from its current status.";
+    case "location_delete_requires_draft_or_archived":
+      return "Only draft or archived stores can be permanently deleted.";
+    case "location_has_external_identity":
+      return "This store has external identity or provenance and cannot be permanently deleted. Archive it instead.";
+    case "location_has_catalogue_records":
+      return "This store has catalogue records and cannot be permanently deleted. Archive it instead.";
+    case "location_has_image_records":
+      return "This store has image records and cannot be permanently deleted. Archive it instead.";
+    case "location_has_external_provenance":
+      return "This store has external integration history and cannot be permanently deleted. Archive it instead.";
+    case "location_has_candidate_history":
+      return "This store has candidate or review history and cannot be permanently deleted. Archive it instead.";
     default:
       return message?.includes("duplicate key")
         ? "That slug is already in use. Choose a unique store slug."
@@ -376,6 +394,7 @@ function formFromDetail(detail: {
 
 export function StoreManagementPage() {
   const { locationId } = useParams();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<ReturnType<
     typeof storeManagementDetailSchema.parse
   > | null>(null);
@@ -386,7 +405,7 @@ export function StoreManagementPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isChangingPublication, setIsChangingPublication] = useState(false);
+  const [isChangingLifecycle, setIsChangingLifecycle] = useState(false);
   const [image, setImage] = useState<ManagedImage | null>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imageAltText, setImageAltText] = useState("");
@@ -526,23 +545,36 @@ export function StoreManagementPage() {
     await load();
   };
 
-  const changePublication = async (action: "publish" | "unpublish") => {
+  const changeLifecycle = async (
+    action: "publish" | "unpublish" | "archive" | "restore"
+  ) => {
     if (!supabase || !detail) return;
-    const message =
-      action === "publish"
-        ? "Publish this store? It will become available to the public WeMilktea application."
-        : "Unpublish this store? It will no longer appear in public store results.";
+    const messages = {
+      publish:
+        "Publish this store? It will become available to the public WeMilktea application.",
+      unpublish:
+        "Unpublish this store? It will no longer appear in public store results.",
+      archive:
+        "Archive this store? It will be removed from public results but preserved for Admin management and history.",
+      restore:
+        "Restore this store to draft? It will remain hidden until published."
+    } as const;
 
-    if (!window.confirm(message)) return;
+    if (!window.confirm(messages[action])) return;
 
     setErrorMessage(null);
     setSuccessMessage(null);
-    setIsChangingPublication(true);
-    const { error } = await supabase.rpc(
-      action === "publish" ? "publish_location" : "unpublish_location",
-      { p_location_id: detail.id }
-    );
-    setIsChangingPublication(false);
+    setIsChangingLifecycle(true);
+    const rpcName = {
+      publish: "publish_location",
+      unpublish: "unpublish_location",
+      archive: "archive_location",
+      restore: "restore_archived_location"
+    }[action];
+    const { error } = await supabase.rpc(rpcName, {
+      p_location_id: detail.id
+    });
+    setIsChangingLifecycle(false);
 
     if (error) {
       setErrorMessage(friendlyStoreError(error.message));
@@ -550,9 +582,41 @@ export function StoreManagementPage() {
     }
 
     setSuccessMessage(
-      action === "publish" ? "Store published." : "Store unpublished to draft."
+      {
+        publish: "Store published.",
+        unpublish: "Store unpublished to draft.",
+        archive:
+          "Store archived. Its history and catalogue relationships were preserved.",
+        restore: "Store restored to draft."
+      }[action]
     );
     await load();
+  };
+
+  const deleteLocation = async () => {
+    if (!supabase || !detail || isDirty) return;
+    if (
+      !window.confirm(
+        "Permanently delete this store? This cannot be undone. Archive is safer for real or previously published stores."
+      )
+    ) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsChangingLifecycle(true);
+    const { error } = await supabase.rpc("delete_location_if_safe", {
+      p_location_id: detail.id
+    });
+    setIsChangingLifecycle(false);
+
+    if (error) {
+      setErrorMessage(friendlyStoreError(error.message));
+      return;
+    }
+
+    navigate("/stores");
   };
 
   const uploadImage = async () => {
@@ -764,7 +828,7 @@ export function StoreManagementPage() {
         </div>
         <button
           className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          disabled={!isDirty || isSaving || isChangingPublication}
+          disabled={!isDirty || isSaving || isChangingLifecycle}
           type="submit"
         >
           {isSaving ? "Saving…" : "Save changes"}
@@ -800,7 +864,7 @@ export function StoreManagementPage() {
               ) : null}
               <button
                 className="mt-3 rounded-md border border-destructive px-3 py-2 font-medium text-destructive disabled:opacity-60"
-                disabled={isChangingImage || isSaving}
+                disabled={isChangingImage || isSaving || isChangingLifecycle}
                 type="button"
                 onClick={() => void removeImage()}
               >
@@ -845,7 +909,12 @@ export function StoreManagementPage() {
         ) : null}
         <button
           className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          disabled={!selectedImageFile || isChangingImage || isSaving}
+          disabled={
+            !selectedImageFile ||
+            isChangingImage ||
+            isSaving ||
+            isChangingLifecycle
+          }
           type="button"
           onClick={() => void uploadImage()}
         >
@@ -865,31 +934,82 @@ export function StoreManagementPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {detail.publication_status === "published"
             ? "This location is available to the public app."
-            : "Publishing requires canonical brand, location, address, suburb, slug, and coordinates. Products and images are not required."}
+            : detail.publication_status === "archived"
+              ? "This location is hidden from public results but preserved for Admin management and history."
+              : "Publishing requires canonical brand, location, address, suburb, slug, and coordinates. Products and images are not required."}
         </p>
         {detail.publication_status === "draft" ? (
           <button
             className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-            disabled={isChangingPublication || isSaving || isDirty}
+            disabled={isChangingLifecycle || isSaving || isDirty}
             type="button"
-            onClick={() => changePublication("publish")}
+            onClick={() => void changeLifecycle("publish")}
           >
-            {isChangingPublication ? "Publishing…" : "Publish store"}
+            {isChangingLifecycle ? "Updating…" : "Publish store"}
           </button>
         ) : null}
         {detail.publication_status === "published" ? (
           <button
             className="mt-4 rounded-md border border-destructive px-4 py-2 text-sm font-medium text-destructive disabled:opacity-60"
-            disabled={isChangingPublication || isSaving || isDirty}
+            disabled={isChangingLifecycle || isSaving || isDirty}
             type="button"
-            onClick={() => changePublication("unpublish")}
+            onClick={() => void changeLifecycle("unpublish")}
           >
-            {isChangingPublication ? "Unpublishing…" : "Unpublish store"}
+            {isChangingLifecycle ? "Updating…" : "Unpublish store"}
           </button>
         ) : null}
+        {detail.publication_status !== "archived" ? (
+          <button
+            className="ml-3 mt-4 rounded-md border border-border px-4 py-2 font-medium hover:bg-muted disabled:opacity-60"
+            disabled={isChangingLifecycle || isSaving || isDirty}
+            type="button"
+            onClick={() => void changeLifecycle("archive")}
+          >
+            {isChangingLifecycle ? "Updating…" : "Archive store"}
+          </button>
+        ) : (
+          <button
+            className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            disabled={isChangingLifecycle || isSaving || isDirty}
+            type="button"
+            onClick={() => void changeLifecycle("restore")}
+          >
+            {isChangingLifecycle ? "Updating…" : "Restore to draft"}
+          </button>
+        )}
         {isDirty ? (
           <p className="mt-3 text-sm text-muted-foreground">
             Save canonical changes before changing publication.
+          </p>
+        ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-destructive/40 bg-card p-5">
+        <p className="text-xs font-semibold tracking-wide text-destructive">
+          PERMANENT DELETE
+        </p>
+        <h2 className="mt-1 text-lg font-semibold">Delete store permanently</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Use only for accidental or test stores. Published stores and stores
+          with catalogue, image, external, or review history are protected and
+          must be archived instead.
+        </p>
+        <button
+          className="mt-4 rounded-md border border-destructive px-4 py-2 font-medium text-destructive disabled:opacity-60"
+          disabled={
+            isChangingLifecycle ||
+            isSaving ||
+            isDirty ||
+            detail.publication_status === "published"
+          }
+          type="button"
+          onClick={() => void deleteLocation()}
+        >
+          {isChangingLifecycle ? "Deleting…" : "Permanently delete store"}
+        </button>
+        {isDirty ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Save canonical changes before changing the store lifecycle.
           </p>
         ) : null}
       </section>
