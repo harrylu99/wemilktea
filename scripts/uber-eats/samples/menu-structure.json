@@ -1,0 +1,46 @@
+{
+  "source": "WM-50 live sandbox response",
+  "sanitization": "Structural metadata only; IDs, names, descriptions, prices, image references, and all other values were omitted.",
+  "rootKeys": ["menus", "categories", "items", "modifier_groups"],
+  "observedCounts": {
+    "menus": 1,
+    "categories": 1,
+    "items": 1,
+    "modifierGroups": 0
+  },
+  "structures": [
+    {
+      "path": "$.menus",
+      "type": "array",
+      "length": 1,
+      "firstObjectKeys": ["category_ids", "id", "service_availability", "title"]
+    },
+    {
+      "path": "$.categories",
+      "type": "array",
+      "length": 1,
+      "firstObjectKeys": ["entities", "id", "subtitle", "title"]
+    },
+    {
+      "path": "$.items",
+      "type": "array",
+      "length": 1,
+      "firstObjectKeys": [
+        "bundled_items",
+        "description",
+        "dish_info",
+        "id",
+        "image_url",
+        "price_info",
+        "product_info",
+        "tax_info",
+        "title"
+      ]
+    },
+    {
+      "path": "$.modifier_groups",
+      "type": "object",
+      "keys": []
+    }
+  ]
+}

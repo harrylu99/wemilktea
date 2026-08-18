@@ -236,6 +236,12 @@ export function ProductsPage() {
         >
           + Add product
         </Link>
+        <Link
+          className="rounded-md border border-border px-4 py-3 text-sm font-medium hover:bg-muted"
+          to="/products/import-menu"
+        >
+          Import menu
+        </Link>
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
         <label
