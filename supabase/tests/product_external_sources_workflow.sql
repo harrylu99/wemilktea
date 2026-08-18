@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(36);
 
 do $$
 declare
@@ -11,6 +11,9 @@ declare
   v_location_id uuid;
   v_existing_product_id uuid;
   v_ambiguous_product_id uuid;
+  v_other_brand_id uuid;
+  v_other_location_id uuid;
+  v_other_product_id uuid;
 begin
   select brands.id into v_brand_id
   from public.brands
@@ -25,8 +28,24 @@ begin
   from public.products
   where products.brand_id = v_brand_id
     and products.slug = 'brown-sugar-pearl-milk-tea';
+  select brands.id into v_other_brand_id
+  from public.brands
+  where brands.slug = 'chatime';
+  select locations.id into v_other_location_id
+  from public.locations
+  where locations.slug = 'chatime-auckland-cbd';
+  select products.id into v_other_product_id
+  from public.products
+  where products.brand_id = v_other_brand_id
+    and products.slug = 'taro-milk-tea';
 
-  if v_brand_id is null or v_category_id is null or v_location_id is null or v_existing_product_id is null then
+  if v_brand_id is null
+    or v_category_id is null
+    or v_location_id is null
+    or v_existing_product_id is null
+    or v_other_brand_id is null
+    or v_other_location_id is null
+    or v_other_product_id is null then
     raise exception 'WM-54 test seed catalogue is missing';
   end if;
 
@@ -107,6 +126,8 @@ begin
   perform set_config('wm54.category_id', v_category_id::text, true);
   perform set_config('wm54.existing_product_id', v_existing_product_id::text, true);
   perform set_config('wm54.ambiguous_product_id', v_ambiguous_product_id::text, true);
+  perform set_config('wm54.other_location_id', v_other_location_id::text, true);
+  perform set_config('wm54.other_product_id', v_other_product_id::text, true);
 end;
 $$;
 
@@ -430,6 +451,161 @@ select is(
   ),
   'validation_failed',
   'conflicting provenance mapping fails safely'
+);
+
+select is(
+  (
+    select count(*)
+    from public.products
+    where brand_id = current_setting('wm54.brand_id')::uuid
+      and slug = 'wm-54-different-name'
+  ),
+  0::bigint,
+  'conflicting provenance does not create the newly resolved product'
+);
+
+select is(
+  (
+    select count(*)
+    from public.location_products
+    where location_id = current_setting('wm54.location_id')::uuid
+      and product_id in (
+        select id
+        from public.products
+        where brand_id = current_setting('wm54.brand_id')::uuid
+          and slug = 'wm-54-different-name'
+      )
+  ),
+  0::bigint,
+  'conflicting provenance does not create a new location relationship'
+);
+
+select is(
+  (
+    select count(*)
+    from public.product_external_sources
+    where location_id = current_setting('wm54.location_id')::uuid
+      and provider = 'uber_eats'
+      and external_item_id = 'wm54-conflicting-external-id'
+      and product_id = current_setting('wm54.existing_product_id')::uuid
+  ),
+  1::bigint,
+  'conflicting provenance remains mapped to the original product'
+);
+
+select lives_ok(
+  $$
+    insert into public.product_external_sources (
+      product_id,
+      location_id,
+      provider,
+      external_item_id
+    )
+    values (
+      current_setting('wm54.existing_product_id')::uuid,
+      current_setting('wm54.location_id')::uuid,
+      'uber_eats',
+      'wm54-valid-direct-insert'
+    )
+  $$,
+  'Admin can insert valid same-brand provenance directly'
+);
+
+select throws_ok(
+  $$
+    insert into public.product_external_sources (
+      product_id,
+      location_id,
+      provider,
+      external_item_id
+    )
+    values (
+      current_setting('wm54.other_product_id')::uuid,
+      current_setting('wm54.location_id')::uuid,
+      'uber_eats',
+      'wm54-cross-brand-insert'
+    )
+  $$,
+  '23514',
+  'product_external_sources_product_location_brand_mismatch',
+  'cross-brand Admin provenance insert is rejected'
+);
+
+select lives_ok(
+  $$
+    insert into public.product_external_sources (
+      product_id,
+      location_id,
+      provider,
+      external_item_id
+    )
+    values (
+      current_setting('wm54.existing_product_id')::uuid,
+      current_setting('wm54.location_id')::uuid,
+      'uber_eats',
+      'wm54-cross-brand-location-update'
+    )
+  $$,
+  'same-brand provenance can be created before a location update test'
+);
+
+select throws_ok(
+  $$
+    update public.product_external_sources
+    set location_id = current_setting('wm54.other_location_id')::uuid
+    where external_item_id = 'wm54-cross-brand-location-update'
+  $$,
+  '23514',
+  'product_external_sources_product_location_brand_mismatch',
+  'cross-brand Admin location update is rejected'
+);
+
+select lives_ok(
+  $$
+    insert into public.product_external_sources (
+      product_id,
+      location_id,
+      provider,
+      external_item_id
+    )
+    values (
+      current_setting('wm54.existing_product_id')::uuid,
+      current_setting('wm54.location_id')::uuid,
+      'uber_eats',
+      'wm54-cross-brand-product-update'
+    )
+  $$,
+  'same-brand provenance can be created before a product update test'
+);
+
+select throws_ok(
+  $$
+    update public.product_external_sources
+    set product_id = (
+      select products.id
+      from public.products
+      join public.brands on brands.id = products.brand_id
+      where brands.slug = 'chatime'
+        and products.slug = 'taro-milk-tea'
+    )
+    where external_item_id = 'wm54-cross-brand-product-update'
+  $$,
+  '23514',
+  'product_external_sources_product_location_brand_mismatch',
+  'cross-brand Admin product update is rejected'
+);
+
+select is(
+  (
+    select count(*)
+    from public.product_external_sources
+    where location_id = current_setting('wm54.location_id')::uuid
+      and provider = 'uber_eats'
+      and external_item_id = 'wm54-valid-direct-insert'
+      and product_id = current_setting('wm54.existing_product_id')::uuid
+  ),
+  1::bigint,
+  'valid same-brand provenance remains readable and usable'
 );
 
 set local role anon;

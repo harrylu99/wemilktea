@@ -68,6 +68,7 @@ jobs:
             WM51_PGTAP \
             WM54_MIGRATION \
             WM54_PGTAP \
+            WM54_CONCURRENCY \
             RLS_ANONYMOUS \
             RLS_NON_ADMIN \
             RLS_ADMIN \
@@ -577,6 +578,255 @@ jobs:
           printf '::add-mask::%s\n' "$(cat "$RUNNER_TEMP/wm49-ordinary-token.txt")"
 
           echo "Fixture users and local catalogue data created."
+
+      - name: Exercise WM-54 concurrent provenance race
+        id: wm54_concurrency
+        if: steps.fixtures.outcome == 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+
+          echo "WM54_CONCURRENCY=FAIL" >> "$GITHUB_ENV"
+          source "$RUNNER_TEMP/wm49-supabase-status.env"
+          source "$RUNNER_TEMP/wm49-fixture.env"
+
+          if ! command -v psql > /dev/null; then
+            echo "The PostgreSQL client is required for the two-session concurrency regression."
+            exit 1
+          fi
+
+          external_item_id="wm54-concurrent-external-id"
+          product_slug_a="wm-54-concurrent-tea-a"
+          product_slug_b="wm-54-concurrent-tea-b"
+          advisory_class=54054
+
+          cleanup() {
+            set +e
+            if [[ -n "${first_pid:-}" ]]; then
+              kill "$first_pid" 2>/dev/null || true
+              wait "$first_pid" 2>/dev/null || true
+            fi
+            if [[ -n "${second_pid:-}" ]]; then
+              kill "$second_pid" 2>/dev/null || true
+              wait "$second_pid" 2>/dev/null || true
+            fi
+            psql -X "$DB_URL" -v ON_ERROR_STOP=1 \
+              --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+              --set=external_item_id="$external_item_id" \
+              --set=product_slug_a="$product_slug_a" \
+              --set=product_slug_b="$product_slug_b" \
+              --file=/dev/stdin > /dev/null 2>&1 <<'SQL'
+          delete from public.product_external_sources
+          where external_item_id = :'external_item_id';
+          delete from public.location_products
+          where product_id in (
+            select products.id
+            from public.products
+            join public.locations
+              on locations.brand_id = products.brand_id
+            where locations.id = :'mapped_location_id'::uuid
+              and products.slug in (:'product_slug_a', :'product_slug_b')
+          );
+          delete from public.products
+          where brand_id = (
+            select locations.brand_id
+            from public.locations
+            where locations.id = :'mapped_location_id'::uuid
+          )
+            and slug in (:'product_slug_a', :'product_slug_b');
+          SQL
+          }
+          trap cleanup EXIT
+
+          psql -X "$DB_URL" -v ON_ERROR_STOP=1 \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+            --set=external_item_id="$external_item_id" \
+            --set=product_slug_a="$product_slug_a" \
+            --set=product_slug_b="$product_slug_b" \
+            --file=/dev/stdin > /dev/null <<'SQL'
+          delete from public.product_external_sources
+          where external_item_id = :'external_item_id';
+          delete from public.location_products
+          where product_id in (
+            select products.id
+            from public.products
+            join public.locations
+              on locations.brand_id = products.brand_id
+            where locations.id = :'mapped_location_id'::uuid
+              and products.slug in (:'product_slug_a', :'product_slug_b')
+          );
+          delete from public.products
+          where brand_id = (
+            select locations.brand_id
+            from public.locations
+            where locations.id = :'mapped_location_id'::uuid
+          )
+            and slug in (:'product_slug_a', :'product_slug_b');
+          SQL
+
+          write_import_sql() {
+            local file="$1"
+            local lock_key="$2"
+            local product_name="$3"
+            local product_description="$4"
+
+            cat > "$file" <<'SQL'
+          \set ON_ERROR_STOP on
+          set role authenticated;
+          select set_config('request.jwt.claim.sub', :'admin_user_id', false);
+          select pg_advisory_lock(:'advisory_class'::integer, :'lock_key'::integer);
+          do $$
+          begin
+            loop
+              exit when (
+                select count(*)
+                from pg_locks
+                where locktype = 'advisory'
+                  and classid = :'advisory_class'::integer
+                  and objid in (1, 2)
+                  and granted
+              ) = 2;
+              perform pg_sleep(0.05);
+            end loop;
+          end;
+          $$;
+          select pg_advisory_unlock(:'advisory_class'::integer, :'lock_key'::integer);
+          select pg_sleep(0.1);
+          do $$
+          declare
+            result jsonb;
+          begin
+            begin
+              result := public.confirm_external_menu_import(
+                :'mapped_location_id'::uuid,
+                'uber_eats',
+                jsonb_build_array(jsonb_build_object(
+                  'externalItemId', :'external_item_id',
+                  'name', :'product_name',
+                  'description', :'product_description',
+                  'targetCategoryId', (
+                    select categories.id::text
+                    from public.categories
+                    where categories.slug = 'milk-tea'
+                  )
+                ))
+              );
+              if result->>'status' = 'success' then
+                raise notice 'concurrent result=success';
+              elsif result->>'status' = 'validation_failed'
+                and result #>> '{failed,0,reason}' = 'This external item is already linked to another canonical product.' then
+                raise notice 'concurrent result=expected validation conflict';
+              else
+                raise exception 'unexpected concurrent import result';
+              end if;
+            exception when others then
+              if SQLSTATE = 'P0001' and SQLERRM = 'external_identity_conflict' then
+                raise notice 'concurrent result=expected external identity conflict';
+              else
+                raise;
+              end if;
+            end;
+          end;
+          $$;
+          SQL
+          }
+
+          write_import_sql \
+            "$RUNNER_TEMP/wm49-concurrent-a.sql" \
+            1 \
+            "WM-54 Concurrent Tea A" \
+            "Created by the first concurrent confirmation session."
+          write_import_sql \
+            "$RUNNER_TEMP/wm49-concurrent-b.sql" \
+            2 \
+            "WM-54 Concurrent Tea B" \
+            "Created by the second concurrent confirmation session."
+
+          timeout 20s psql -X "$DB_URL" \
+            --set=admin_user_id="$ADMIN_USER_ID" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+            --set=external_item_id="$external_item_id" \
+            --set=advisory_class="$advisory_class" \
+            --set=lock_key=1 \
+            --set=product_name="WM-54 Concurrent Tea A" \
+            --set=product_description="Created by the first concurrent confirmation session." \
+            --file="$RUNNER_TEMP/wm49-concurrent-a.sql" \
+            > "$RUNNER_TEMP/wm49-concurrent-a.log" 2>&1 &
+          first_pid=$!
+
+          timeout 20s psql -X "$DB_URL" \
+            --set=admin_user_id="$ADMIN_USER_ID" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+            --set=external_item_id="$external_item_id" \
+            --set=advisory_class="$advisory_class" \
+            --set=lock_key=2 \
+            --set=product_name="WM-54 Concurrent Tea B" \
+            --set=product_description="Created by the second concurrent confirmation session." \
+            --file="$RUNNER_TEMP/wm49-concurrent-b.sql" \
+            > "$RUNNER_TEMP/wm49-concurrent-b.log" 2>&1 &
+          second_pid=$!
+
+          first_status=0
+          second_status=0
+          wait "$first_pid" || first_status=$?
+          wait "$second_pid" || second_status=$?
+          if [[ "$first_status" != "0" || "$second_status" != "0" ]]; then
+            echo "Concurrent provenance sessions failed (session A=$first_status, session B=$second_status)."
+            cat "$RUNNER_TEMP/wm49-concurrent-a.log"
+            cat "$RUNNER_TEMP/wm49-concurrent-b.log"
+            exit 1
+          fi
+
+          product_count="$(psql -X -Atq "$DB_URL" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+            --set=product_slug_a="$product_slug_a" \
+            --set=product_slug_b="$product_slug_b" \
+            --file=/dev/stdin <<'SQL'
+          select count(*)
+          from public.products
+          where brand_id = (
+            select locations.brand_id
+            from public.locations
+            where locations.id = :'mapped_location_id'::uuid
+          )
+            and slug in (:'product_slug_a', :'product_slug_b');
+          SQL
+          )"
+          provenance_count="$(psql -X -Atq "$DB_URL" \
+            --set=external_item_id="$external_item_id" \
+            --file=/dev/stdin <<'SQL'
+          select count(*)
+          from public.product_external_sources
+          where provider = 'uber_eats'
+            and external_item_id = :'external_item_id';
+          SQL
+          )"
+          relationship_count="$(psql -X -Atq "$DB_URL" \
+            --set=mapped_location_id="$MAPPED_LOCATION_ID" \
+            --set=product_slug_a="$product_slug_a" \
+            --set=product_slug_b="$product_slug_b" \
+            --file=/dev/stdin <<'SQL'
+          select count(*)
+          from public.location_products
+          where location_id = :'mapped_location_id'::uuid
+            and product_id in (
+              select products.id
+              from public.products
+              where products.slug in (:'product_slug_a', :'product_slug_b')
+            );
+          SQL
+          )"
+
+          if [[ "$product_count" != "1" || "$provenance_count" != "1" || "$relationship_count" != "1" ]]; then
+            echo "Concurrent provenance invariant failed (products=$product_count, provenance=$provenance_count, location_relationships=$relationship_count)."
+            cat "$RUNNER_TEMP/wm49-concurrent-a.log"
+            cat "$RUNNER_TEMP/wm49-concurrent-b.log"
+            exit 1
+          fi
+
+          echo "Two concurrent confirmations produced one canonical product, one provenance row, and one location relationship."
+          echo "WM54_CONCURRENCY=PASS" >> "$GITHUB_ENV"
 
       - name: Prepare local external-menu environment
         id: function_env
@@ -1362,6 +1612,7 @@ jobs:
             WM51_PGTAP
             WM54_MIGRATION
             WM54_PGTAP
+            WM54_CONCURRENCY
             RLS_ANONYMOUS
             RLS_NON_ADMIN
             RLS_ADMIN
@@ -1421,6 +1672,10 @@ jobs:
             "$RUNNER_TEMP/wm49-fixtures.sql" \
             "$RUNNER_TEMP/wm49-fixtures.log" \
             "$RUNNER_TEMP/wm49-fixture.env" \
+            "$RUNNER_TEMP/wm49-concurrent-a.sql" \
+            "$RUNNER_TEMP/wm49-concurrent-b.sql" \
+            "$RUNNER_TEMP/wm49-concurrent-a.log" \
+            "$RUNNER_TEMP/wm49-concurrent-b.log" \
             "$RUNNER_TEMP/wm49-external-menu.env" \
             "$RUNNER_TEMP/wm49-external-menu.log" \
             "$RUNNER_TEMP/wm49-external-menu.pid" \
@@ -1444,6 +1699,7 @@ jobs:
             echo "- WM-51 database workflow: ${WM51_PGTAP:-NOT_RUN}"
             echo "- WM-54 migration and constraints: ${WM54_MIGRATION:-NOT_RUN}"
             echo "- WM-54 database workflow: ${WM54_PGTAP:-NOT_RUN}"
+            echo "- WM-54 concurrent provenance regression: ${WM54_CONCURRENCY:-NOT_RUN}"
             echo "- Anonymous RLS: ${RLS_ANONYMOUS:-NOT_RUN}"
             echo "- Non-admin RLS: ${RLS_NON_ADMIN:-NOT_RUN}"
             echo "- Admin RLS: ${RLS_ADMIN:-NOT_RUN}"

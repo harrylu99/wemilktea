@@ -28,6 +28,48 @@ create trigger product_external_sources_set_updated_at
 before update on public.product_external_sources
 for each row execute function public.set_updated_at();
 
+create or replace function public.validate_product_external_source_brand()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  product_brand_id uuid;
+  location_brand_id uuid;
+begin
+  select products.brand_id
+  into product_brand_id
+  from public.products
+  where products.id = new.product_id;
+
+  select locations.brand_id
+  into location_brand_id
+  from public.locations
+  where locations.id = new.location_id;
+
+  if product_brand_id is not null
+    and location_brand_id is not null
+    and product_brand_id <> location_brand_id then
+    raise exception using
+      errcode = '23514',
+      message = 'product_external_sources_product_location_brand_mismatch';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.validate_product_external_source_brand()
+from public, anon;
+grant execute on function public.validate_product_external_source_brand()
+to authenticated;
+
+create trigger product_external_sources_validate_brand
+before insert or update of product_id, location_id
+on public.product_external_sources
+for each row execute function public.validate_product_external_source_brand();
+
 alter table public.product_external_sources enable row level security;
 
 revoke all on public.product_external_sources from public, anon;
@@ -359,6 +401,23 @@ begin
         confirm_import.external_item_id
       )
       on conflict on constraint product_external_sources_identity_key do nothing;
+    end if;
+
+    existing_provenance_product_id := null;
+    select product_external_sources.product_id
+    into existing_provenance_product_id
+    from public.product_external_sources
+    where product_external_sources.location_id = p_location_id
+      and product_external_sources.provider = p_provider
+      and product_external_sources.external_item_id = confirm_import.external_item_id
+    for update;
+
+    if existing_provenance_product_id is null then
+      raise exception using errcode = 'P0001', message = 'external_identity_conflict';
+    end if;
+
+    if existing_provenance_product_id <> product_id then
+      raise exception using errcode = 'P0001', message = 'external_identity_conflict';
     end if;
 
     insert into public.location_products (
