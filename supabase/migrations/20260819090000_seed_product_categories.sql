@@ -1,3 +1,18 @@
+do $$
+begin
+  if exists (
+    select 1
+    from public.categories
+    where (slug = 'milk-tea' and name <> 'Milk Tea')
+       or (slug = 'fruit-tea' and name <> 'Fruit Tea')
+       or (name = 'Milk Tea' and slug <> 'milk-tea')
+       or (name = 'Fruit Tea' and slug <> 'fruit-tea')
+  ) then
+    raise exception 'canonical product category identity conflict';
+  end if;
+end
+$$;
+
 insert into public.categories (name, slug, description, sort_order, is_published)
 values
   ('Milk Tea', 'milk-tea', 'Classic tea with milk or dairy alternatives.', 10, true),
