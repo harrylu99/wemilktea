@@ -308,6 +308,12 @@ export function ProductsPage() {
         >
           Import menu
         </Link>
+        <Link
+          className="rounded-md border border-border px-4 py-3 text-sm font-medium hover:bg-muted"
+          to="/products/categories"
+        >
+          Manage categories
+        </Link>
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
         <label
