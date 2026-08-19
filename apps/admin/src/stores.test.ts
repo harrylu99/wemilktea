@@ -23,6 +23,17 @@ const stores: ManagedStore[] = [
     publication_status: "published",
     created_at: "2026-08-12T00:00:00.000Z",
     updated_at: "2026-08-12T00:00:00.000Z"
+  },
+  {
+    id: "f1db21cf-94cf-4cb8-86f3-f3c74db60a0f",
+    brand_id: "6d395d6e-0b1f-4cd3-9d5d-979a3fbe10ad",
+    brandName: "Gong cha",
+    display_name: "Gong cha Test Archive",
+    slug: "gong-cha-test-archive",
+    suburb: "Auckland CBD",
+    publication_status: "archived",
+    created_at: "2026-08-12T00:00:00.000Z",
+    updated_at: "2026-08-12T00:00:00.000Z"
   }
 ];
 
@@ -43,4 +54,12 @@ test("filters canonical stores by search, publication, brand, and area", () => {
       suburb: ""
     })
   ).toEqual([stores[0]]);
+  expect(
+    filterManagedStores(stores, {
+      query: "archive",
+      publicationStatus: "archived",
+      brandId: "",
+      suburb: ""
+    })
+  ).toEqual([stores[2]]);
 });
