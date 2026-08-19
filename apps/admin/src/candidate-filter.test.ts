@@ -1,9 +1,16 @@
 import { expect, test } from "bun:test";
 import {
+  candidateFilterLabel,
   candidateFilterFromSearchParams,
   candidateReviewReturnPath,
   searchParamsForCandidateFilter
 } from "./candidate-filter";
+
+test("formats candidate filter labels without changing filter values", () => {
+  expect(candidateFilterLabel("possible_duplicate")).toBe("Possible duplicate");
+  expect(candidateFilterLabel("approved")).toBe("Approved");
+  expect(candidateFilterLabel("all")).toBe("All candidates");
+});
 
 test("reads valid candidate filters from the URL", () => {
   expect(

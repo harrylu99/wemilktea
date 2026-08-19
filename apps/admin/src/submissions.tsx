@@ -4,6 +4,7 @@ import {
 } from "@wemilktea/validation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { formatStatusLabel } from "./lib/status-label";
 import { ManagementTableSkeleton } from "./loading";
 
 const submissionFilters = ["all", "pending", "reviewed"] as const;
@@ -14,10 +15,6 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
-}
-
-function statusLabel(status: StoreSubmissionRow["moderation_status"]) {
-  return status.replaceAll("_", " ");
 }
 
 function isHttpUrl(value: string | null): value is string {
@@ -192,7 +189,7 @@ export function SubmissionsPage() {
                     {submission.submitter_email ?? "Not provided"}
                   </td>
                   <td className="px-4 py-3 align-top capitalize">
-                    {statusLabel(submission.moderation_status)}
+                    {formatStatusLabel(submission.moderation_status)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 align-top text-muted-foreground">
                     {formatDate(submission.created_at)}

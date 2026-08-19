@@ -1,3 +1,5 @@
+import { formatStatusLabel } from "./lib/status-label";
+
 export const candidateFilters = [
   "all",
   "new",
@@ -7,6 +9,10 @@ export const candidateFilters = [
 ] as const;
 
 export type CandidateFilter = (typeof candidateFilters)[number];
+
+export function candidateFilterLabel(filter: CandidateFilter) {
+  return filter === "all" ? "All candidates" : formatStatusLabel(filter);
+}
 
 export function candidateFilterFromSearchParams(
   searchParams: URLSearchParams

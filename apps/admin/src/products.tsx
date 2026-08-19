@@ -16,6 +16,7 @@ import {
   type ManagedImage
 } from "./image-storage";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 
 const categorySchema = z.object({
@@ -112,10 +113,6 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium" }).format(
     new Date(value)
   );
-}
-
-function statusLabel(value: string) {
-  return value.replaceAll("_", " ");
 }
 
 function PageState({ message }: { message: string }) {
@@ -988,7 +985,7 @@ export function ProductManagementPage() {
                         <p className="font-medium">{location.display_name}</p>
                         <p className="text-xs text-muted-foreground">
                           {location.suburb} ·{" "}
-                          {statusLabel(location.publication_status)}
+                          {formatStatusLabel(location.publication_status)}
                         </p>
                       </div>
                       <label

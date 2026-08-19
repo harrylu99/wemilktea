@@ -1,6 +1,19 @@
 import type { StoreManagementListItem } from "@wemilktea/validation";
+import { formatStatusLabel } from "./lib/status-label";
 
 export type ManagedStore = StoreManagementListItem & { brandName: string };
+
+export const publicationFilters = [
+  "all",
+  "draft",
+  "published",
+  "archived"
+] as const;
+export type PublicationFilter = (typeof publicationFilters)[number];
+
+export function publicationFilterLabel(status: PublicationFilter) {
+  return status === "all" ? "All statuses" : formatStatusLabel(status);
+}
 
 export function filterManagedStores(
   stores: ManagedStore[],
@@ -11,7 +24,7 @@ export function filterManagedStores(
     suburb
   }: {
     query: string;
-    publicationStatus: "all" | "draft" | "published" | "archived";
+    publicationStatus: PublicationFilter;
     brandId: string;
     suburb: string;
   }

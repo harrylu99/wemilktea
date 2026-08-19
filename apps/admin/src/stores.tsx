@@ -16,20 +16,20 @@ import {
   ImageStorageError
 } from "./image-storage";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
-import { filterManagedStores, type ManagedStore } from "./store-list";
-
-const publicationFilters = ["all", "draft", "published", "archived"] as const;
-type PublicationFilter = (typeof publicationFilters)[number];
+import {
+  filterManagedStores,
+  publicationFilterLabel,
+  publicationFilters,
+  type ManagedStore,
+  type PublicationFilter
+} from "./store-list";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium" }).format(
     new Date(value)
   );
-}
-
-function statusLabel(status: string) {
-  return status.replaceAll("_", " ");
 }
 
 function PageState({ message }: { message: string }) {
@@ -256,7 +256,7 @@ export function StoresPage() {
           >
             {publicationFilters.map((status) => (
               <option key={status} value={status}>
-                {status === "all" ? "All statuses" : statusLabel(status)}
+                {publicationFilterLabel(status)}
               </option>
             ))}
           </select>
@@ -338,7 +338,7 @@ export function StoresPage() {
                   <td className="px-4 py-3">{store.brandName}</td>
                   <td className="px-4 py-3">{store.suburb}</td>
                   <td className="px-4 py-3 capitalize">
-                    {statusLabel(store.publication_status)}
+                    {formatStatusLabel(store.publication_status)}
                   </td>
                   <td className="px-4 py-3">{formatDate(store.updated_at)}</td>
                   <td className="px-4 py-3 text-right">
@@ -705,7 +705,7 @@ export function StoreManagementPage() {
           </p>
         </div>
         <p className="rounded-full bg-muted px-3 py-1 text-sm font-medium capitalize">
-          {statusLabel(detail.publication_status)}
+          {formatStatusLabel(detail.publication_status)}
         </p>
       </div>
       {errorMessage ? (
