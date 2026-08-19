@@ -10,11 +10,16 @@ export type GoogleLatLngBounds = {
   extend: (point: GoogleLatLng) => void;
 };
 
+export type GoogleMarkerIcon = {
+  url: string;
+};
+
 type GoogleMarker = {
   addListener: (
     eventName: "click",
     handler: () => void
   ) => { remove: () => void };
+  setIcon: (icon: GoogleMarkerIcon) => void;
   setMap: (map: GoogleMapInstance | null) => void;
   setZIndex: (zIndex: number | null) => void;
 };
@@ -38,6 +43,7 @@ export type GoogleMapsApi = {
       map: GoogleMapInstance;
       position: GoogleLatLng;
       title: string;
+      icon?: GoogleMarkerIcon;
       zIndex?: number;
     }) => GoogleMarker;
     LatLngBounds: new () => GoogleLatLngBounds;
@@ -64,6 +70,18 @@ type GoogleMarkerLibrary = Pick<GoogleMapsApi["maps"], "Marker">;
 const googleMapsCallbackName = "__wemilkteaGoogleMapsReady";
 const googleMapsLoadTimeoutMs = 15_000;
 let googleMapsPromise: Promise<GoogleMapsApi> | null = null;
+
+export function buildStoreMarkerIcon(selected = false): GoogleMarkerIcon {
+  const height = selected ? 48 : 44;
+  const width = selected ? 40 : 36;
+  const pinColor = selected ? "#273328" : "#526b50";
+  const strokeWidth = selected ? 3 : 2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 40 48" aria-hidden="true"><path d="M20 2C10.6 2 3 9.2 3 18c0 11.7 13.6 24.9 17 28 3.4-3.1 17-16.3 17-28C37 9.2 29.4 2 20 2Z" fill="${pinColor}" stroke="#fffdf8" stroke-width="${strokeWidth}"/><path d="M13 16h14v14H13z" fill="#fffdf8"/><path d="M12 16h16l-2-3H14l-2 3Z" fill="#e4eddc" stroke="#273328" stroke-width="1.5"/><path d="M20 13V8" stroke="#273328" stroke-width="1.5" stroke-linecap="round"/><circle cx="17" cy="25" r="2" fill="#a97850"/><circle cx="23" cy="27" r="2" fill="#a97850"/><circle cx="20" cy="22" r="2" fill="#c58a62"/></svg>`;
+
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+  };
+}
 
 export function buildGoogleMapsScriptUrl(apiKey: string) {
   const params = new URLSearchParams({
