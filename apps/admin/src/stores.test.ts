@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { filterManagedStores, type ManagedStore } from "./store-list";
+import {
+  filterManagedStores,
+  publicationFilterLabel,
+  type ManagedStore
+} from "./store-list";
 
 const stores: ManagedStore[] = [
   {
@@ -36,6 +40,13 @@ const stores: ManagedStore[] = [
     updated_at: "2026-08-12T00:00:00.000Z"
   }
 ];
+
+test("formats publication filter labels without changing filter values", () => {
+  expect(publicationFilterLabel("draft")).toBe("Draft");
+  expect(publicationFilterLabel("published")).toBe("Published");
+  expect(publicationFilterLabel("archived")).toBe("Archived");
+  expect(publicationFilterLabel("all")).toBe("All statuses");
+});
 
 test("filters canonical stores by search, publication, brand, and area", () => {
   expect(

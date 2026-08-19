@@ -24,6 +24,7 @@ import {
 } from "./candidate-review-form";
 import {
   candidateFilterFromSearchParams,
+  candidateFilterLabel,
   candidateReviewReturnPath,
   candidateFilters,
   type CandidateFilter,
@@ -32,6 +33,7 @@ import {
 import { DiscoveryControl } from "./discovery-control";
 import { slugify } from "./lib/slug";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 
 const rejectionReasons = [
@@ -50,10 +52,6 @@ function formatDate(value: string | null) {
         timeStyle: "short"
       }).format(new Date(value))
     : "—";
-}
-
-function statusLabel(status: StoreCandidateSummary["status"]) {
-  return status.replaceAll("_", " ");
 }
 
 function friendlyMutationError(message: string | undefined) {
@@ -194,7 +192,7 @@ export function CandidateQueuePage() {
         >
           {candidateFilters.map((value) => (
             <option key={value} value={value}>
-              {value === "all" ? "All candidates" : statusLabel(value)}
+              {candidateFilterLabel(value)}
             </option>
           ))}
         </select>
@@ -241,7 +239,7 @@ export function CandidateQueuePage() {
                     {candidate.google_place_id}
                   </td>
                   <td className="px-4 py-3 capitalize">
-                    {statusLabel(candidate.status)}
+                    {formatStatusLabel(candidate.status)}
                   </td>
                   <td className="px-4 py-3">
                     {formatDate(candidate.first_seen_at)}
@@ -618,7 +616,7 @@ export function CandidateReviewPage() {
           </p>
         </div>
         <p className="rounded-full bg-muted px-3 py-1 text-sm font-medium capitalize">
-          {statusLabel(candidate.status)}
+          {formatStatusLabel(candidate.status)}
         </p>
       </div>
       {errorMessage ? (
