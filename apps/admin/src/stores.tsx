@@ -15,6 +15,7 @@ import {
   type ManagedImage,
   ImageStorageError
 } from "./image-storage";
+import { ConfirmDialog } from "./confirm-dialog";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
@@ -406,6 +407,9 @@ export function StoreManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingLifecycle, setIsChangingLifecycle] = useState(false);
+  const [publicationConfirmation, setPublicationConfirmation] = useState<
+    "publish" | "unpublish" | null
+  >(null);
   const [image, setImage] = useState<ManagedImage | null>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imageAltText, setImageAltText] = useState("");
@@ -545,23 +549,10 @@ export function StoreManagementPage() {
     await load();
   };
 
-  const changeLifecycle = async (
+  const performLifecycleChange = async (
     action: "publish" | "unpublish" | "archive" | "restore"
   ) => {
     if (!supabase || !detail) return;
-    const messages = {
-      publish:
-        "Publish this store? It will become available to the public WeMilktea application.",
-      unpublish:
-        "Unpublish this store? It will no longer appear in public store results.",
-      archive:
-        "Archive this store? It will be removed from public results but preserved for Admin management and history.",
-      restore:
-        "Restore this store to draft? It will remain hidden until published."
-    } as const;
-
-    if (!window.confirm(messages[action])) return;
-
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsChangingLifecycle(true);
@@ -591,6 +582,32 @@ export function StoreManagementPage() {
       }[action]
     );
     await load();
+  };
+
+  const changeLifecycle = async (
+    action: "publish" | "unpublish" | "archive" | "restore"
+  ) => {
+    if (!supabase || !detail) return;
+    if (action === "publish" || action === "unpublish") {
+      setPublicationConfirmation(action);
+      return;
+    }
+
+    const messages = {
+      archive:
+        "Archive this store? It will be removed from public results but preserved for Admin management and history.",
+      restore:
+        "Restore this store to draft? It will remain hidden until published."
+    } as const;
+    if (!window.confirm(messages[action])) return;
+
+    await performLifecycleChange(action);
+  };
+
+  const confirmPublicationChange = async () => {
+    if (!publicationConfirmation) return;
+    await performLifecycleChange(publicationConfirmation);
+    setPublicationConfirmation(null);
   };
 
   const deleteLocation = async () => {
@@ -983,6 +1000,32 @@ export function StoreManagementPage() {
           </p>
         ) : null}
       </section>
+      {publicationConfirmation ? (
+        <ConfirmDialog
+          confirmLabel={
+            publicationConfirmation === "publish" ? "Publish" : "Unpublish"
+          }
+          description={
+            publicationConfirmation === "publish"
+              ? "Publishing will make this store available in the public WeMilktea application."
+              : "Unpublishing will remove this store from public results and return it to draft."
+          }
+          isPending={isChangingLifecycle}
+          pendingLabel={
+            publicationConfirmation === "publish"
+              ? "Publishing…"
+              : "Unpublishing…"
+          }
+          title={
+            publicationConfirmation === "publish"
+              ? "Publish this store?"
+              : "Unpublish this store?"
+          }
+          open
+          onCancel={() => setPublicationConfirmation(null)}
+          onConfirm={() => void confirmPublicationChange()}
+        />
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-destructive/40 bg-card p-5">
         <p className="text-xs font-semibold tracking-wide text-destructive">

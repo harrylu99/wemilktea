@@ -18,6 +18,7 @@ import {
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
+import { ConfirmDialog } from "./confirm-dialog";
 
 const categorySchema = z.object({
   id: z.string().uuid(),
@@ -363,6 +364,9 @@ export function ProductManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publicationConfirmation, setPublicationConfirmation] = useState<
+    "publish" | "unpublish" | null
+  >(null);
   const [isChangingImage, setIsChangingImage] = useState(false);
   const [savingLocationId, setSavingLocationId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -562,13 +566,12 @@ export function ProductManagementPage() {
     await load();
   };
 
+  const requestPublicationChange = (action: "publish" | "unpublish") => {
+    setPublicationConfirmation(action);
+  };
+
   const changePublication = async (action: "publish" | "unpublish") => {
     if (!supabase || !product) return;
-    const message =
-      action === "publish"
-        ? "Publish this product? It will become available to public catalogue queries."
-        : "Unpublish this product? It will no longer appear in public catalogue queries.";
-    if (!window.confirm(message)) return;
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsPublishing(true);
@@ -587,6 +590,12 @@ export function ProductManagementPage() {
         : "Product unpublished to draft."
     );
     await load();
+  };
+
+  const confirmPublicationChange = async () => {
+    if (!publicationConfirmation) return;
+    await changePublication(publicationConfirmation);
+    setPublicationConfirmation(null);
   };
 
   const updateAvailability = (
@@ -1059,7 +1068,7 @@ export function ProductManagementPage() {
                 className="mt-4 rounded-md border border-destructive px-4 py-2 text-sm font-medium text-destructive disabled:opacity-60"
                 disabled={isPublishing || isDirty}
                 type="button"
-                onClick={() => void changePublication("unpublish")}
+                onClick={() => requestPublicationChange("unpublish")}
               >
                 {isPublishing ? "Unpublishing…" : "Unpublish product"}
               </button>
@@ -1068,7 +1077,7 @@ export function ProductManagementPage() {
                 className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
                 disabled={isPublishing || isDirty}
                 type="button"
-                onClick={() => void changePublication("publish")}
+                onClick={() => requestPublicationChange("publish")}
               >
                 {isPublishing ? "Publishing…" : "Publish product"}
               </button>
@@ -1079,6 +1088,32 @@ export function ProductManagementPage() {
               </p>
             ) : null}
           </section>
+          {publicationConfirmation ? (
+            <ConfirmDialog
+              confirmLabel={
+                publicationConfirmation === "publish" ? "Publish" : "Unpublish"
+              }
+              description={
+                publicationConfirmation === "publish"
+                  ? "Publishing will make this product available to public catalogue queries."
+                  : "Unpublishing will remove this product from public catalogue queries and return it to draft."
+              }
+              isPending={isPublishing}
+              pendingLabel={
+                publicationConfirmation === "publish"
+                  ? "Publishing…"
+                  : "Unpublishing…"
+              }
+              title={
+                publicationConfirmation === "publish"
+                  ? "Publish this product?"
+                  : "Unpublish this product?"
+              }
+              open
+              onCancel={() => setPublicationConfirmation(null)}
+              onConfirm={() => void confirmPublicationChange()}
+            />
+          ) : null}
         </>
       ) : null}
     </section>
