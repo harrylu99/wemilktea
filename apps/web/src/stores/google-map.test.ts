@@ -1,9 +1,24 @@
 import { expect, test } from "bun:test";
 import {
+  buildStoreMarkerIcon,
   buildGoogleMapsScriptUrl,
   loadGoogleMaps,
   resetGoogleMapsLoaderForTests
 } from "./google-map";
+
+test("builds a bubble-tea marker with a distinct selected state", () => {
+  const markerIcon = buildStoreMarkerIcon();
+  const selectedMarkerIcon = buildStoreMarkerIcon(true);
+
+  expect(decodeURIComponent(markerIcon.url)).toContain("#a97850");
+  expect(decodeURIComponent(markerIcon.url)).toContain(
+    'width="36" height="44"'
+  );
+  expect(decodeURIComponent(selectedMarkerIcon.url)).toContain(
+    'width="40" height="48"'
+  );
+  expect(selectedMarkerIcon.url).not.toBe(markerIcon.url);
+});
 
 test("builds a browser-only Google Maps loader URL", () => {
   const url = new URL(buildGoogleMapsScriptUrl("browser-key"));

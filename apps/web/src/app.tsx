@@ -9,6 +9,7 @@ import {
   type PublicStore
 } from "./stores/data";
 import {
+  buildStoreMarkerIcon,
   loadGoogleMaps,
   type GoogleMapInstance,
   type GoogleMapsApi
@@ -129,12 +130,20 @@ function MapFallback({
           <button
             aria-label={`Show ${store.displayName} on the list`}
             aria-pressed={isSelected}
-            className={`map-marker absolute size-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card shadow-sm transition-transform ${isSelected ? "map-marker-selected" : ""}`}
+            className={`store-map-marker absolute -translate-x-1/2 -translate-y-1/2 ${isSelected ? "store-map-marker-selected" : ""}`}
             key={store.id}
             style={position}
             type="button"
             onClick={() => onSelect(store.id)}
-          />
+          >
+            <span aria-hidden="true" className="store-map-marker-cup">
+              <span className="store-map-marker-lid" />
+              <span className="store-map-marker-straw" />
+              <span className="store-map-marker-bubble store-map-marker-bubble-one" />
+              <span className="store-map-marker-bubble store-map-marker-bubble-two" />
+              <span className="store-map-marker-bubble store-map-marker-bubble-three" />
+            </span>
+          </button>
         );
       })}
     </section>
@@ -153,9 +162,13 @@ function GoogleMapPanel({
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
   const mapsApiRef = useRef<GoogleMapsApi | null>(null);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
   const markersRef = useRef<
     Array<{
+      id: string;
       marker: {
+        setIcon: (icon: ReturnType<typeof buildStoreMarkerIcon>) => void;
         setMap: (map: GoogleMapInstance | null) => void;
         setZIndex: (zIndex: number | null) => void;
       };
@@ -215,13 +228,14 @@ function GoogleMapPanel({
       const position = { lat: store.latitude, lng: store.longitude };
       bounds.extend(position);
       const marker = new googleMaps.maps.Marker({
+        icon: buildStoreMarkerIcon(selectedIdRef.current === store.id),
         map,
         position,
         title: store.displayName,
-        zIndex: selectedId === store.id ? 2 : 1
+        zIndex: selectedIdRef.current === store.id ? 2 : 1
       });
       const listener = marker.addListener("click", () => onSelect(store.id));
-      return { marker, listener };
+      return { id: store.id, marker, listener };
     });
 
     if (stores.length === 1) {
@@ -230,7 +244,17 @@ function GoogleMapPanel({
     } else if (stores.length > 1) {
       map.fitBounds(bounds);
     }
-  }, [onSelect, selectedId, state, stores]);
+  }, [onSelect, state, stores]);
+
+  useEffect(() => {
+    if (state !== "ready") return;
+
+    markersRef.current.forEach(({ id, marker }) => {
+      const isSelected = id === selectedId;
+      marker.setIcon(buildStoreMarkerIcon(isSelected));
+      marker.setZIndex(isSelected ? 2 : 1);
+    });
+  }, [selectedId, state]);
 
   return (
     <div className="relative order-1 md:order-2">

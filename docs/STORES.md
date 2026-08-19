@@ -48,6 +48,18 @@ accessible list remains the primary store representation, and marker/card
 selection is linked. If the browser key or Maps SDK is unavailable, the page
 keeps the list usable and renders the canonical marker fallback surface.
 
+WM-47 keeps Google Maps for the public Stores map. The existing implementation
+already provides the required map, marker, list-selection, filtering,
+fit-bounds, Near Me, responsive, and fallback behavior. Leaflet would require
+selecting and operating a production tile provider in addition to the library;
+the public OpenStreetMap tile service is best-effort and has explicit
+attribution, referrer, caching, and usage requirements. Mapbox GL JS would add
+a public access token, a new rendering dependency and CSS/WebGL integration,
+provider attribution, and map-load billing. Those tradeoffs do not provide a
+meaningful benefit for the current Auckland store density or feature set, so
+WM-47 customizes the existing Google marker path without adding a second map
+stack or changing provider configuration.
+
 The approved visual references are recorded in [Design references](DESIGN.md).
 
 The Figma Stores frames include `Open now`, `Top rated`, and `New` chips, but

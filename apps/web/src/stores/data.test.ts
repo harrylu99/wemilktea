@@ -64,6 +64,32 @@ test("normalizes the EWKB geography returned by Supabase REST", () => {
   expect(store?.longitude).toBeCloseTo(174.7633, 4);
 });
 
+test("skips public stores with invalid coordinates", () => {
+  expect(
+    normalizePublicStore({
+      id: stores[0].id,
+      slug: stores[0].slug,
+      display_name: stores[0].displayName,
+      suburb: stores[0].suburb,
+      address: stores[0].address,
+      coordinates: "POINT(not-a-coordinate)",
+      brands: { name: stores[0].brandName, slug: stores[0].brandSlug }
+    })
+  ).toBeNull();
+});
+
+test("returns no marker candidates when filters have no matches", () => {
+  expect(
+    filterPublicStores(stores, {
+      query: "not a real store",
+      brandSlug: "",
+      suburb: "",
+      nearMe: false,
+      userLocation: null
+    })
+  ).toEqual([]);
+});
+
 test("filters stores by canonical search and brand/area", () => {
   expect(
     filterPublicStores(stores, {
