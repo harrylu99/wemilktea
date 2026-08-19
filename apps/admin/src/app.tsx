@@ -44,6 +44,11 @@ const ProductsImportMenuPage = lazy(() =>
     default: module.ProductsImportMenuPage
   }))
 );
+const ProductCategoriesPage = lazy(() =>
+  import("./product-categories").then((module) => ({
+    default: module.ProductCategoriesPage
+  }))
+);
 
 function RouteLoading() {
   return (
@@ -422,6 +427,14 @@ export function App() {
                 element={
                   <Suspense fallback={<RouteLoading />}>
                     <ProductsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/products/categories"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductCategoriesPage />
                   </Suspense>
                 }
               />
