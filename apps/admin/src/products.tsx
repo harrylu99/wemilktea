@@ -540,7 +540,7 @@ export function ProductManagementPage() {
       supabase
         .from("location_products")
         .select(
-          "location_id, product_id, brand_id, price_cents, currency, availability_status, last_verified_at, source_provenance, source_reference, locations!inner(id, display_name, suburb, publication_status)"
+          "location_id, product_id, brand_id, price_cents, currency, availability_status, last_verified_at, source_provenance, source_reference, locations!location_products_location_id_fkey!inner(id, display_name, suburb, publication_status)"
         )
         .eq("product_id", productId)
     ]);
@@ -551,6 +551,41 @@ export function ProductManagementPage() {
     const managedImage = imageResult.data
       ? normalizeManagedImage(imageResult.data)
       : null;
+    if (import.meta.env.DEV) {
+      if (productResult.error) {
+        console.error(
+          "Product detail product request failed:",
+          productResult.error.message
+        );
+      }
+      if (imageResult.error) {
+        console.error(
+          "Product detail image request failed:",
+          imageResult.error.message
+        );
+      }
+      if (relationshipResult.error) {
+        console.error(
+          "Product detail relationship request failed:",
+          relationshipResult.error.message
+        );
+      }
+      if (!parsedProduct.success) {
+        console.error(
+          "Product detail product response invalid:",
+          parsedProduct.error.flatten()
+        );
+      }
+      if (!parsedRelationships.success) {
+        console.error(
+          "Product detail relationship response invalid:",
+          parsedRelationships.error.flatten()
+        );
+      }
+      if (imageResult.data && !managedImage) {
+        console.error("Product detail image response invalid.");
+      }
+    }
     if (
       productResult.error ||
       imageResult.error ||

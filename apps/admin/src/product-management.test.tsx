@@ -82,8 +82,15 @@ const existingProduct = {
 };
 
 let categoriesError = false;
+let currentProduct = {
+  ...structuredClone(existingProduct),
+  description: existingProduct.description as string | null
+};
+let locationRelationshipRows: unknown[] = [];
+let locationRelationshipError: { message: string } | null = null;
+const selectCalls: Array<{ table: string; selection: string }> = [];
 
-function responseFor(table: string, single: boolean) {
+function responseFor(table: string, single: boolean, selection: string) {
   if (table === "brands") return { data: brands, error: null };
   if (table === "categories") {
     return categoriesError
@@ -92,32 +99,60 @@ function responseFor(table: string, single: boolean) {
   }
   if (table === "locations") return { data: locations, error: null };
   if (table === "products" && single) {
-    return { data: existingProduct, error: null };
+    return { data: currentProduct, error: null };
   }
   if (table === "product_images") return { data: null, error: null };
-  if (table === "location_products") return { data: [], error: null };
+  if (table === "location_products" && selection.includes("locations!inner(")) {
+    return {
+      data: null,
+      error: {
+        message: "Could not embed because more than one relationship was found"
+      }
+    };
+  }
+  if (table === "location_products") {
+    return { data: locationRelationshipRows, error: locationRelationshipError };
+  }
   return { data: [], error: null };
 }
 
 function queryFor(table: string) {
   let single = false;
+  let selection = "";
   const query = {
-    select: () => query,
+    select: (value: string) => {
+      selection = value;
+      selectCalls.push({ table, selection });
+      return query;
+    },
     order: () => query,
     eq: () => query,
     maybeSingle: () => {
       single = true;
-      return Promise.resolve(responseFor(table, single));
+      return Promise.resolve(responseFor(table, single, selection));
     },
     then: (resolve: (value: { data: unknown; error: unknown }) => unknown) =>
-      Promise.resolve(responseFor(table, single)).then(resolve)
+      Promise.resolve(responseFor(table, single, selection)).then(resolve)
   };
   return query;
 }
 
+const rpcMock = mock((name: string, args: Record<string, unknown>) => {
+  if (name === "update_product_management") {
+    currentProduct = {
+      ...currentProduct,
+      name: String(args.p_name),
+      slug: String(args.p_slug),
+      description: (args.p_description as string | null) ?? null,
+      updated_at: "2026-08-19T00:01:00.000Z"
+    };
+  }
+  return Promise.resolve({ data: null, error: null });
+});
+
 const supabaseMock = {
   from: (table: string) => queryFor(table),
-  rpc: mock(() => Promise.resolve({ data: null, error: null }))
+  rpc: rpcMock
 };
 
 mock.module("./lib/supabase", () => ({
@@ -147,6 +182,14 @@ function renderProduct(path: "/products/new" | "/products/:productId") {
 beforeEach(() => {
   installBrowserGlobals();
   categoriesError = false;
+  currentProduct = {
+    ...structuredClone(existingProduct),
+    description: existingProduct.description as string | null
+  };
+  locationRelationshipRows = [];
+  locationRelationshipError = null;
+  selectCalls.length = 0;
+  rpcMock.mockClear();
 });
 
 afterEach(() => {
@@ -266,3 +309,98 @@ test.serial("does not regenerate an existing product slug", async () => {
   fireEvent.change(name, { target: { value: "Renamed Brown Sugar Tea" } });
   expect(slug.value).toBe("gong-cha-brown-sugar");
 });
+
+test.serial(
+  "loads an existing draft with no image or availability rows",
+  async () => {
+    const view = renderProduct("/products/:productId");
+
+    expect(
+      await view.findByRole("heading", {
+        name: "Product information"
+      })
+    ).toBeTruthy();
+    expect((view.getByLabelText("Brand") as HTMLSelectElement).value).toBe(
+      brandId
+    );
+    expect((view.getByLabelText("Category") as HTMLSelectElement).value).toBe(
+      milkTeaCategoryId
+    );
+    expect((view.getByLabelText("Slug") as HTMLInputElement).value).toBe(
+      existingProduct.slug
+    );
+    expect(view.getByText(/No product image attached/)).toBeTruthy();
+    expect(
+      (view.getByLabelText("Availability") as HTMLSelectElement).value
+    ).toBe("unknown");
+    expect(
+      view.queryByText("Product details could not be loaded. Please try again.")
+    ).toBeNull();
+
+    const relationshipSelect = selectCalls.find(
+      ({ table }) => table === "location_products"
+    );
+    expect(relationshipSelect?.selection).toContain(
+      "locations!location_products_location_id_fkey!inner"
+    );
+  }
+);
+
+test.serial(
+  "loads a product with one valid location relationship",
+  async () => {
+    locationRelationshipRows = [
+      {
+        location_id: locationId,
+        product_id: productId,
+        brand_id: brandId,
+        price_cents: 750,
+        currency: "NZD",
+        availability_status: "available",
+        last_verified_at: timestamp,
+        source_provenance: "wemilktea",
+        source_reference: null,
+        locations: locations[0]
+      }
+    ];
+
+    const view = renderProduct("/products/:productId");
+
+    expect(await view.findByText("WM Tea Central")).toBeTruthy();
+    expect(
+      (view.getByLabelText("Availability") as HTMLSelectElement).value
+    ).toBe("available");
+    expect(
+      (view.getByLabelText("Price (cents)") as HTMLInputElement).value
+    ).toBe("750");
+  }
+);
+
+test.serial(
+  "edits and saves an existing product without changing its slug",
+  async () => {
+    const view = renderProduct("/products/:productId");
+    const name = await view.findByLabelText("Product name");
+    const slug = view.getByLabelText("Slug") as HTMLInputElement;
+    const description = view.getByLabelText("Description");
+
+    fireEvent.change(name, { target: { value: "Renamed Brown Sugar Tea" } });
+    fireEvent.change(description, { target: { value: "Updated draft" } });
+    fireEvent.click(view.getByRole("button", { name: "Save changes" }));
+
+    const status = await view.findByRole("status");
+    expect(status.textContent).toBe("Product saved.");
+    expect(slug.value).toBe(existingProduct.slug);
+    expect(currentProduct.name).toBe("Renamed Brown Sugar Tea");
+    expect(currentProduct.slug).toBe(existingProduct.slug);
+    expect(currentProduct.description).toBe("Updated draft");
+    expect(rpcMock).toHaveBeenCalledWith(
+      "update_product_management",
+      expect.objectContaining({
+        p_product_id: productId,
+        p_category_id: milkTeaCategoryId,
+        p_slug: existingProduct.slug
+      })
+    );
+  }
+);
