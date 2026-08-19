@@ -16,6 +16,7 @@ import {
   type ManagedImage
 } from "./image-storage";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
+import { slugify } from "./lib/slug";
 import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -26,6 +27,73 @@ const categorySchema = z.object({
   slug: z.string().min(1)
 });
 type CategoryOption = z.infer<typeof categorySchema>;
+
+export function CategoryField({
+  categories,
+  disabled,
+  error,
+  isLoading,
+  value,
+  onChange
+}: {
+  categories: CategoryOption[];
+  disabled: boolean;
+  error: string | null;
+  isLoading: boolean;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const messageId = "product-category-message";
+  const isEmpty = !isLoading && !error && categories.length === 0;
+
+  return (
+    <label className="text-sm font-medium" htmlFor="product-category">
+      Category
+      <select
+        aria-describedby={error || isEmpty ? messageId : undefined}
+        aria-invalid={Boolean(error)}
+        aria-busy={isLoading}
+        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        disabled={disabled || isLoading || Boolean(error) || isEmpty}
+        id="product-category"
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">
+          {isLoading
+            ? "Loading categories…"
+            : error
+              ? "Categories unavailable"
+              : isEmpty
+                ? "No categories available"
+                : "Choose a category"}
+        </option>
+        {categories.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.name}
+          </option>
+        ))}
+      </select>
+      {error ? (
+        <span
+          className="mt-1 block text-xs font-normal text-destructive"
+          id={messageId}
+          role="alert"
+        >
+          {error}
+        </span>
+      ) : isEmpty ? (
+        <span
+          className="mt-1 block text-xs font-normal text-muted-foreground"
+          id={messageId}
+        >
+          No product categories are available.
+        </span>
+      ) : null}
+    </label>
+  );
+}
 
 const productDetailSchema = productManagementListItemSchema.extend({
   discovery_tags: z.array(z.string()),
@@ -341,6 +409,8 @@ export function ProductManagementPage() {
   const isNew = productId === "new";
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [product, setProduct] = useState<z.infer<
     typeof productDetailSchema
@@ -364,6 +434,7 @@ export function ProductManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [publicationConfirmation, setPublicationConfirmation] = useState<
     "publish" | "unpublish" | null
   >(null);
@@ -375,10 +446,13 @@ export function ProductManagementPage() {
   const load = useCallback(async () => {
     if (!supabase) {
       setErrorMessage(supabaseConfigurationError);
+      setIsLoadingCategories(false);
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
+    setIsLoadingCategories(true);
+    setCategoryError(null);
     const [brandsResult, categoriesResult, locationsResult] = await Promise.all(
       [
         supabase.from("brands").select("id, name, slug").order("name"),
@@ -401,25 +475,36 @@ export function ProductManagementPage() {
       .safeParse(locationsResult.data);
     if (
       brandsResult.error ||
-      categoriesResult.error ||
       locationsResult.error ||
       !parsedBrands.success ||
-      !parsedCategories.success ||
       !parsedLocations.success
     ) {
       setErrorMessage("Product options could not be loaded. Please try again.");
+      setIsLoadingCategories(false);
       setIsLoading(false);
       return;
     }
     setBrands(parsedBrands.data);
-    setCategories(parsedCategories.data);
     setLocations(parsedLocations.data);
+    if (categoriesResult.error || !parsedCategories.success) {
+      setCategories([]);
+      setCategoryError(
+        "Product categories could not be loaded. Please try again."
+      );
+    } else {
+      setCategories(parsedCategories.data);
+      setCategoryError(null);
+    }
+    setIsLoadingCategories(false);
 
     if (isNew) {
       setForm((current) => ({
         ...current,
         brandId: current.brandId || parsedBrands.data[0]?.id || "",
-        categoryId: current.categoryId || parsedCategories.data[0]?.id || ""
+        categoryId:
+          current.categoryId ||
+          (parsedCategories.success ? parsedCategories.data[0]?.id : "") ||
+          ""
       }));
       setIsLoading(false);
       return;
@@ -494,6 +579,10 @@ export function ProductManagementPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setIsSlugManuallyEdited(false);
+  }, [isNew, productId]);
+
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
   const selectedBrand = form.brandId;
   const eligibleLocations = useMemo(
@@ -516,6 +605,19 @@ export function ProductManagementPage() {
     value: ProductForm[K]
   ) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const setProductName = (name: string) => {
+    setForm((current) => ({
+      ...current,
+      name,
+      slug: isNew && !isSlugManuallyEdited ? slugify(name) : current.slug
+    }));
+  };
+
+  const setProductSlug = (slug: string) => {
+    setIsSlugManuallyEdited(true);
+    setField("slug", slug);
   };
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -716,7 +818,9 @@ export function ProductManagementPage() {
   if (isLoading) {
     return (
       <ManagementDetailSkeleton
-        label="Loading product details"
+        label={
+          isLoadingCategories ? "Loading categories" : "Loading product details"
+        }
         className="max-w-5xl"
       />
     );
@@ -782,21 +886,14 @@ export function ProductManagementPage() {
               ))}
             </select>
           </label>
-          <label className="text-sm font-medium" htmlFor="product-category">
-            Category
-            <select
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              id="product-category"
-              value={form.categoryId}
-              onChange={(event) => setField("categoryId", event.target.value)}
-            >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CategoryField
+            categories={categories}
+            disabled={isSaving || isPublishing}
+            error={categoryError}
+            isLoading={isLoadingCategories}
+            value={form.categoryId}
+            onChange={(value) => setField("categoryId", value)}
+          />
           <label className="text-sm font-medium" htmlFor="product-name">
             Product name
             <input
@@ -804,7 +901,7 @@ export function ProductManagementPage() {
               id="product-name"
               placeholder="Enter product name"
               value={form.name}
-              onChange={(event) => setField("name", event.target.value)}
+              onChange={(event) => setProductName(event.target.value)}
             />
           </label>
           <label className="text-sm font-medium" htmlFor="product-slug">
@@ -814,7 +911,7 @@ export function ProductManagementPage() {
               id="product-slug"
               placeholder="Enter product slug"
               value={form.slug}
-              onChange={(event) => setField("slug", event.target.value)}
+              onChange={(event) => setProductSlug(event.target.value)}
             />
           </label>
           <label
