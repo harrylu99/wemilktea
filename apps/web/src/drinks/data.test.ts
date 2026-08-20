@@ -58,6 +58,27 @@ test("normalizes an owned primary product image", () => {
   expect(drink?.imageAltText).toBe("Brown sugar pearl milk tea");
 });
 
+test("accepts a persisted stock primary product image", () => {
+  const drink = normalizePublicDrink(
+    product({
+      product_images: [
+        {
+          is_primary: true,
+          image_assets: {
+            id: "2c4d7a6e-f782-4704-bd84-7c34f6d16a7d",
+            provenance: "stock",
+            storage_key: "showcase/pexels/12345.jpg",
+            external_url: null,
+            alt_text: "Milk Tea showcase image"
+          }
+        }
+      ]
+    })
+  );
+  expect(drink).not.toBeNull();
+  expect(drink?.imageAltText).toBe("Milk Tea showcase image");
+});
+
 test("does not use Google product imagery", () => {
   const drink = normalizePublicDrink(
     product({

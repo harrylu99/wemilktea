@@ -42,6 +42,13 @@ products/{product-id}/{uuid}.{jpg|png|webp}
 
 Google imagery is never copied to R2. The primary image relationship is stored in `product_images`; public image metadata is visible only when the product, brand, and category are published.
 
+WM-62 adds temporary stock/showcase imagery through a local operator workflow.
+Approved Pexels assets are stored once in R2 under `showcase/pexels/...`,
+recorded in `showcase_image_pool`, and assigned once to Products without a
+primary image. Assignment is persisted; Web requests never call Pexels or
+randomize the image. Existing WeMilktea, merchant, user, or future Uber images
+are not replaced automatically. See [Pexels showcase images](../scripts/pexels/README.md).
+
 ## Public contract for WM-26/27
 
 Future public queries can use the anonymous Supabase boundary to read:

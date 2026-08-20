@@ -21,7 +21,7 @@ const categorySchema = z.object({
 
 const imageAssetSchema = z.object({
   id: uuidSchema,
-  provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
+  provenance: z.enum(["wemilktea", "merchant", "user", "google", "stock"]),
   storage_key: z.string().nullable().optional(),
   external_url: z.string().url().nullable().optional(),
   alt_text: z.string().nullable().optional()

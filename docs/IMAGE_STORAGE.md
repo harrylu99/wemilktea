@@ -50,17 +50,32 @@ Product images reuse the same function and policy under:
 products/{product-id}/{uuid}.{jpg|png|webp}
 ```
 
+Temporary showcase images use a separate operator-only namespace:
+
+```text
+showcase/{provider}/{external-photo-id}.{jpg|jpeg|png|webp}
+```
+
+Showcase binaries are stored in R2 once and linked through the reusable
+`showcase_image_pool` and `product_images` relationships. They are never
+created through the browser upload flow.
+
 The original filename is never authoritative. V1 accepts JPEG, PNG, and WebP images up to 10 MiB. The server validates the UUID-scoped key, MIME type, object size, and optional dimensions before writing metadata. The same policy is exported to browser-safe configuration for early UX validation.
 
 ## Metadata and provenance
 
 `image_assets` stores `storage_key`, provenance, alt text, content type, byte size, and optional dimensions. `location_images` links the metadata to a canonical location and marks the primary image. The database relationship is authoritative; public code never lists the bucket.
 
-R2 uploads from the Admin workflow use `wemilktea` provenance. `merchant` and `user` remain valid metadata values for future permitted workflows. Google imagery is not copied to R2 and the existing `google` provenance constraint cannot claim an R2 key.
+R2 uploads from the Admin workflow use `wemilktea` provenance. Temporary
+operator-imported showcase images use `stock` provenance and retain provider,
+external photo, source URL, and attribution metadata. `merchant` and `user`
+remain valid metadata values for future permitted workflows. Google imagery is
+not copied to R2 and the existing `google` provenance constraint cannot claim
+an R2 key.
 
 ## Replacement and removal
 
-Replacement uploads the new object first, verifies it, and atomically replaces the primary metadata relationship. Only after the database operation succeeds does the function attempt to delete the old object. Removal deletes the metadata relationship and then attempts object cleanup. A cleanup warning is returned/logged if R2 is temporarily unavailable; the working canonical reference is not deleted early.
+Replacement uploads the new object first, verifies it, and atomically replaces the primary metadata relationship. Only after the database operation succeeds does the function attempt to delete the old object. Removal deletes the metadata relationship and then attempts object cleanup for unshared product/location assets. Shared showcase assets remain protected by their pool relationship. A cleanup warning is returned/logged if R2 is temporarily unavailable; the working canonical reference is not deleted early.
 
 There is no distributed transaction between R2 and PostgreSQL. The trusted workflow is designed to minimize orphans, but operators should treat cleanup warnings as follow-up work.
 
