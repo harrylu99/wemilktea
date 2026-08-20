@@ -20,6 +20,39 @@ begin
     raise exception 'WM-62 seed brand/category is missing';
   end if;
 
+  if has_function_privilege(
+       'anon',
+       'public.upsert_showcase_image(uuid, text, text, text, text, text, text, text, bigint, integer, integer, text, smallint)',
+       'execute'
+     )
+     or has_function_privilege(
+       'authenticated',
+       'public.upsert_showcase_image(uuid, text, text, text, text, text, text, text, bigint, integer, integer, text, smallint)',
+       'execute'
+     )
+     or not has_function_privilege(
+       'service_role',
+       'public.upsert_showcase_image(uuid, text, text, text, text, text, text, text, bigint, integer, integer, text, smallint)',
+       'execute'
+     )
+     or has_function_privilege(
+       'anon',
+       'public.assign_showcase_image_to_product(uuid, uuid)',
+       'execute'
+     )
+     or has_function_privilege(
+       'authenticated',
+       'public.assign_showcase_image_to_product(uuid, uuid)',
+       'execute'
+     )
+     or not has_function_privilege(
+       'service_role',
+       'public.assign_showcase_image_to_product(uuid, uuid)',
+       'execute'
+     ) then
+    raise exception 'showcase RPC execute privileges are not service_role-only';
+  end if;
+
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -49,8 +82,7 @@ begin
     );
     raise exception 'ordinary authenticated user imported showcase image';
   exception
-    when raise_exception then
-      if sqlerrm <> 'admin_access_required' then raise; end if;
+    when insufficient_privilege then null;
   end;
   execute 'reset role';
 
@@ -74,6 +106,18 @@ begin
     '{}',
     false
   ) into second_product_id;
+  execute 'reset role';
+
+  execute 'set local role authenticated';
+  begin
+    perform public.assign_showcase_image_to_product(first_product_id, extensions.gen_random_uuid());
+    raise exception 'authenticated user assigned showcase image';
+  exception
+    when insufficient_privilege then null;
+  end;
+  execute 'reset role';
+
+  execute 'set local role service_role';
 
   select result.image_id, result.created
   into showcase_image_id, created
