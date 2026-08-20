@@ -12,6 +12,7 @@ declare
   showcase_image_id uuid;
   assigned_image_id uuid;
   created boolean;
+  assigned boolean;
   previous_key text;
 begin
   select id into brand_id from public.brands where slug = 'gong-cha';
@@ -161,7 +162,25 @@ begin
     raise exception 'repeated showcase import was not idempotent';
   end if;
 
-  perform public.assign_showcase_image_to_product(first_product_id, showcase_image_id);
+  insert into public.product_images (product_id, image_id, sort_order, is_primary)
+  values (first_product_id, showcase_image_id, 9, false);
+
+  select result.image_id, result.assigned
+  into assigned_image_id, assigned
+  from public.assign_showcase_image_to_product(first_product_id, showcase_image_id) as result;
+  if assigned_image_id <> showcase_image_id
+    or assigned is not true
+    or not exists (
+      select 1
+      from public.product_images
+      where product_id = first_product_id
+        and image_id = showcase_image_id
+        and sort_order = 0
+        and is_primary
+    ) then
+    raise exception 'assignment did not update the existing product_images primary-key conflict';
+  end if;
+
   perform public.assign_showcase_image_to_product(second_product_id, showcase_image_id);
   if (select count(*) from public.product_images where product_images.image_id = workflow.showcase_image_id and is_primary) <> 2 then
     raise exception 'one showcase asset was not shared across two products';
