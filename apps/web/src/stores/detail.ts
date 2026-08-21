@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicImageUrl } from "@wemilktea/config";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import { primaryProductImage, productImageSchema } from "../drinks/data";
 import { coordinatePair, type PublicStore } from "./data";
 
 const brandSchema = z.object({
@@ -47,14 +48,16 @@ const locationProductRowSchema = z.object({
       id: z.string().uuid(),
       slug: z.string().min(1),
       name: z.string().min(1),
-      description: z.string().nullable()
+      description: z.string().nullable(),
+      product_images: z.array(productImageSchema).optional().default([])
     }),
     z.array(
       z.object({
         id: z.string().uuid(),
         slug: z.string().min(1),
         name: z.string().min(1),
-        description: z.string().nullable()
+        description: z.string().nullable(),
+        product_images: z.array(productImageSchema).optional().default([])
       })
     )
   ])
@@ -74,6 +77,8 @@ export type PublicStoreDrink = {
   description: string | null;
   priceCents: number | null;
   currency: string;
+  imageUrl: string | null;
+  imageAltText: string | null;
 };
 
 export type PublicStoreDetail = PublicStore & {
@@ -148,6 +153,7 @@ export function normalizePublicStoreDrinks(value: unknown): PublicStoreDrink[] {
     if (!parsed.success) return [];
     const product = firstRelation(parsed.data.products);
     if (!product) return [];
+    const image = primaryProductImage(product.product_images);
     return [
       {
         id: product.id,
@@ -155,7 +161,9 @@ export function normalizePublicStoreDrinks(value: unknown): PublicStoreDrink[] {
         name: product.name,
         description: product.description,
         priceCents: parsed.data.price_cents,
-        currency: parsed.data.currency
+        currency: parsed.data.currency,
+        imageUrl: image.url,
+        imageAltText: image.altText
       }
     ];
   });
@@ -189,7 +197,7 @@ export async function loadPublicStoreDetail(
   const productsResult = await client
     .from("location_products")
     .select(
-      "price_cents, currency, availability_status, products!location_products_product_brand_id_fkey!inner(id, slug, name, description)"
+      "price_cents, currency, availability_status, products!location_products_product_brand_id_fkey!inner(id, slug, name, description, product_images(is_primary, image_assets(id, provenance, storage_key, external_url, alt_text)))"
     )
     .eq("location_id", store.id)
     .eq("availability_status", "available")

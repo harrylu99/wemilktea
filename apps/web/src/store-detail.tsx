@@ -59,18 +59,28 @@ function DrinkCard({
   brandSlug: string;
 }) {
   const price = formatPrice(drink.priceCents, drink.currency);
+  const [hasImageError, setHasImageError] = useState(false);
   return (
     <Link
       className="detail-drink-card"
       to={`/drinks/${brandSlug}/${drink.slug}`}
       aria-label={`View ${drink.name}`}
     >
-      <div
-        aria-hidden="true"
-        className={`detail-drink-image detail-accent-${index % 3}`}
-      >
-        DRINK IMAGE
-      </div>
+      {drink.imageUrl && !hasImageError ? (
+        <img
+          alt={drink.imageAltText ?? drink.name}
+          className="detail-drink-image w-full object-cover"
+          src={drink.imageUrl}
+          onError={() => setHasImageError(true)}
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className={`detail-drink-image detail-accent-${index % 3}`}
+        >
+          DRINK IMAGE
+        </div>
+      )}
       <div className="mt-3 min-w-0">
         <h3 className="break-words text-sm font-semibold">{drink.name}</h3>
         <p className="mt-1 break-words text-xs text-muted-foreground">

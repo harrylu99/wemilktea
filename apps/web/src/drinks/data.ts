@@ -27,7 +27,7 @@ const imageAssetSchema = z.object({
   alt_text: z.string().nullable().optional()
 });
 
-const productImageSchema = z.object({
+export const productImageSchema = z.object({
   is_primary: z.boolean(),
   image_assets: relation(imageAssetSchema)
 });
@@ -88,7 +88,9 @@ function imageUrlFromAsset(asset: z.infer<typeof imageAssetSchema>) {
     : (asset.external_url ?? null);
 }
 
-function primaryImage(links: z.infer<typeof productImageSchema>[]): {
+export function primaryProductImage(
+  links: z.infer<typeof productImageSchema>[]
+): {
   url: string | null;
   altText: string | null;
 } {
@@ -113,7 +115,7 @@ export function normalizePublicDrink(
   const category = firstRelation(parsed.data.categories);
   if (!brand || !category) return null;
 
-  const image = primaryImage(parsed.data.product_images);
+  const image = primaryProductImage(parsed.data.product_images);
   return {
     id: parsed.data.id,
     name: parsed.data.name,
