@@ -1,12 +1,19 @@
 import { operatorEnvironmentSchema, parseEnvironment } from "./config";
 import { discoverShowcaseManifest } from "./pexels-api";
-import { createShowcaseRepository, createSupabaseClient } from "./repository";
+import {
+  createShowcaseRepository,
+  createSupabaseClient,
+  showcaseImageIdentityKey,
+  type ShowcaseRepository
+} from "./repository";
 import {
   buildShowcaseStorageKey,
   contentTypeFromResponse,
   createR2ObjectStorage,
   isShowcaseStorageKey,
-  maxImageBytes
+  maxImageBytes,
+  type R2ObjectStorage,
+  type SupportedContentType
 } from "./storage";
 import {
   showcaseCategoryConfigs,
@@ -143,6 +150,95 @@ async function writeManifest(path: string, manifest: ShowcaseManifest) {
   console.log(`Manifest written: ${path}`);
 }
 
+type ApplyApprovedEntriesInput = {
+  approved: ShowcaseManifestEntry[];
+  categoriesBySlug: Map<string, { id: string; slug: string; name: string }>;
+  existingIdentities: Set<string>;
+  repository: Pick<ShowcaseRepository, "upsertShowcaseImage">;
+  storage: R2ObjectStorage;
+  download?: (
+    entry: ShowcaseManifestEntry
+  ) => Promise<{ bytes: Uint8Array; contentType: SupportedContentType }>;
+};
+
+export async function applyApprovedEntries({
+  approved,
+  categoriesBySlug,
+  existingIdentities,
+  repository,
+  storage,
+  download = downloadImage
+}: ApplyApprovedEntriesInput) {
+  let imported = 0;
+  let skipped = 0;
+
+  for (const [index, entry] of approved.entries()) {
+    const category = categoriesBySlug.get(entry.categorySlug);
+    if (!category)
+      throw new Error(`Category "${entry.categorySlug}" was not resolved.`);
+
+    const identity = showcaseImageIdentityKey(
+      category.id,
+      entry.provider,
+      entry.externalPhotoId
+    );
+    if (existingIdentities.has(identity)) {
+      skipped += 1;
+      console.log(
+        `SKIPPED ${entry.externalPhotoId} (${category.slug}): already exists in showcase_image_pool`
+      );
+      continue;
+    }
+
+    const image = await download(entry);
+    const storageKey = buildShowcaseStorageKey(
+      entry.provider,
+      entry.externalPhotoId,
+      image.contentType
+    );
+    if (!isShowcaseStorageKey(storageKey))
+      throw new Error("Generated invalid showcase storage key.");
+
+    const objectAlreadyExisted = await storage.objectExists(storageKey);
+    let uploaded = false;
+    try {
+      await storage.putObject({
+        key: storageKey,
+        body: image.bytes,
+        contentType: image.contentType
+      });
+      uploaded = !objectAlreadyExisted;
+      const result = await repository.upsertShowcaseImage({
+        categoryId: category.id,
+        provider: entry.provider,
+        externalPhotoId: entry.externalPhotoId,
+        storageKey,
+        sourceReference: entry.photoUrl,
+        attributionText: entry.attributionText,
+        altText: `${category.name} showcase image by ${entry.photographer}`,
+        contentType: image.contentType,
+        byteSize: image.bytes.length,
+        width: entry.width,
+        height: entry.height,
+        searchTerm: entry.searchTerm,
+        sortOrder: index
+      });
+      existingIdentities.add(identity);
+      if (result.created) imported += 1;
+      else skipped += 1;
+      console.log(
+        `${result.created ? "IMPORTED" : "SKIPPED"} ${entry.externalPhotoId} (${category.slug})`
+      );
+    } catch (error) {
+      if (uploaded)
+        await storage.deleteObject(storageKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  return { imported, skipped };
+}
+
 async function runDiscover(output: string | null) {
   const environment = parseEnvironment(
     operatorEnvironmentSchema.pick({ PEXELS_API_KEY: true })
@@ -187,63 +283,22 @@ async function runApply(manifestPath: string, apply: boolean) {
     return;
   }
 
+  const existingIdentities = await repository.loadShowcaseImageIdentities(
+    [...categoriesBySlug.values()].map((category) => category.id)
+  );
   const storage = createR2ObjectStorage({
     accountId: environment.R2_ACCOUNT_ID,
     accessKeyId: environment.R2_ACCESS_KEY_ID,
     secretAccessKey: environment.R2_SECRET_ACCESS_KEY,
     bucket: environment.R2_BUCKET
   });
-  let imported = 0;
-  let skipped = 0;
-
-  for (const [index, entry] of approved.entries()) {
-    const category = categoriesBySlug.get(entry.categorySlug);
-    if (!category)
-      throw new Error(`Category "${entry.categorySlug}" was not resolved.`);
-    const image = await downloadImage(entry);
-    const storageKey = buildShowcaseStorageKey(
-      entry.provider,
-      entry.externalPhotoId,
-      image.contentType
-    );
-    if (!isShowcaseStorageKey(storageKey))
-      throw new Error("Generated invalid showcase storage key.");
-
-    const objectAlreadyExisted = await storage.objectExists(storageKey);
-    let uploaded = false;
-    try {
-      await storage.putObject({
-        key: storageKey,
-        body: image.bytes,
-        contentType: image.contentType
-      });
-      uploaded = !objectAlreadyExisted;
-      const result = await repository.upsertShowcaseImage({
-        categoryId: category.id,
-        provider: entry.provider,
-        externalPhotoId: entry.externalPhotoId,
-        storageKey,
-        sourceReference: entry.photoUrl,
-        attributionText: entry.attributionText,
-        altText: `${category.name} showcase image by ${entry.photographer}`,
-        contentType: image.contentType,
-        byteSize: image.bytes.length,
-        width: entry.width,
-        height: entry.height,
-        searchTerm: entry.searchTerm,
-        sortOrder: index
-      });
-      if (result.created) imported += 1;
-      else skipped += 1;
-      console.log(
-        `${result.created ? "IMPORTED" : "SKIPPED"} ${entry.externalPhotoId} (${category.slug})`
-      );
-    } catch (error) {
-      if (uploaded)
-        await storage.deleteObject(storageKey).catch(() => undefined);
-      throw error;
-    }
-  }
+  const { imported, skipped } = await applyApprovedEntries({
+    approved,
+    categoriesBySlug,
+    existingIdentities,
+    repository,
+    storage
+  });
 
   console.log(`Imported: ${imported}`);
   console.log(`Skipped existing: ${skipped}`);
