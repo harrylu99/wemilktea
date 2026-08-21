@@ -68,7 +68,42 @@ test("normalizes available location products without exposing unpublished rows",
   expect(drinks).toHaveLength(1);
   expect(drinks[0]).toMatchObject({
     name: "Brown Sugar Pearl Milk Tea",
-    priceCents: 690
+    priceCents: 690,
+    imageUrl: null,
+    imageAltText: null
+  });
+});
+
+test("normalizes a persisted primary Product image for a store drink", () => {
+  const drinks = normalizePublicStoreDrinks([
+    {
+      price_cents: 690,
+      currency: "NZD",
+      availability_status: "available",
+      products: {
+        id: productId,
+        slug: "brown-sugar-pearl-milk-tea",
+        name: "Brown Sugar Pearl Milk Tea",
+        description: null,
+        product_images: [
+          {
+            is_primary: true,
+            image_assets: {
+              id: "2c4d7a6e-f782-4704-bd84-7c34f6d16a7d",
+              provenance: "wemilktea",
+              storage_key: null,
+              external_url: "https://cdn.example.test/product.jpg",
+              alt_text: "Brown sugar pearl milk tea"
+            }
+          }
+        ]
+      }
+    }
+  ]);
+
+  expect(drinks[0]).toMatchObject({
+    imageUrl: "https://cdn.example.test/product.jpg",
+    imageAltText: "Brown sugar pearl milk tea"
   });
 });
 
