@@ -29,14 +29,24 @@ export type PexelsFetcher = (
   init?: RequestInit
 ) => Promise<Response>;
 
+export const MAX_SHOWCASE_IMAGES_PER_CATEGORY = 40;
+
+export function perPageForSearchTerms(searchTermCount: number) {
+  if (!Number.isInteger(searchTermCount) || searchTermCount < 1) {
+    throw new Error("At least one Pexels search term is required.");
+  }
+  return Math.ceil(MAX_SHOWCASE_IMAGES_PER_CATEGORY / searchTermCount);
+}
+
 export async function searchPexels(
   query: string,
   apiKey: string,
-  fetcher: PexelsFetcher = fetch
+  fetcher: PexelsFetcher = fetch,
+  perPage = 10
 ) {
   const url = new URL("https://api.pexels.com/v1/search");
   url.searchParams.set("query", query);
-  url.searchParams.set("per_page", "10");
+  url.searchParams.set("per_page", String(perPage));
 
   const response = await fetcher(url, {
     headers: { Authorization: apiKey }
@@ -62,11 +72,16 @@ export async function discoverShowcaseManifest(
 
   for (const category of showcaseCategoryConfigs) {
     const seen = new Set<string>();
+    const perPage = perPageForSearchTerms(category.searchTerms.length);
     for (const searchTerm of category.searchTerms) {
-      const photos = await searchPexels(searchTerm, apiKey, fetcher);
-      for (const photo of photos) {
+      const photos = await searchPexels(searchTerm, apiKey, fetcher, perPage);
+      for (const photo of photos.slice(0, perPage)) {
         const externalPhotoId = String(photo.id);
-        if (seen.has(externalPhotoId) || seen.size >= 12) continue;
+        if (
+          seen.has(externalPhotoId) ||
+          seen.size >= MAX_SHOWCASE_IMAGES_PER_CATEGORY
+        )
+          continue;
         seen.add(externalPhotoId);
         entries.push({
           approved: false,

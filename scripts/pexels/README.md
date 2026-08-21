@@ -15,7 +15,10 @@ git check-ignore -v .env.local
 
 ## Discover
 
-Discovery uses predefined searches and writes no R2 or Supabase data:
+Discovery uses the configured `searchTerms` in `scripts/pexels/types.ts`,
+spreads requests across those terms, and returns up to 40 unique candidates
+per category. Results are never approved automatically; every manifest entry
+starts with `approved: false`. Discovery writes no R2 or Supabase data:
 
 ```sh
 bun --env-file=.env.local scripts/pexels/import-showcase.ts \
@@ -42,9 +45,12 @@ bun --env-file=.env.local scripts/pexels/import-showcase.ts \
   --apply --manifest /tmp/wm62-showcase-manifest.json
 ```
 
-Images use `showcase/pexels/{photoId}.{extension}` in R2. Supabase stores
-provider, photo ID, source URL, attribution, category membership, and the
-reusable `image_assets` relationship. Re-running the same manifest is safe.
+Images use `showcase/pexels/{photoId}.{extension}` in R2. Before apply, the
+importer loads existing category/provider/photo identities from
+`showcase_image_pool` once. Existing entries are logged as `SKIPPED` before
+any Pexels download or R2 request. Supabase stores provider, photo ID, source
+URL, attribution, category membership, and the reusable `image_assets`
+relationship. Re-running the same manifest is safe.
 
 ## Assign products
 

@@ -4,32 +4,32 @@ export const showcaseCategoryConfigs = [
   {
     slug: "milk-tea",
     name: "Milk Tea",
-    searchTerms: ["milk tea", "bubble tea", "brown sugar boba"]
+    searchTerms: ["milk tea", "boba milk tea", "boba tea"]
   },
   {
     slug: "fruit-tea",
     name: "Fruit Tea",
-    searchTerms: ["fruit tea", "peach tea", "passionfruit tea"]
+    searchTerms: ["fruit milktea", "fruit smooth brand", "fresh fruit smoothie"]
   },
   {
     slug: "matcha",
     name: "Matcha",
-    searchTerms: ["matcha latte", "iced matcha", "matcha boba"]
+    searchTerms: ["matcha bubble tea", "matcha milktea", "matcha strawberry drink"]
   },
   {
     slug: "fresh-milk",
     name: "Fresh Milk",
-    searchTerms: ["fresh milk boba", "brown sugar fresh milk"]
+    searchTerms: ["fresh milk tea", "fresh milktea boba"]
   },
   {
     slug: "yogurt",
     name: "Yogurt",
-    searchTerms: ["yogurt drink", "yogurt smoothie"]
+    searchTerms: ["yogurt boba drink", "yogurt milktea"]
   },
   {
     slug: "other",
     name: "Other",
-    searchTerms: ["tea drink", "smoothie"]
+    searchTerms: ["juice boba", "milkshake"]
   }
 ] as const;
 

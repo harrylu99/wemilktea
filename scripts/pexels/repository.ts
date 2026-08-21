@@ -26,6 +26,12 @@ const poolRowSchema = z.object({
   is_active: z.boolean()
 });
 
+const poolIdentityRowSchema = z.object({
+  category_id: z.string().uuid(),
+  provider: z.string().min(1),
+  external_photo_id: z.string().min(1)
+});
+
 function first<T>(value: T | T[]) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -40,6 +46,16 @@ function assertDatabaseSuccess(
     );
   }
 }
+
+export function showcaseImageIdentityKey(
+  categoryId: string,
+  provider: string,
+  externalPhotoId: string
+) {
+  return `${categoryId}:${provider}:${externalPhotoId}`;
+}
+
+export type ShowcaseRepository = ReturnType<typeof createShowcaseRepository>;
 
 export function createSupabaseClient(environment: {
   supabaseUrl: string;
@@ -105,6 +121,33 @@ export function createShowcaseRepository(client: SupabaseClient) {
         throw new Error("Showcase image upsert returned invalid data.");
       }
       return row as { pool_id: string; image_id: string; created: boolean };
+    },
+
+    async loadShowcaseImageIdentities(
+      categoryIds: string[]
+    ): Promise<Set<string>> {
+      if (categoryIds.length === 0) return new Set();
+      const result = await client
+        .from("showcase_image_pool")
+        .select("category_id, provider, external_photo_id")
+        .in("category_id", categoryIds);
+      assertDatabaseSuccess("showcase image identity lookup", result.error);
+      const parsed = z
+        .array(poolIdentityRowSchema)
+        .safeParse(result.data ?? []);
+      if (!parsed.success)
+        throw new Error(
+          "Showcase image identity lookup returned invalid data."
+        );
+      return new Set(
+        parsed.data.map((row) =>
+          showcaseImageIdentityKey(
+            row.category_id,
+            row.provider,
+            row.external_photo_id
+          )
+        )
+      );
     },
 
     async loadAssignableProducts(): Promise<AssignableProduct[]> {
