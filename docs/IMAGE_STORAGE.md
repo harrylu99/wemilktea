@@ -60,6 +60,12 @@ Showcase binaries are stored in R2 once and linked through the reusable
 `showcase_image_pool` and `product_images` relationships. They are never
 created through the browser upload flow.
 
+Reviewed Pexels stock can also be linked to Store presentation through
+`store_showcase_image_pool` and `location_images`, reusing the same
+`image_assets` record where a Product pool already contains the provider/photo
+identity. Actual merchant or WeMilktea-owned Store uploads continue to use
+`stores/{location-id}/...`; stock imagery never claims to be a specific store.
+
 The original filename is never authoritative. V1 accepts JPEG, PNG, and WebP images up to 10 MiB. The server validates the UUID-scoped key, MIME type, object size, and optional dimensions before writing metadata. The same policy is exported to browser-safe configuration for early UX validation.
 
 ## Metadata and provenance

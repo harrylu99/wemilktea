@@ -1,9 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type {
+  AssignableLocation,
   AssignableProduct,
   ShowcaseCategory,
-  ShowcasePoolImage
+  ShowcaseImageSource,
+  ShowcasePoolImage,
+  StoreShowcasePoolImage
 } from "./types";
 
 const categoryRowSchema = z.object({
@@ -32,6 +35,41 @@ const poolIdentityRowSchema = z.object({
   external_photo_id: z.string().min(1)
 });
 
+const storePoolIdentityRowSchema = z.object({
+  provider: z.string().min(1),
+  external_photo_id: z.string().min(1)
+});
+
+const imageSourcePoolRowSchema = z.object({
+  provider: z.string().min(1),
+  external_photo_id: z.string().min(1),
+  image_id: z.string().uuid()
+});
+
+const imageAssetRowSchema = z.object({
+  id: z.string().uuid(),
+  provenance: z.literal("stock"),
+  storage_key: z.string().min(1),
+  external_source_reference: z.string().nullable(),
+  attribution_text: z.string().nullable(),
+  alt_text: z.string().nullable(),
+  content_type: z.string().nullable(),
+  byte_size: z.number().int().positive().nullable(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable()
+});
+
+const locationRowSchema = z.object({
+  id: z.string().uuid(),
+  display_name: z.string().min(1),
+  slug: z.string().min(1)
+});
+
+const locationImageRowSchema = z.object({
+  location_id: z.string().uuid(),
+  is_primary: z.boolean()
+});
+
 function first<T>(value: T | T[]) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -53,6 +91,13 @@ export function showcaseImageIdentityKey(
   externalPhotoId: string
 ) {
   return `${categoryId}:${provider}:${externalPhotoId}`;
+}
+
+export function storeShowcaseImageIdentityKey(
+  provider: string,
+  externalPhotoId: string
+) {
+  return `${provider}:${externalPhotoId}`;
 }
 
 export type ShowcaseRepository = ReturnType<typeof createShowcaseRepository>;
@@ -150,6 +195,84 @@ export function createShowcaseRepository(client: SupabaseClient) {
       );
     },
 
+    async loadStoreShowcaseImageIdentities(): Promise<Set<string>> {
+      const result = await client
+        .from("store_showcase_image_pool")
+        .select("provider, external_photo_id");
+      assertDatabaseSuccess(
+        "store showcase image identity lookup",
+        result.error
+      );
+      const parsed = z
+        .array(storePoolIdentityRowSchema)
+        .safeParse(result.data ?? []);
+      if (!parsed.success) {
+        throw new Error(
+          "Store showcase image identity lookup returned invalid data."
+        );
+      }
+      return new Set(
+        parsed.data.map((row) =>
+          storeShowcaseImageIdentityKey(row.provider, row.external_photo_id)
+        )
+      );
+    },
+
+    async loadExistingShowcaseImageSources(
+      externalPhotoIds: string[]
+    ): Promise<Map<string, ShowcaseImageSource>> {
+      if (externalPhotoIds.length === 0) return new Map();
+      const poolResult = await client
+        .from("showcase_image_pool")
+        .select("provider, external_photo_id, image_id")
+        .eq("provider", "pexels")
+        .in("external_photo_id", externalPhotoIds)
+        .order("id");
+      assertDatabaseSuccess("showcase source lookup", poolResult.error);
+      const parsedPool = z
+        .array(imageSourcePoolRowSchema)
+        .safeParse(poolResult.data ?? []);
+      if (!parsedPool.success)
+        throw new Error("Showcase source lookup returned invalid data.");
+
+      const imageIds = [...new Set(parsedPool.data.map((row) => row.image_id))];
+      if (imageIds.length === 0) return new Map();
+      const assetResult = await client
+        .from("image_assets")
+        .select(
+          "id, provenance, storage_key, external_source_reference, attribution_text, alt_text, content_type, byte_size, width, height"
+        )
+        .in("id", imageIds);
+      assertDatabaseSuccess("showcase source asset lookup", assetResult.error);
+      const parsedAssets = z
+        .array(imageAssetRowSchema)
+        .safeParse(assetResult.data ?? []);
+      if (!parsedAssets.success)
+        throw new Error("Showcase source asset lookup returned invalid data.");
+      const assets = new Map(
+        parsedAssets.data.map((asset) => [asset.id, asset])
+      );
+      const sources = new Map<string, ShowcaseImageSource>();
+      for (const row of parsedPool.data) {
+        const asset = assets.get(row.image_id);
+        if (!asset || sources.has(row.external_photo_id)) continue;
+        sources.set(row.external_photo_id, {
+          provider: row.provider,
+          externalPhotoId: row.external_photo_id,
+          imageId: asset.id,
+          storageKey: asset.storage_key,
+          sourceReference: asset.external_source_reference,
+          attributionText: asset.attribution_text,
+          altText: asset.alt_text,
+          contentType: asset.content_type,
+          byteSize: asset.byte_size,
+          width: asset.width,
+          height: asset.height
+        });
+      }
+      return sources;
+    },
+
     async loadAssignableProducts(): Promise<AssignableProduct[]> {
       const [productsResult, imagesResult] = await Promise.all([
         client
@@ -206,6 +329,134 @@ export function createShowcaseRepository(client: SupabaseClient) {
         categoryId: category_id,
         sortOrder: sort_order
       }));
+    },
+
+    async loadAssignableLocations(): Promise<AssignableLocation[]> {
+      const [locationsResult, imagesResult] = await Promise.all([
+        client.from("locations").select("id, display_name, slug").order("slug"),
+        client
+          .from("location_images")
+          .select("location_id, is_primary")
+          .eq("is_primary", true)
+      ]);
+      assertDatabaseSuccess("location lookup", locationsResult.error);
+      assertDatabaseSuccess("location image lookup", imagesResult.error);
+      const locations = z
+        .array(locationRowSchema)
+        .safeParse(locationsResult.data ?? []);
+      const images = z
+        .array(locationImageRowSchema)
+        .safeParse(imagesResult.data ?? []);
+      if (!locations.success || !images.success)
+        throw new Error("Location lookup returned invalid data.");
+      const primaryLocationIds = new Set(
+        images.data.map((row) => row.location_id)
+      );
+      return locations.data
+        .filter((location) => !primaryLocationIds.has(location.id))
+        .map((location) => ({
+          id: location.id,
+          displayName: location.display_name,
+          slug: location.slug
+        }));
+    },
+
+    async loadActiveStorePoolImages(): Promise<StoreShowcasePoolImage[]> {
+      const result = await client
+        .from("store_showcase_image_pool")
+        .select("image_id, sort_order")
+        .eq("is_active", true)
+        .order("sort_order")
+        .order("id");
+      assertDatabaseSuccess("store showcase pool lookup", result.error);
+      const parsed = z
+        .array(
+          z.object({
+            image_id: z.string().uuid(),
+            sort_order: z.number().int().nonnegative()
+          })
+        )
+        .safeParse(result.data ?? []);
+      if (!parsed.success)
+        throw new Error("Store showcase pool lookup returned invalid data.");
+      return parsed.data.map(({ image_id, sort_order }) => ({
+        imageId: image_id,
+        sortOrder: sort_order
+      }));
+    },
+
+    async loadStoreShowcaseImageUsage(): Promise<Map<string, number>> {
+      const result = await client
+        .from("location_images")
+        .select("image_id")
+        .eq("is_primary", true);
+      assertDatabaseSuccess("store showcase image usage lookup", result.error);
+      const usage = new Map<string, number>();
+      for (const row of result.data ?? []) {
+        if (typeof row.image_id !== "string") continue;
+        usage.set(row.image_id, (usage.get(row.image_id) ?? 0) + 1);
+      }
+      return usage;
+    },
+
+    async upsertStoreShowcaseImage(input: {
+      provider: string;
+      externalPhotoId: string;
+      storageKey: string;
+      sourceReference: string;
+      attributionText: string;
+      altText: string;
+      contentType: string;
+      byteSize: number;
+      width: number;
+      height: number;
+      searchTerm: string;
+      sortOrder: number;
+    }) {
+      const result = await client.rpc("upsert_store_showcase_image", {
+        p_provider: input.provider,
+        p_external_photo_id: input.externalPhotoId,
+        p_storage_key: input.storageKey,
+        p_source_reference: input.sourceReference,
+        p_attribution_text: input.attributionText,
+        p_alt_text: input.altText,
+        p_content_type: input.contentType,
+        p_byte_size: input.byteSize,
+        p_width: input.width,
+        p_height: input.height,
+        p_search_term: input.searchTerm,
+        p_sort_order: input.sortOrder
+      });
+      assertDatabaseSuccess("store showcase image upsert", result.error);
+      const row = Array.isArray(result.data) ? result.data[0] : null;
+      if (
+        !row ||
+        typeof row.pool_id !== "string" ||
+        typeof row.image_id !== "string" ||
+        typeof row.created !== "boolean"
+      ) {
+        throw new Error("Store showcase image upsert returned invalid data.");
+      }
+      return row as { pool_id: string; image_id: string; created: boolean };
+    },
+
+    async assignShowcaseImageToLocation(locationId: string, imageId: string) {
+      const result = await client.rpc("assign_showcase_image_to_location", {
+        p_location_id: locationId,
+        p_image_id: imageId
+      });
+      assertDatabaseSuccess("store showcase image assignment", result.error);
+      const row = Array.isArray(result.data) ? result.data[0] : null;
+      if (
+        !row ||
+        typeof row.image_id !== "string" ||
+        typeof row.assigned !== "boolean"
+      ) {
+        throw new Error(
+          "Store showcase image assignment returned invalid data."
+        );
+      }
+      return row as { image_id: string; assigned: boolean };
     },
 
     async assignShowcaseImage(productId: string, imageId: string) {
