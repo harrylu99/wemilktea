@@ -38,6 +38,8 @@ import { slugify } from "./lib/slug";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
+import { searchParamsForPage } from "./management-pagination-state";
+import { ManagementPagination } from "./management-pagination";
 
 const rejectionReasons = [
   ["not_milk_tea", "Not a milk-tea store"],
@@ -207,10 +209,6 @@ export function CandidateQueuePage() {
     return true;
   }, [searchParams, setSearchParams]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / CANDIDATE_PAGE_SIZE));
-  const rangeStart = (page - 1) * CANDIDATE_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * CANDIDATE_PAGE_SIZE, totalCount);
-
   return (
     <section>
       <h1 className="text-2xl font-semibold">Candidates</h1>
@@ -316,46 +314,14 @@ export function CandidateQueuePage() {
           </table>
         ) : null}
       </div>
-      {!isLoading && !errorMessage && totalCount > 0 ? (
-        <nav
-          aria-label="Candidate pagination"
-          className="mt-4 flex items-center justify-between gap-4 text-sm"
-        >
-          <p className="text-muted-foreground">
-            Showing {rangeStart}–{rangeEnd} of {totalCount} candidates
-          </p>
-          <div className="flex items-center gap-3">
-            <button
-              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={page <= 1}
-              type="button"
-              aria-label="Previous page"
-              onClick={() =>
-                setSearchParams(
-                  searchParamsForCandidatePage(searchParams, page - 1)
-                )
-              }
-            >
-              Previous
-            </button>
-            <span aria-live="polite">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={page >= totalPages}
-              type="button"
-              aria-label="Next page"
-              onClick={() =>
-                setSearchParams(
-                  searchParamsForCandidatePage(searchParams, page + 1)
-                )
-              }
-            >
-              Next
-            </button>
-          </div>
-        </nav>
+      {!isLoading && !errorMessage ? (
+        <ManagementPagination
+          page={page}
+          totalCount={totalCount}
+          onPageChange={(nextPage) =>
+            setSearchParams(searchParamsForPage(searchParams, nextPage))
+          }
+        />
       ) : null}
       <DiscoveryControl onDiscoverySuccess={handleDiscoverySuccess} />
     </section>
