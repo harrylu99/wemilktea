@@ -64,3 +64,51 @@ bun --env-file=.env.local scripts/pexels/assign-showcase.ts --apply
 
 The selection happens once during the explicit apply run. Web requests do not
 call Pexels and do not randomize images.
+
+## Store showcase images
+
+Store discovery is a separate review pool. It uses generic bubble-tea-shop
+searches, stores no Product category, and produces at most 60 unique
+candidates. Every candidate starts with `approved: false`.
+
+Discover locally without writing to Supabase or R2:
+
+```sh
+bun --env-file=.env.local scripts/pexels/import-store-showcase.ts \
+  --discover --output /tmp/wm77-store-showcase-manifest.json
+```
+
+Review `/tmp/wm77-store-showcase-manifest.json` manually. Reject branded,
+store-specific, watermarked, duplicated, or otherwise unsuitable images, and
+only then set selected entries to `approved: true`.
+
+Validate the reviewed manifest without writes:
+
+```sh
+bun --env-file=.env.local scripts/pexels/import-store-showcase.ts \
+  --manifest /tmp/wm77-store-showcase-manifest.json --dry-run
+```
+
+Apply only after the human review:
+
+```sh
+bun --env-file=.env.local scripts/pexels/import-store-showcase.ts \
+  --apply --manifest /tmp/wm77-store-showcase-manifest.json
+```
+
+Store assignment is also dry-run by default. It skips every location that
+already has a primary image, balances usage among the least-used active pool
+images, and persists assignments only with `--apply`:
+
+```sh
+bun --env-file=.env.local scripts/pexels/assign-store-showcase.ts
+bun --env-file=.env.local scripts/pexels/assign-store-showcase.ts --apply
+```
+
+The Store pool reuses an existing Product-pool Pexels asset when the same
+provider/photo identity is already present. Store stock is linked through the
+reusable `image_assets` record and the `store_showcase_image_pool` table; it is
+not copied into a location-specific `stores/{location-id}/...` object.
+
+Do not apply or assign production images before the reviewed manifest has been
+approved under WM-78.

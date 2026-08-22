@@ -1,8 +1,11 @@
 import { z } from "zod";
 import {
   showcaseCategoryConfigs,
+  storeShowcaseSearchTerms,
   type ShowcaseManifest,
-  type ShowcaseManifestEntry
+  type ShowcaseManifestEntry,
+  type StoreShowcaseManifest,
+  type StoreShowcaseManifestEntry
 } from "./types";
 
 const pexelsPhotoSchema = z.object({
@@ -30,12 +33,23 @@ export type PexelsFetcher = (
 ) => Promise<Response>;
 
 export const MAX_SHOWCASE_IMAGES_PER_CATEGORY = 40;
+export const MAX_STORE_SHOWCASE_CANDIDATES = 60;
 
 export function perPageForSearchTerms(searchTermCount: number) {
+  return perPageForLimit(MAX_SHOWCASE_IMAGES_PER_CATEGORY, searchTermCount);
+}
+
+export function perPageForLimit(
+  candidateLimit: number,
+  searchTermCount: number
+) {
+  if (!Number.isInteger(candidateLimit) || candidateLimit < 1) {
+    throw new Error("A positive candidate limit is required.");
+  }
   if (!Number.isInteger(searchTermCount) || searchTermCount < 1) {
     throw new Error("At least one Pexels search term is required.");
   }
-  return Math.ceil(MAX_SHOWCASE_IMAGES_PER_CATEGORY / searchTermCount);
+  return Math.ceil(candidateLimit / searchTermCount);
 }
 
 export async function searchPexels(
@@ -98,6 +112,50 @@ export async function discoverShowcaseManifest(
           height: photo.height
         });
       }
+    }
+  }
+
+  return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    entries
+  };
+}
+
+export async function discoverStoreShowcaseManifest(
+  apiKey: string,
+  fetcher: PexelsFetcher = fetch
+): Promise<StoreShowcaseManifest> {
+  const entries: StoreShowcaseManifestEntry[] = [];
+  const seen = new Set<string>();
+  const perPage = perPageForLimit(
+    MAX_STORE_SHOWCASE_CANDIDATES,
+    storeShowcaseSearchTerms.length
+  );
+
+  for (const searchTerm of storeShowcaseSearchTerms) {
+    const photos = await searchPexels(searchTerm, apiKey, fetcher, perPage);
+    for (const photo of photos.slice(0, perPage)) {
+      const externalPhotoId = String(photo.id);
+      if (
+        seen.has(externalPhotoId) ||
+        seen.size >= MAX_STORE_SHOWCASE_CANDIDATES
+      )
+        continue;
+      seen.add(externalPhotoId);
+      entries.push({
+        approved: false,
+        searchTerm,
+        provider: "pexels",
+        externalPhotoId,
+        photoUrl: photo.url,
+        imageUrl: photo.src.large,
+        photographer: photo.photographer,
+        photographerUrl: photo.photographer_url,
+        attributionText: `Photo by ${photo.photographer} via Pexels`,
+        width: photo.width,
+        height: photo.height
+      });
     }
   }
 
