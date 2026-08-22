@@ -17,6 +17,7 @@ import { loadPublicExploreData } from "../explore/data";
 import {
   selectHomeCategories,
   selectHomeDrinks,
+  selectHomeHeroDrink,
   selectHomeStores
 } from "./data";
 
@@ -63,8 +64,27 @@ function StorePreviewCard({
   );
 }
 
-function HeroVisual({ drink }: { drink: PublicDrink | null }) {
+function HeroVisual({
+  drink,
+  isLoading
+}: {
+  drink: PublicDrink | null;
+  isLoading: boolean;
+}) {
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [drink?.id, drink?.imageUrl]);
+
+  if (isLoading) {
+    return (
+      <div
+        aria-hidden="true"
+        className="h-full min-h-[180px] w-full animate-pulse rounded-xl border border-border bg-muted md:min-h-0"
+      />
+    );
+  }
 
   if (drink?.imageUrl && !imageError) {
     return (
@@ -80,10 +100,8 @@ function HeroVisual({ drink }: { drink: PublicDrink | null }) {
   return (
     <div
       aria-hidden="true"
-      className="flex min-h-[180px] items-center justify-center rounded-xl border border-border bg-[#f0a08c] text-sm text-[#111711] md:min-h-0"
-    >
-      Hero image · drink + Auckland
-    </div>
+      className="min-h-[180px] rounded-xl border border-border bg-[#f0a08c] md:min-h-0"
+    />
   );
 }
 
@@ -131,18 +149,22 @@ export function HomePage() {
     stores: PublicStore[];
     categories: PublicDrinkCategory[];
   } | null>(null);
+  const [heroDrink, setHeroDrink] = useState<PublicDrink | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
 
   const load = useCallback(async () => {
     setStatus("loading");
+    setContent(null);
+    setHeroDrink(null);
     const result = await loadPublicExploreData();
     if (result.error || !result.data) {
       setStatus("error");
       return;
     }
     setContent(result.data);
+    setHeroDrink(selectHomeHeroDrink(result.data.drinks));
     setStatus("ready");
   }, []);
 
@@ -197,7 +219,7 @@ export function HomePage() {
               Pick for me
             </Link>
           </div>
-          <HeroVisual drink={drinks[0] ?? null} />
+          <HeroVisual drink={heroDrink} isLoading={status === "loading"} />
         </section>
 
         <form className="mt-5" role="search" onSubmit={submitSearch}>
