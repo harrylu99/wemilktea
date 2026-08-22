@@ -64,6 +64,9 @@ function StorePreviewCard({
   );
 }
 
+const heroMediaClassName =
+  "relative h-[250px] overflow-hidden rounded-xl border border-border sm:h-[280px] md:h-[360px] lg:h-[clamp(360px,45svh,500px)]";
+
 function HeroVisual({
   drink,
   isLoading
@@ -81,27 +84,26 @@ function HeroVisual({
     return (
       <div
         aria-hidden="true"
-        className="h-full min-h-[180px] w-full animate-pulse rounded-xl border border-border bg-muted md:min-h-0"
+        className={`${heroMediaClassName} animate-pulse bg-muted`}
       />
     );
   }
 
   if (drink?.imageUrl && !imageError) {
     return (
-      <img
-        alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
-        className="h-full min-h-[180px] w-full rounded-xl border border-border object-cover md:min-h-0"
-        src={drink.imageUrl}
-        onError={() => setImageError(true)}
-      />
+      <div className={heroMediaClassName}>
+        <img
+          alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
+          className="absolute inset-0 h-full w-full object-cover"
+          src={drink.imageUrl}
+          onError={() => setImageError(true)}
+        />
+      </div>
     );
   }
 
   return (
-    <div
-      aria-hidden="true"
-      className="min-h-[180px] rounded-xl border border-border bg-[#f0a08c] md:min-h-0"
-    />
+    <div aria-hidden="true" className={`${heroMediaClassName} bg-[#f0a08c]`} />
   );
 }
 
@@ -215,7 +217,7 @@ export function HomePage() {
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
       <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
-        <section className="grid gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[1.05fr_0.95fr] md:items-stretch md:gap-8 md:p-8 lg:p-10">
+        <section className="grid items-center gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[1.05fr_0.95fr] md:gap-8 md:p-8 lg:p-10">
           <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
             <p className="text-xs font-medium tracking-wide text-primary">
               AUCKLAND MILK TEA
