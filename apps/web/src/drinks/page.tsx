@@ -338,7 +338,7 @@ export function DrinksPage() {
 
           {status === "ready" && visibleDrinks.length > 0 ? (
             <>
-              <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]">
+              <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)] lg:justify-between">
                 {paginatedDrinks.map((drink, index) => (
                   <DrinkCard
                     drink={drink}
