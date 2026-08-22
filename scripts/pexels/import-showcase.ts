@@ -17,6 +17,7 @@ import {
 } from "./storage";
 import {
   showcaseCategoryConfigs,
+  formatManifestValidationIssues,
   showcaseManifestSchema,
   type ShowcaseManifest,
   type ShowcaseManifestEntry
@@ -102,10 +103,12 @@ function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
-function parseManifest(value: unknown): ShowcaseManifest {
+export function parseManifest(value: unknown): ShowcaseManifest {
   const result = showcaseManifestSchema.safeParse(value);
   if (!result.success) {
-    throw new Error("Manifest is invalid.");
+    throw new Error(
+      `Manifest is invalid: ${formatManifestValidationIssues(result.error)}`
+    );
   }
   return result.data;
 }
@@ -218,8 +221,8 @@ export async function applyApprovedEntries({
         altText: `${category.name} showcase image by ${entry.photographer}`,
         contentType: image.contentType,
         byteSize: image.bytes.length,
-        width: entry.width,
-        height: entry.height,
+        width: null,
+        height: null,
         searchTerm: entry.searchTerm,
         sortOrder: index
       });

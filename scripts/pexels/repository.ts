@@ -135,8 +135,8 @@ export function createShowcaseRepository(client: SupabaseClient) {
       altText: string;
       contentType: string;
       byteSize: number;
-      width: number;
-      height: number;
+      width: number | null;
+      height: number | null;
       searchTerm: string;
       sortOrder: number;
     }) {
@@ -408,8 +408,8 @@ export function createShowcaseRepository(client: SupabaseClient) {
       altText: string;
       contentType: string;
       byteSize: number;
-      width: number;
-      height: number;
+      width: number | null;
+      height: number | null;
       searchTerm: string;
       sortOrder: number;
     }) {
