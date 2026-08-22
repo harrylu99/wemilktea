@@ -146,14 +146,17 @@ export function normalizePublicStoreDetail(
   };
 }
 
-export function normalizePublicStoreDrinks(value: unknown): PublicStoreDrink[] {
+export function normalizePublicStoreDrinks(
+  value: unknown,
+  imageBaseUrl = r2PublicBaseUrl
+): PublicStoreDrink[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((rowValue) => {
     const parsed = locationProductRowSchema.safeParse(rowValue);
     if (!parsed.success) return [];
     const product = firstRelation(parsed.data.products);
     if (!product) return [];
-    const image = primaryProductImage(product.product_images);
+    const image = primaryProductImage(product.product_images, imageBaseUrl);
     return [
       {
         id: product.id,

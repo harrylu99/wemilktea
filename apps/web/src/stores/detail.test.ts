@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { normalizePublicDrink } from "../drinks/data";
 import {
   directionsUrl,
   normalizePublicStoreDetail,
@@ -75,36 +76,67 @@ test("normalizes available location products without exposing unpublished rows",
 });
 
 test("normalizes a persisted primary Product image for a store drink", () => {
-  const drinks = normalizePublicStoreDrinks([
-    {
-      price_cents: 690,
-      currency: "NZD",
-      availability_status: "available",
-      products: {
-        id: productId,
-        slug: "brown-sugar-pearl-milk-tea",
-        name: "Brown Sugar Pearl Milk Tea",
-        description: null,
-        product_images: [
-          {
-            is_primary: true,
-            image_assets: {
-              id: "2c4d7a6e-f782-4704-bd84-7c34f6d16a7d",
-              provenance: "wemilktea",
-              storage_key: null,
-              external_url: "https://cdn.example.test/product.jpg",
-              alt_text: "Brown sugar pearl milk tea"
-            }
-          }
-        ]
+  const product = {
+    id: productId,
+    slug: "oolong-milk-tea",
+    name: "Oolong Milk Tea",
+    description: "Smooth oolong milk tea.",
+    is_seasonal: false,
+    discovery_tags: ["oolong"],
+    brands: { id: brandId, name: "Gong cha", slug: "gong-cha" },
+    categories: {
+      id: "6ebec59b-e16e-4be4-a8cb-647c29fd81c0",
+      name: "Milk Tea",
+      slug: "milk-tea"
+    },
+    product_images: [
+      {
+        is_primary: false,
+        image_assets: {
+          id: "2c4d7a6e-f782-4704-bd84-7c34f6d16a7d",
+          provenance: "stock",
+          storage_key: "showcase/pexels/other.jpg",
+          external_url: null,
+          alt_text: "Other showcase image"
+        }
+      },
+      {
+        is_primary: true,
+        image_assets: {
+          id: "5a47339a-1309-4608-989a-1a207cef1cf1",
+          provenance: "stock",
+          storage_key: "showcase/pexels/12666754.jpg",
+          external_url: null,
+          alt_text: "Milk Tea showcase image by Telly Mina"
+        }
       }
-    }
-  ]);
+    ]
+  };
+  const imageBaseUrl = "https://images.example.test";
+  const drinks = normalizePublicStoreDrinks(
+    [
+      {
+        price_cents: 690,
+        currency: "NZD",
+        availability_status: "available",
+        products: {
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          description: product.description,
+          product_images: product.product_images
+        }
+      }
+    ],
+    imageBaseUrl
+  );
+  const drink = normalizePublicDrink(product, 0, imageBaseUrl);
 
   expect(drinks[0]).toMatchObject({
-    imageUrl: "https://cdn.example.test/product.jpg",
-    imageAltText: "Brown sugar pearl milk tea"
+    imageUrl: "https://images.example.test/showcase/pexels/12666754.jpg",
+    imageAltText: "Milk Tea showcase image by Telly Mina"
   });
+  expect(drinks[0]?.imageUrl ?? null).toBe(drink?.imageUrl ?? null);
 });
 
 test("builds directions from canonical coordinates", () => {
