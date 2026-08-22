@@ -17,6 +17,7 @@ import { loadPublicExploreData } from "../explore/data";
 import {
   selectHomeCategories,
   selectHomeDrinks,
+  selectHomeHeroDrink,
   selectHomeStores
 } from "./data";
 
@@ -63,27 +64,46 @@ function StorePreviewCard({
   );
 }
 
-function HeroVisual({ drink }: { drink: PublicDrink | null }) {
+const heroMediaClassName =
+  "relative h-[250px] overflow-hidden rounded-xl border border-border sm:h-[clamp(320px,48vw,380px)] lg:h-[clamp(360px,45svh,500px)]";
+
+function HeroVisual({
+  drink,
+  isLoading
+}: {
+  drink: PublicDrink | null;
+  isLoading: boolean;
+}) {
   const [imageError, setImageError] = useState(false);
 
-  if (drink?.imageUrl && !imageError) {
+  useEffect(() => {
+    setImageError(false);
+  }, [drink?.id, drink?.imageUrl]);
+
+  if (isLoading) {
     return (
-      <img
-        alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
-        className="h-full min-h-[180px] w-full rounded-xl border border-border object-cover md:min-h-0"
-        src={drink.imageUrl}
-        onError={() => setImageError(true)}
+      <div
+        aria-hidden="true"
+        className={`${heroMediaClassName} animate-pulse bg-muted`}
       />
     );
   }
 
+  if (drink?.imageUrl && !imageError) {
+    return (
+      <div className={heroMediaClassName}>
+        <img
+          alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
+          className="absolute inset-0 h-full w-full object-cover"
+          src={drink.imageUrl}
+          onError={() => setImageError(true)}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div
-      aria-hidden="true"
-      className="flex min-h-[180px] items-center justify-center rounded-xl border border-border bg-[#f0a08c] text-sm text-[#111711] md:min-h-0"
-    >
-      Hero image · drink + Auckland
-    </div>
+    <div aria-hidden="true" className={`${heroMediaClassName} bg-[#f0a08c]`} />
   );
 }
 
@@ -125,38 +145,56 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
 export function HomePage() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
+  const loadRequestIdRef = useRef(0);
   const [search, setSearch] = useState("");
   const [content, setContent] = useState<{
     drinks: PublicDrink[];
     stores: PublicStore[];
     categories: PublicDrinkCategory[];
   } | null>(null);
+  const [heroDrink, setHeroDrink] = useState<PublicDrink | null>(null);
+  const [homeStores, setHomeStores] = useState<PublicStore[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
+
     setStatus("loading");
+    setContent(null);
+    setHeroDrink(null);
+    setHomeStores([]);
+
     const result = await loadPublicExploreData();
+
+    // Ignore an older request if another Home load has started.
+    if (requestId !== loadRequestIdRef.current) {
+      return;
+    }
+
     if (result.error || !result.data) {
       setStatus("error");
       return;
     }
     setContent(result.data);
+    setHeroDrink(selectHomeHeroDrink(result.data.drinks));
+    setHomeStores(selectHomeStores(result.data.stores));
     setStatus("ready");
   }, []);
 
   useEffect(() => {
     void load();
+
+    return () => {
+      // Invalidate any request still running during Strict Mode cleanup/unmount.
+      loadRequestIdRef.current += 1;
+    };
   }, [load]);
 
   const drinks = useMemo(
     () => selectHomeDrinks(content?.drinks ?? []),
     [content?.drinks]
-  );
-  const stores = useMemo(
-    () => selectHomeStores(content?.stores ?? []),
-    [content?.stores]
   );
   const categories = useMemo(
     () => selectHomeCategories(content?.categories ?? []),
@@ -178,7 +216,7 @@ export function HomePage() {
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
       <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
-        <section className="grid gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[1.05fr_0.95fr] md:items-stretch md:gap-8 md:p-8 lg:p-10">
+        <section className="grid items-center gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
           <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
             <p className="text-xs font-medium tracking-wide text-primary">
               AUCKLAND MILK TEA
@@ -197,7 +235,7 @@ export function HomePage() {
               Pick for me
             </Link>
           </div>
-          <HeroVisual drink={drinks[0] ?? null} />
+          <HeroVisual drink={heroDrink} isLoading={status === "loading"} />
         </section>
 
         <form className="mt-5" role="search" onSubmit={submitSearch}>
@@ -291,10 +329,10 @@ export function HomePage() {
                 </Link>
               </div>
               {drinks.length > 0 ? (
-                <div className="mt-4 flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-4">
+                <div className="mt-4 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
                   {drinks.map((drink, index) => (
                     <DrinkCard
-                      className="w-[224px] shrink-0"
+                      className="w-[224px] shrink-0 lg:w-full lg:max-w-[280px] lg:min-w-0 lg:justify-self-center"
                       drink={drink}
                       index={index}
                       key={drink.id}
@@ -329,9 +367,9 @@ export function HomePage() {
                   View all
                 </Link>
               </div>
-              {stores.length > 0 ? (
+              {homeStores.length > 0 ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {stores.map((store, index) => (
+                  {homeStores.map((store, index) => (
                     <StorePreviewCard
                       index={index}
                       key={store.id}
