@@ -153,6 +153,7 @@ export function HomePage() {
     categories: PublicDrinkCategory[];
   } | null>(null);
   const [heroDrink, setHeroDrink] = useState<PublicDrink | null>(null);
+  const [homeDrinks, setHomeDrinks] = useState<PublicDrink[]>([]);
   const [homeStores, setHomeStores] = useState<PublicStore[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
@@ -164,6 +165,7 @@ export function HomePage() {
     setStatus("loading");
     setContent(null);
     setHeroDrink(null);
+    setHomeDrinks([]);
     setHomeStores([]);
 
     const result = await loadPublicDiscoveryData();
@@ -177,8 +179,10 @@ export function HomePage() {
       setStatus("error");
       return;
     }
+    const hero = selectHomeHeroDrink(result.data.drinks);
     setContent(result.data);
-    setHeroDrink(selectHomeHeroDrink(result.data.drinks));
+    setHeroDrink(hero);
+    setHomeDrinks(selectHomeDrinks(result.data.drinks, Math.random, hero?.id));
     setHomeStores(selectHomeStores(result.data.stores));
     setStatus("ready");
   }, []);
@@ -192,10 +196,7 @@ export function HomePage() {
     };
   }, [load]);
 
-  const drinks = useMemo(
-    () => selectHomeDrinks(content?.drinks ?? []),
-    [content?.drinks]
-  );
+  const drinks = homeDrinks;
   const categories = useMemo(
     () => selectHomeCategories(content?.categories ?? []),
     [content?.categories]
