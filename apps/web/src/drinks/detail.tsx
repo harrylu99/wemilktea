@@ -67,7 +67,7 @@ function AvailableStoreCard({ store }: { store: PublicDrinkAvailableStore }) {
   return (
     <Link
       aria-label={`View ${store.displayName}`}
-      className="w-full max-w-[260px] overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
+      className="min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
       to={`/stores/${encodeURIComponent(store.slug)}`}
     >
       <StoreImage store={store} />
@@ -290,7 +290,7 @@ export function DrinkDetailPage() {
                 Available at
               </h2>
               {drink.availableStores.length > 0 ? (
-                <div className="mt-[18px] flex flex-wrap gap-4">
+                <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {drink.availableStores.map((store) => (
                     <AvailableStoreCard key={store.id} store={store} />
                   ))}

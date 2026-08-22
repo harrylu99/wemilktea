@@ -293,7 +293,12 @@ export function HomePage() {
               {drinks.length > 0 ? (
                 <div className="mt-4 flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-4">
                   {drinks.map((drink, index) => (
-                    <DrinkCard drink={drink} index={index} key={drink.id} />
+                    <DrinkCard
+                      className="w-[224px] shrink-0"
+                      drink={drink}
+                      index={index}
+                      key={drink.id}
+                    />
                   ))}
                 </div>
               ) : (
