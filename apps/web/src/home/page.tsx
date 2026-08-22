@@ -143,6 +143,7 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
 export function HomePage() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
+  const loadRequestIdRef = useRef(0);
   const [search, setSearch] = useState("");
   const [content, setContent] = useState<{
     drinks: PublicDrink[];
@@ -155,10 +156,19 @@ export function HomePage() {
   );
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
+
     setStatus("loading");
     setContent(null);
     setHeroDrink(null);
+
     const result = await loadPublicExploreData();
+
+    // Ignore an older request if another Home load has started.
+    if (requestId !== loadRequestIdRef.current) {
+      return;
+    }
+
     if (result.error || !result.data) {
       setStatus("error");
       return;
@@ -170,6 +180,11 @@ export function HomePage() {
 
   useEffect(() => {
     void load();
+
+    return () => {
+      // Invalidate any request still running during Strict Mode cleanup/unmount.
+      loadRequestIdRef.current += 1;
+    };
   }, [load]);
 
   const drinks = useMemo(
