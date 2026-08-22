@@ -35,7 +35,7 @@ export type PexelsFetcher = (
 ) => Promise<Response>;
 
 export const MAX_SHOWCASE_IMAGES_PER_CATEGORY = 40;
-export const MAX_STORE_SHOWCASE_CANDIDATES = 60;
+export const MAX_STORE_SHOWCASE_CANDIDATES = 150;
 
 export function perPageForSearchTerms(searchTermCount: number) {
   return perPageForLimit(MAX_SHOWCASE_IMAGES_PER_CATEGORY, searchTermCount);

@@ -5,7 +5,7 @@ import { firstRelation } from "../lib/relations";
 const uuidSchema = z.string().uuid();
 const imageAssetSchema = z.object({
   id: uuidSchema,
-  provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
+  provenance: z.enum(["wemilktea", "merchant", "user", "google", "stock"]),
   storage_key: z.string().nullable().optional(),
   external_url: z.string().url().nullable().optional(),
   alt_text: z.string().nullable().optional()
@@ -111,7 +111,10 @@ export function coordinatePair(value: unknown): [number, number] | null {
   return null;
 }
 
-export function normalizePublicStore(value: unknown): PublicStore | null {
+export function normalizePublicStore(
+  value: unknown,
+  imageBaseUrl = r2PublicBaseUrl
+): PublicStore | null {
   const parsed = publicStoreQueryRowSchema.safeParse(value);
   if (!parsed.success) return null;
 
@@ -128,7 +131,7 @@ export function normalizePublicStore(value: unknown): PublicStore | null {
     .find((asset) => asset.provenance !== "google");
   const imageUrl = image
     ? image.storage_key
-      ? publicImageUrl(r2PublicBaseUrl, image.storage_key)
+      ? publicImageUrl(imageBaseUrl, image.storage_key)
       : (image.external_url ?? null)
     : null;
 

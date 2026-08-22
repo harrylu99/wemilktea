@@ -38,13 +38,69 @@ export const showcaseCategoryConfigs = [
 ] as const;
 
 export const storeShowcaseSearchTerms = [
-  "bubble tea shop",
-  "bubble tea shop interior",
-  "boba tea shop",
-  "boba cafe",
-  "milk tea shop",
-  "tea shop interior",
-  "bubble tea counter"
+  // Bubble tea / tea shop
+  "modern bubble tea shop",
+  "modern bubble tea shop interior",
+  "bubble tea cafe interior",
+  "bubble tea store interior",
+  "bubble tea counter",
+  "bubble tea drinks counter",
+  "boba shop interior",
+  "boba cafe interior",
+  "boba shop counter",
+  "boba bar interior",
+  "milk tea shop interior",
+  "milk tea cafe interior",
+  "tea bar interior",
+  "tea shop counter",
+  "modern tea shop",
+  "minimalist tea shop",
+  "Asian tea cafe",
+
+  // Drink / beverage shops
+  "beverage shop interior",
+  "modern beverage shop",
+  "drink shop interior",
+  "modern drink shop",
+  "drink shop counter",
+  "takeaway drink shop",
+  "beverage counter",
+  "juice bar interior",
+  "smoothie bar interior",
+
+  // Cafe interiors
+  "small cafe interior",
+  "cozy cafe interior",
+  "modern cafe interior",
+  "minimalist cafe interior",
+  "pastel cafe interior",
+  "colorful cafe interior",
+  "cute cafe interior",
+  "Asian cafe interior",
+  "Japanese cafe interior",
+  "Korean cafe interior",
+  "dessert cafe interior",
+
+  // Counters / kiosks
+  "modern cafe counter",
+  "minimalist cafe counter",
+  "dessert shop counter",
+  "takeaway counter",
+  "mall drink kiosk",
+  "beverage kiosk",
+  "tea kiosk",
+
+  // Detail / atmosphere
+  "bubble tea cups counter",
+  "boba drinks display",
+  "milk tea drinks counter",
+  "colorful drinks cafe",
+  "drink preparation counter",
+  "neon cafe interior",
+  "warm cafe interior",
+  "plant cafe interior",
+  "modern Asian cafe",
+  "contemporary tea house"
 ] as const;
 
 export type ShowcaseCategoryConfig = (typeof showcaseCategoryConfigs)[number];
