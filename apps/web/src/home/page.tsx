@@ -223,11 +223,10 @@ export function HomePage() {
               AUCKLAND MILK TEA
             </p>
             <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
-              Discover. Decide. Go.
+              What are we drinking today?
             </h1>
             <p className="mt-4 max-w-[500px] text-base leading-6 text-muted-foreground">
-              Auckland&apos;s drinks, stores and small discoveries — in one
-              useful place.
+              Find a new favourite, pick a store, or let fate choose.
             </p>
             <Link
               className="mt-6 hidden min-h-11 w-fit items-center rounded-xl bg-primary px-6 text-xs font-medium text-primary-foreground md:inline-flex"
@@ -316,10 +315,10 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-drinks-heading"
                   >
-                    Worth trying
+                    Have you tried these?
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    A few good places to start.
+                    Maybe today&apos;s the day.
                   </p>
                 </div>
                 <Link
@@ -358,8 +357,11 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-stores-heading"
                   >
-                    What's nearby
+                    Where to next?
                   </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    A couple of Auckland spots worth a look.
+                  </p>
                 </div>
                 <Link
                   className="text-sm font-semibold text-primary"
