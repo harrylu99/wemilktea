@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
 import { PublicFooter } from "../public-footer";
+import { PublicPagination } from "../public-pagination";
 import { Seo } from "../seo";
 import {
   drinkDetailPath,
@@ -10,6 +11,14 @@ import {
   type PublicDrink,
   type PublicDrinkCategory
 } from "./data";
+import {
+  clampPage,
+  DRINKS_PAGE_SIZE,
+  parsePageParam,
+  resetDrinksPage,
+  setDrinksPage,
+  totalPagesFor
+} from "./pagination";
 
 function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -124,6 +133,7 @@ export function DrinksPage() {
 
   const query = searchParams.get("q") ?? "";
   const categorySlug = searchParams.get("category") ?? "";
+  const pageParam = searchParams.get("page");
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -145,6 +155,24 @@ export function DrinksPage() {
     () => filterPublicDrinks(drinks, { query, categorySlug }),
     [drinks, query, categorySlug]
   );
+  const totalPages = totalPagesFor(visibleDrinks.length);
+  const currentPage = clampPage(parsePageParam(pageParam), totalPages);
+  const startIndex = (currentPage - 1) * DRINKS_PAGE_SIZE;
+  const paginatedDrinks = visibleDrinks.slice(
+    startIndex,
+    startIndex + DRINKS_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    if (status !== "ready") return;
+    const normalizedPage = currentPage > 1 ? String(currentPage) : null;
+    if (pageParam === normalizedPage) return;
+
+    const next = new URLSearchParams(searchParams);
+    if (normalizedPage) next.set("page", normalizedPage);
+    else next.delete("page");
+    setSearchParams(next, { replace: true });
+  }, [currentPage, pageParam, searchParams, setSearchParams, status]);
 
   const updateSearchParams = (updates: { q?: string; category?: string }) => {
     const next = new URLSearchParams(searchParams);
@@ -156,10 +184,24 @@ export function DrinksPage() {
       if (updates.category) next.set("category", updates.category);
       else next.delete("category");
     }
-    setSearchParams(next, { replace: true });
+    setSearchParams(resetDrinksPage(next), { replace: true });
   };
 
   const clearFilters = () => setSearchParams({}, { replace: true });
+
+  const updatePage = (page: number) => {
+    setSearchParams(setDrinksPage(searchParams, page));
+
+    const target = document.getElementById("drinks-results-heading");
+    if (!target) return;
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    target.scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "start"
+    });
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -295,11 +337,24 @@ export function DrinksPage() {
           ) : null}
 
           {status === "ready" && visibleDrinks.length > 0 ? (
-            <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]">
-              {visibleDrinks.map((drink, index) => (
-                <DrinkCard drink={drink} index={index} key={drink.id} />
-              ))}
-            </div>
+            <>
+              <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]">
+                {paginatedDrinks.map((drink, index) => (
+                  <DrinkCard
+                    drink={drink}
+                    index={startIndex + index}
+                    key={drink.id}
+                  />
+                ))}
+              </div>
+              <PublicPagination
+                currentPage={currentPage}
+                onPageChange={updatePage}
+                pageSize={DRINKS_PAGE_SIZE}
+                totalPages={totalPages}
+                totalResults={visibleDrinks.length}
+              />
+            </>
           ) : null}
         </section>
       </main>
