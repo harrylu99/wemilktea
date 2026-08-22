@@ -1,10 +1,15 @@
 import { publicationFilters, type PublicationFilter } from "./store-list";
+import {
+  pageFromSearchParams,
+  searchParamsForPage
+} from "./management-pagination-state";
 
 export type StoreListState = {
   query: string;
   publicationStatus: PublicationFilter;
   brandId: string;
   suburb: string;
+  page: number;
 };
 
 export function storeListStateFromSearchParams(
@@ -30,7 +35,8 @@ export function storeListStateFromSearchParams(
         ? ""
         : rawBrandId,
     suburb:
-      options.suburbs && !options.suburbs.includes(rawSuburb) ? "" : rawSuburb
+      options.suburbs && !options.suburbs.includes(rawSuburb) ? "" : rawSuburb,
+    page: pageFromSearchParams(searchParams)
   };
 }
 
@@ -39,6 +45,7 @@ export function searchParamsForStoreFilters(
   updates: Partial<StoreListState>
 ) {
   const nextSearchParams = new URLSearchParams(searchParams);
+  nextSearchParams.delete("page");
 
   if (updates.query !== undefined) {
     const query = updates.query.trim();
@@ -62,6 +69,13 @@ export function searchParamsForStoreFilters(
   }
 
   return nextSearchParams;
+}
+
+export function searchParamsForStorePage(
+  searchParams: URLSearchParams,
+  page: number
+) {
+  return searchParamsForPage(searchParams, page);
 }
 
 function isStoreListPath(value: string) {

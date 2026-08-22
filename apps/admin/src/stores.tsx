@@ -5,7 +5,7 @@ import {
   storeManagementListItemSchema,
   updateStoreManagementSchema
 } from "@wemilktea/validation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   Link,
   useLocation,
@@ -25,18 +25,23 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
+import { PAGE_SIZE, searchParamsForPage } from "./management-pagination-state";
+import { ManagementPagination } from "./management-pagination";
 import {
-  filterManagedStores,
   publicationFilterLabel,
   publicationFilters,
   type ManagedStore,
   type PublicationFilter
 } from "./store-list";
 import {
+  searchParamsForStorePage,
   searchParamsForStoreFilters,
   storeListStateFromSearchParams,
   storeManagementReturnPath
 } from "./store-list-state";
+
+const storeIdRowSchema = z.object({ id: z.string().uuid() });
+const suburbRowSchema = z.object({ suburb: z.string().min(1) });
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium" }).format(
@@ -135,107 +140,209 @@ export function StoresPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<ManagedStore[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
+  const [suburbs, setSuburbs] = useState<string[]>([]);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const loadReferences = useCallback(async () => {
     const client = supabase;
+    if (!client) return;
 
+    const [brandsResult, suburbsResult] = await Promise.all([
+      client.from("brands").select("id, name, slug").order("name"),
+      client.from("locations").select("suburb").order("suburb")
+    ]);
+    const parsedBrands = brandOptionSchema.array().safeParse(brandsResult.data);
+    const parsedSuburbs = suburbRowSchema.array().safeParse(suburbsResult.data);
+
+    if (
+      brandsResult.error ||
+      suburbsResult.error ||
+      !parsedBrands.success ||
+      !parsedSuburbs.success
+    ) {
+      setErrorMessage("Stores could not be loaded. Please try again.");
+      return;
+    }
+
+    setBrands(parsedBrands.data);
+    setSuburbs(
+      [...new Set(parsedSuburbs.data.map((row) => row.suburb))].sort()
+    );
+  }, []);
+
+  useEffect(() => {
+    void loadReferences();
+  }, [loadReferences]);
+
+  const { query, publicationStatus, brandId, suburb, page } =
+    storeListStateFromSearchParams(searchParams, {
+      brandIds: brands.length ? brands.map((brand) => brand.id) : undefined,
+      suburbs: suburbs.length ? suburbs : undefined
+    });
+
+  const load = useCallback(async () => {
+    const client = supabase;
     if (!client) {
       setErrorMessage(supabaseConfigurationError);
       setIsLoading(false);
       return;
     }
 
-    const load = async () => {
-      const [locationsResult, brandsResult] = await Promise.all([
-        client
-          .from("locations")
-          .select(
-            "id, brand_id, display_name, slug, suburb, publication_status, created_at, updated_at"
-          )
-          .order("updated_at", { ascending: false }),
-        client.from("brands").select("id, name, slug").order("name")
+    setIsLoading(true);
+    let matchingLocationIds: string[] | null = null;
+    const normalizedQuery = query.trim();
+    if (normalizedQuery) {
+      const pattern = `%${normalizedQuery}%`;
+      const [nameResult, slugResult, suburbResult] = await Promise.all([
+        client.from("locations").select("id").ilike("display_name", pattern),
+        client.from("locations").select("id").ilike("slug", pattern),
+        client.from("locations").select("id").ilike("suburb", pattern)
       ]);
-      const parsedLocations = storeManagementListItemSchema
+      const parsedNameIds = storeIdRowSchema.array().safeParse(nameResult.data);
+      const parsedSlugIds = storeIdRowSchema.array().safeParse(slugResult.data);
+      const parsedSuburbIds = storeIdRowSchema
         .array()
-        .safeParse(locationsResult.data);
-      const parsedBrands = brandOptionSchema
+        .safeParse(suburbResult.data);
+      const matchingBrandIds = brands
+        .filter((brand) =>
+          brand.name.toLowerCase().includes(normalizedQuery.toLowerCase())
+        )
+        .map((brand) => brand.id);
+      const brandLocationResult = matchingBrandIds.length
+        ? await client
+            .from("locations")
+            .select("id")
+            .in("brand_id", matchingBrandIds)
+        : { data: [], error: null };
+      const parsedBrandLocationIds = storeIdRowSchema
         .array()
-        .safeParse(brandsResult.data);
-
-      if (import.meta.env.DEV) {
-        if (locationsResult.error) {
-          console.error(
-            "Stores locations request failed:",
-            locationsResult.error.message
-          );
-        }
-        if (brandsResult.error) {
-          console.error(
-            "Stores brands request failed:",
-            brandsResult.error.message
-          );
-        }
-        if (!parsedLocations.success) {
-          console.error(
-            "Invalid locations response:",
-            parsedLocations.error.flatten()
-          );
-        }
-        if (!parsedBrands.success) {
-          console.error(
-            "Invalid brands response:",
-            parsedBrands.error.flatten()
-          );
-        }
-      }
+        .safeParse(brandLocationResult.data);
 
       if (
-        locationsResult.error ||
-        brandsResult.error ||
-        !parsedLocations.success ||
-        !parsedBrands.success
+        nameResult.error ||
+        slugResult.error ||
+        suburbResult.error ||
+        brandLocationResult.error ||
+        !parsedNameIds.success ||
+        !parsedSlugIds.success ||
+        !parsedSuburbIds.success ||
+        !parsedBrandLocationIds.success
       ) {
         setErrorMessage("Stores could not be loaded. Please try again.");
-      } else {
-        const brandNames = new Map(
-          parsedBrands.data.map((brand) => [brand.id, brand.name])
-        );
-        setBrands(parsedBrands.data);
-        setStores(
-          parsedLocations.data.map((location) => ({
-            ...location,
-            brandName: brandNames.get(location.brand_id) ?? "Unknown brand"
-          }))
-        );
+        setIsLoading(false);
+        return;
       }
 
+      matchingLocationIds = [
+        ...new Set([
+          ...parsedNameIds.data.map((row) => row.id),
+          ...parsedSlugIds.data.map((row) => row.id),
+          ...parsedSuburbIds.data.map((row) => row.id),
+          ...parsedBrandLocationIds.data.map((row) => row.id)
+        ])
+      ];
+    }
+
+    if (matchingLocationIds && matchingLocationIds.length === 0) {
+      setStores([]);
+      setTotalCount(0);
+      setErrorMessage(null);
       setIsLoading(false);
-    };
+      return;
+    }
 
+    let locationsQuery = client
+      .from("locations")
+      .select(
+        "id, brand_id, display_name, slug, suburb, publication_status, created_at, updated_at",
+        { count: "exact" }
+      );
+    if (publicationStatus !== "all") {
+      locationsQuery = locationsQuery.eq(
+        "publication_status",
+        publicationStatus
+      );
+    }
+    if (brandId) locationsQuery = locationsQuery.eq("brand_id", brandId);
+    if (suburb) locationsQuery = locationsQuery.eq("suburb", suburb);
+    if (matchingLocationIds) {
+      locationsQuery = locationsQuery.in("id", matchingLocationIds);
+    }
+
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const result = await locationsQuery
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+    let waitingForPageNormalization = false;
+    const parsedLocations = storeManagementListItemSchema
+      .array()
+      .safeParse(result.data);
+    if (result.error || !parsedLocations.success) {
+      setErrorMessage("Stores could not be loaded. Please try again.");
+    } else {
+      const safeTotalCount = result.count ?? 0;
+      const totalPages = Math.max(1, Math.ceil(safeTotalCount / PAGE_SIZE));
+      if (page > totalPages) {
+        waitingForPageNormalization = true;
+        setSearchParams(searchParamsForStorePage(searchParams, totalPages), {
+          replace: true
+        });
+      } else {
+        const brandNames = new Map(
+          brands.map((brand) => [brand.id, brand.name])
+        );
+        setStores(
+          parsedLocations.data.map((store) => ({
+            ...store,
+            brandName: brandNames.get(store.brand_id) ?? "Unknown brand"
+          }))
+        );
+        setTotalCount(safeTotalCount);
+        setErrorMessage(null);
+      }
+    }
+    if (!waitingForPageNormalization) setIsLoading(false);
+  }, [
+    brandId,
+    brands,
+    page,
+    publicationStatus,
+    query,
+    searchParams,
+    setSearchParams,
+    suburb
+  ]);
+
+  useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
-  const suburbs = useMemo(
-    () => [...new Set(stores.map((store) => store.suburb))].sort(),
-    [stores]
-  );
-  const { query, publicationStatus, brandId, suburb } =
-    storeListStateFromSearchParams(searchParams, {
-      brandIds: brands.map((brand) => brand.id),
-      suburbs
-    });
-  const visibleStores = useMemo(
-    () =>
-      filterManagedStores(stores, {
-        query,
-        publicationStatus,
-        brandId,
-        suburb
-      }),
-    [stores, query, publicationStatus, brandId, suburb]
-  );
+  useEffect(() => {
+    setSearchDraft(query);
+  }, [query]);
+
+  useEffect(() => {
+    if (searchDraft.trim() === query) return;
+    const timeout = setTimeout(() => {
+      setSearchParams(
+        searchParamsForStoreFilters(searchParams, { query: searchDraft }),
+        { replace: true }
+      );
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [query, searchDraft, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const normalized = searchParamsForStorePage(searchParams, page);
+    if (normalized.toString() !== searchParams.toString()) {
+      setSearchParams(normalized, { replace: true });
+    }
+  }, [page, searchParams, setSearchParams]);
 
   return (
     <section>
@@ -254,14 +361,8 @@ export function StoresPage() {
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             id="store-search"
             placeholder="Name, brand, suburb, or slug"
-            value={query}
-            onChange={(event) =>
-              setSearchParams(
-                searchParamsForStoreFilters(searchParams, {
-                  query: event.target.value
-                })
-              )
-            }
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
           />
         </label>
         <label className="text-sm font-medium" htmlFor="store-status-filter">
@@ -340,12 +441,12 @@ export function StoresPage() {
             {errorMessage}
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length === 0 ? (
+        {!isLoading && !errorMessage && stores.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
             No canonical stores match these filters.
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+        {!isLoading && !errorMessage && stores.length > 0 ? (
           <table className="w-full min-w-[44rem] text-left text-sm">
             <thead className="border-b border-border bg-muted text-muted-foreground">
               <tr>
@@ -360,7 +461,7 @@ export function StoresPage() {
               </tr>
             </thead>
             <tbody>
-              {visibleStores.map((store) => (
+              {stores.map((store) => (
                 <tr
                   className="border-b border-border last:border-0"
                   key={store.id}
@@ -394,6 +495,15 @@ export function StoresPage() {
           </table>
         ) : null}
       </div>
+      {!isLoading && !errorMessage ? (
+        <ManagementPagination
+          page={page}
+          totalCount={totalCount}
+          onPageChange={(nextPage) =>
+            setSearchParams(searchParamsForPage(searchParams, nextPage))
+          }
+        />
+      ) : null}
     </section>
   );
 }
