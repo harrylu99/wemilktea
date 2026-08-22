@@ -37,15 +37,17 @@ function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
 
 export function DrinkCard({
   drink,
-  index
+  index,
+  className
 }: {
   drink: PublicDrink;
   index: number;
+  className?: string;
 }) {
   return (
     <Link
       aria-label={`View ${drink.name} by ${drink.brandName}`}
-      className="flex min-h-[284px] w-[224px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
+      className={`flex min-h-[284px] flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md ${className ?? ""}`}
       to={drinkDetailPath(drink)}
     >
       <DrinkImage drink={drink} index={index} />
@@ -68,13 +70,13 @@ export function DrinkCard({
 function DrinkSkeleton() {
   return (
     <div
-      className="grid grid-cols-[repeat(auto-fill,224px)] gap-4"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]"
       aria-label="Loading drinks"
       role="status"
     >
       {Array.from({ length: 4 }, (_, index) => (
         <div
-          className="h-[284px] w-[224px] animate-pulse overflow-hidden rounded-xl border border-border bg-card"
+          className="h-[284px] w-full animate-pulse overflow-hidden rounded-xl border border-border bg-card"
           key={index}
         >
           <div className="h-[148px] bg-muted" />
@@ -292,7 +294,7 @@ export function DrinksPage() {
           ) : null}
 
           {status === "ready" && visibleDrinks.length > 0 ? (
-            <div className="mt-[18px] grid grid-cols-[repeat(auto-fill,224px)] gap-4">
+            <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]">
               {visibleDrinks.map((drink, index) => (
                 <DrinkCard drink={drink} index={index} key={drink.id} />
               ))}

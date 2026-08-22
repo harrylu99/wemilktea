@@ -292,7 +292,12 @@ export function ExplorePage() {
                 </h3>
                 <div className="mt-3 grid grid-cols-[repeat(auto-fill,224px)] gap-4">
                   {matches.drinks.map((drink, index) => (
-                    <DrinkCard drink={drink} index={index} key={drink.id} />
+                    <DrinkCard
+                      className="w-[224px] shrink-0"
+                      drink={drink}
+                      index={index}
+                      key={drink.id}
+                    />
                   ))}
                 </div>
               </div>
@@ -356,7 +361,12 @@ export function ExplorePage() {
               {editorialDrinks.length > 0 ? (
                 <div className="mt-4 flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-4 md:overflow-visible">
                   {editorialDrinks.map((drink, index) => (
-                    <DrinkCard drink={drink} index={index} key={drink.id} />
+                    <DrinkCard
+                      className="w-[224px] shrink-0"
+                      drink={drink}
+                      index={index}
+                      key={drink.id}
+                    />
                   ))}
                 </div>
               ) : (
