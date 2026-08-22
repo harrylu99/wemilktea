@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import {
   loadPublicPickerResult,
@@ -189,7 +190,7 @@ export function PickerResultPage() {
   }, [load]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <Seo
         description={
           result
@@ -209,7 +210,7 @@ export function PickerResultPage() {
         }
       />
       <PublicHeader />
-      <main className="picker-result-page">
+      <main className="flex-1 picker-result-page">
         {status === "loading" ? <PickerResultLoading /> : null}
         {status === "ready" && result ? (
           <>
@@ -233,6 +234,7 @@ export function PickerResultPage() {
           <PickerResultMessage kind="error" onRetry={() => void load()} />
         ) : null}
       </main>
+      <PublicFooter />
     </div>
   );
 }

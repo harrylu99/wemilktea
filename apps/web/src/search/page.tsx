@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import { DrinkCard } from "../drinks/page";
 import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
@@ -130,7 +131,7 @@ export function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <Seo
         description="Search published WeMilktea drinks and stores across Auckland."
         path="/search"
@@ -138,7 +139,7 @@ export function SearchPage() {
         title="Search WeMilktea"
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
-      <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 lg:pt-8">
+      <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 lg:pt-8">
         <p className="text-xs font-medium tracking-wide text-primary">SEARCH</p>
         <h1 className="mt-3 text-3xl font-semibold">
           Search drinks and stores
@@ -259,6 +260,7 @@ export function SearchPage() {
           </section>
         ) : null}
       </main>
+      <PublicFooter />
     </div>
   );
 }

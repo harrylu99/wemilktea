@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import { publicSiteDescription } from "../seo-utils";
 import { DrinkCard } from "../drinks/page";
@@ -209,25 +210,24 @@ export function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <Seo
         description={publicSiteDescription}
         path="/"
         title="WeMilktea | Discover Milk Tea & Bubble Tea in Auckland"
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
-      <main className="mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
+      <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <section className="grid items-center gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
           <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
             <p className="text-xs font-medium tracking-wide text-primary">
               AUCKLAND MILK TEA
             </p>
             <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
-              Discover. Decide. Go.
+              What are we drinking today?
             </h1>
             <p className="mt-4 max-w-[500px] text-base leading-6 text-muted-foreground">
-              Auckland&apos;s drinks, stores and small discoveries — in one
-              useful place.
+              Find a new favourite, pick a store, or let fate choose.
             </p>
             <Link
               className="mt-6 hidden min-h-11 w-fit items-center rounded-xl bg-primary px-6 text-xs font-medium text-primary-foreground md:inline-flex"
@@ -316,10 +316,10 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-drinks-heading"
                   >
-                    Worth trying
+                    Have you tried these?
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    A few good places to start.
+                    Maybe today&apos;s the day.
                   </p>
                 </div>
                 <Link
@@ -358,8 +358,11 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-stores-heading"
                   >
-                    What's nearby
+                    Where to next?
                   </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    A couple of Auckland spots worth a look.
+                  </p>
                 </div>
                 <Link
                   className="text-sm font-semibold text-primary"
@@ -413,6 +416,7 @@ export function HomePage() {
           </>
         ) : null}
       </main>
+      <PublicFooter />
     </div>
   );
 }
