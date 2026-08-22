@@ -6,7 +6,13 @@ import {
   updateStoreManagementSchema
 } from "@wemilktea/validation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from "react-router-dom";
 import { z } from "zod";
 import {
   managedImageUrl,
@@ -26,6 +32,11 @@ import {
   type ManagedStore,
   type PublicationFilter
 } from "./store-list";
+import {
+  searchParamsForStoreFilters,
+  storeListStateFromSearchParams,
+  storeManagementReturnPath
+} from "./store-list-state";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium" }).format(
@@ -120,13 +131,10 @@ function friendlyStoreError(message: string | undefined) {
 }
 
 export function StoresPage() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<ManagedStore[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
-  const [query, setQuery] = useState("");
-  const [publicationStatus, setPublicationStatus] =
-    useState<PublicationFilter>("all");
-  const [brandId, setBrandId] = useState("");
-  const [suburb, setSuburb] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -213,6 +221,11 @@ export function StoresPage() {
     () => [...new Set(stores.map((store) => store.suburb))].sort(),
     [stores]
   );
+  const { query, publicationStatus, brandId, suburb } =
+    storeListStateFromSearchParams(searchParams, {
+      brandIds: brands.map((brand) => brand.id),
+      suburbs
+    });
   const visibleStores = useMemo(
     () =>
       filterManagedStores(stores, {
@@ -242,7 +255,13 @@ export function StoresPage() {
             id="store-search"
             placeholder="Name, brand, suburb, or slug"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) =>
+              setSearchParams(
+                searchParamsForStoreFilters(searchParams, {
+                  query: event.target.value
+                })
+              )
+            }
           />
         </label>
         <label className="text-sm font-medium" htmlFor="store-status-filter">
@@ -252,7 +271,11 @@ export function StoresPage() {
             id="store-status-filter"
             value={publicationStatus}
             onChange={(event) =>
-              setPublicationStatus(event.target.value as PublicationFilter)
+              setSearchParams(
+                searchParamsForStoreFilters(searchParams, {
+                  publicationStatus: event.target.value as PublicationFilter
+                })
+              )
             }
           >
             {publicationFilters.map((status) => (
@@ -268,7 +291,13 @@ export function StoresPage() {
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             id="store-brand-filter"
             value={brandId}
-            onChange={(event) => setBrandId(event.target.value)}
+            onChange={(event) =>
+              setSearchParams(
+                searchParamsForStoreFilters(searchParams, {
+                  brandId: event.target.value
+                })
+              )
+            }
           >
             <option value="">All brands</option>
             {brands.map((brand) => (
@@ -284,7 +313,13 @@ export function StoresPage() {
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             id="store-suburb-filter"
             value={suburb}
-            onChange={(event) => setSuburb(event.target.value)}
+            onChange={(event) =>
+              setSearchParams(
+                searchParamsForStoreFilters(searchParams, {
+                  suburb: event.target.value
+                })
+              )
+            }
           >
             <option value="">All areas</option>
             {suburbs.map((area) => (
@@ -346,6 +381,9 @@ export function StoresPage() {
                     <Link
                       className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted"
                       to={`/stores/${store.id}`}
+                      state={{
+                        returnTo: `${location.pathname}${location.search}`
+                      }}
                     >
                       Manage
                     </Link>
@@ -395,7 +433,9 @@ function formFromDetail(detail: {
 
 export function StoreManagementPage() {
   const { locationId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  const returnToStores = storeManagementReturnPath(location.state);
   const [detail, setDetail] = useState<ReturnType<
     typeof storeManagementDetailSchema.parse
   > | null>(null);
@@ -633,7 +673,7 @@ export function StoreManagementPage() {
       return;
     }
 
-    navigate("/stores");
+    navigate(returnToStores, { replace: true });
   };
 
   const uploadImage = async () => {
@@ -710,7 +750,8 @@ export function StoreManagementPage() {
     <section className="max-w-4xl">
       <Link
         className="text-sm font-medium text-primary hover:underline"
-        to="/stores"
+        replace
+        to={returnToStores}
       >
         ← Stores
       </Link>
