@@ -186,7 +186,10 @@ credential.
 
 Set `VITE_PUBLIC_SITE_URL` to the final public HTTPS origin. The public build
 uses it for canonical/social URLs and for the generated `robots.txt` and
-`sitemap.xml`; do not deploy the local `http://localhost:5173` fallback.
+`sitemap.xml`; configure it in the Cloudflare Workers Builds environment before
+the Vite build runs. A Worker runtime variable set after static assets are built
+cannot change these files, and the Web production build rejects a missing or
+unsafe value instead of deploying the local `http://localhost:5173` fallback.
 
 Set `VITE_PUBLIC_NO_INDEX=true` only for the persistent Web DEV Worker. This
 overrides route-level public robots values, changes the static HTML and runtime

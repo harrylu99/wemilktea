@@ -10,8 +10,9 @@ routes also emit JSON-LD from canonical Supabase data only.
 Set `VITE_PUBLIC_SITE_URL` in the public Cloudflare Workers project to the final
 HTTPS origin, for example `https://www.example.com` once the production domain
 is approved. The value is browser-visible and is used for canonical URLs,
-Open Graph URLs, the sitemap and `robots.txt`. Without it, local builds use
-`http://localhost:5173`; do not ship that fallback to production.
+Open Graph URLs, the sitemap and `robots.txt`. Local development can use the
+`http://localhost:5173` fallback, but production-mode Web builds fail clearly
+when this value is missing, invalid, non-HTTPS or points at a loopback host.
 
 The persistent Web DEV Worker sets `VITE_PUBLIC_SITE_URL` to its own exact
 Workers origin and `VITE_PUBLIC_NO_INDEX=true`. DEV then uses its own canonical
