@@ -13,4 +13,6 @@ test-results/
 playwright-report/
 supabase/.temp/
 supabase/.branches/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json

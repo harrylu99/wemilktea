@@ -1,6 +1,7 @@
 import { publicImageUrl } from "@wemilktea/config";
 import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import { firstRelation } from "../lib/relations";
 
 const uuidSchema = z.string().uuid();
 
@@ -76,10 +77,6 @@ const r2PublicBaseUrl =
   typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
     ? import.meta.env.VITE_R2_PUBLIC_BASE_URL
     : "";
-
-function firstRelation<T>(value: T | T[]) {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 function imageUrlFromAsset(
   asset: z.infer<typeof imageAssetSchema>,

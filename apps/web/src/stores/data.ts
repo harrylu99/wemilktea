@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { publicImageUrl } from "@wemilktea/config";
+import { firstRelation } from "../lib/relations";
 
 const uuidSchema = z.string().uuid();
 const imageAssetSchema = z.object({
@@ -48,10 +49,6 @@ const r2PublicBaseUrl =
   typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
     ? import.meta.env.VITE_R2_PUBLIC_BASE_URL
     : "";
-
-function firstRelation<T>(value: T | T[]) {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export function coordinatePair(value: unknown): [number, number] | null {
   if (typeof value === "string") {
