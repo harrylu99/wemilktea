@@ -1,6 +1,6 @@
 # Product catalogue management
 
-WM-25 establishes the canonical drink catalogue for future public Drinks, Drink Detail, Explore, Home, and Picker work.
+WM-25 establishes the canonical drink catalogue for future public Drinks, Drink Detail, Search, Home, and Picker work.
 
 ## Canonical model
 

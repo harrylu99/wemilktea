@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
   filterPublicDrinks,
   loadPublicDrinks,
@@ -12,32 +11,26 @@ import {
 } from "../stores/data";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 
-export type ExploreFilter = "" | "seasonal";
-
-export type ExploreData = {
+export type DiscoveryData = {
   drinks: PublicDrink[];
   stores: PublicStore[];
   categories: PublicDrinkCategory[];
 };
 
-export type ExploreQueryResult =
-  { data: ExploreData; error: null } | { data: null; error: string };
+export type DiscoveryQueryResult =
+  { data: DiscoveryData; error: null } | { data: null; error: string };
 
-export function filterExploreDrinks(
+export function filterPublicDiscoveryDrinks(
   drinks: PublicDrink[],
-  options: { query: string; filter: ExploreFilter }
+  query: string
 ) {
-  const filtered = filterPublicDrinks(drinks, {
-    query: options.query,
-    categorySlug: ""
-  });
-
-  return filtered.filter((drink) =>
-    options.filter === "seasonal" ? drink.isSeasonal : true
-  );
+  return filterPublicDrinks(drinks, { query, categorySlug: "" });
 }
 
-export function filterExploreStores(stores: PublicStore[], query: string) {
+export function filterPublicDiscoveryStores(
+  stores: PublicStore[],
+  query: string
+) {
   const normalizedQuery = query.trim().toLowerCase();
   return stores.filter((store) => {
     if (!normalizedQuery) return true;
@@ -47,13 +40,13 @@ export function filterExploreStores(stores: PublicStore[], query: string) {
   });
 }
 
-export function sortExploreStores(stores: PublicStore[]) {
+export function sortPublicDiscoveryStores(stores: PublicStore[]) {
   return [...stores].sort((left, right) =>
     left.displayName.localeCompare(right.displayName)
   );
 }
 
-export async function loadPublicExploreData(): Promise<ExploreQueryResult> {
+export async function loadPublicDiscoveryData(): Promise<DiscoveryQueryResult> {
   if (!supabase) {
     return {
       data: null,
@@ -89,23 +82,22 @@ export async function loadPublicExploreData(): Promise<ExploreQueryResult> {
   return {
     data: {
       drinks: drinksResult.data,
-      stores: sortExploreStores(stores),
+      stores: sortPublicDiscoveryStores(stores),
       categories: drinksResult.categories
     },
     error: null
   };
 }
 
-export function exploreSearchMatches(
+export function searchPublicDiscovery(
   drinks: PublicDrink[],
   stores: PublicStore[],
-  query: string,
-  filter: ExploreFilter
+  query: string
 ) {
+  if (!query.trim()) return { drinks: [], stores: [] };
+
   return {
-    drinks: filterExploreDrinks(drinks, { query, filter }),
-    stores: filterExploreStores(stores, query)
+    drinks: filterPublicDiscoveryDrinks(drinks, query),
+    stores: filterPublicDiscoveryStores(stores, query)
   };
 }
-
-export const exploreFilterSchema = z.enum(["", "seasonal"]);

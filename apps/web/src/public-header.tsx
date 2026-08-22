@@ -6,7 +6,6 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const links = [
-    ["Explore", "/explore"],
     ["Stores", "/stores"],
     ["Drinks", "/drinks"]
   ] as const;
@@ -59,7 +58,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
             <Link
               aria-label="Search stores and drinks"
               className="text-xs font-medium text-muted-foreground hover:text-foreground"
-              to="/explore"
+              to="/search"
             >
               <span aria-hidden="true">⌕</span> Search
             </Link>
@@ -85,7 +84,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
             <Link
               aria-label="Search stores and drinks"
               className="grid size-11 place-items-center rounded-md text-xl text-primary"
-              to="/explore"
+              to="/search"
             >
               <span aria-hidden="true">⌕</span>
             </Link>

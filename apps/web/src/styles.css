@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+.search-input-custom-clear::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

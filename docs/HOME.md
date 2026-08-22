@@ -6,7 +6,7 @@ implementations.
 
 ## Destinations
 
-- Search submits to `/explore?q=<term>` and reuses Explore's cross-entity search.
+- Search submits to `/search?q=<term>` and reuses the public cross-entity search.
 - Drink cards link to the brand-scoped `/drinks/:brandSlug/:productSlug` route.
 - Store cards link to `/stores/:slug`.
 - Category shortcuts link to `/drinks?category=<category-slug>`.
@@ -15,7 +15,7 @@ implementations.
 
 ## Preview selection
 
-Home reuses the existing public Explore data boundary. Drinks are already
+Home reuses the existing public discovery data boundary. Drinks are already
 filtered to published products with published brands/categories and at least
 one available public location; the Home preview takes the first four in stable
 name order. Stores are published canonical locations and the preview takes the

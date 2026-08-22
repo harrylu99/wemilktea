@@ -169,7 +169,7 @@ Supabase owns database migrations, Auth, RLS, and server-side functions. Cloudfl
 - [Product catalogue management](docs/PRODUCTS.md)
 - [Public Drinks](docs/DRINKS.md)
 - [Public Drink Detail](docs/DRINK_DETAIL.md)
-- [Public Explore](docs/EXPLORE.md)
+- [Public Search](docs/SEARCH.md)
 - [Public Home](docs/HOME.md)
 - [Daily Milk Tea Picker](docs/PICKER.md)
 - [SEO baseline](docs/SEO.md)

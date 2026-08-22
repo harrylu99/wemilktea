@@ -1,5 +1,11 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Route, Routes, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useSearchParams
+} from "react-router-dom";
 import {
   distanceKm,
   filterPublicStores,
@@ -21,10 +27,10 @@ import { StoreDetailPage } from "./store-detail";
 import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
 import { DrinksPage } from "./drinks/page";
 import { DrinkDetailPage } from "./drinks/detail";
-import { ExplorePage } from "./explore/page";
 import { HomePage } from "./home/page";
 import { PickerPage } from "./picker/page";
 import { PickerResultPage } from "./picker/result-page";
+import { SearchPage } from "./search/page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -455,7 +461,7 @@ function StoresPage() {
             </span>
             <input
               ref={searchRef}
-              className="h-11 w-full rounded-xl border border-border bg-card px-12 pr-10 text-sm text-foreground placeholder:text-muted-foreground md:h-12"
+              className="search-input-custom-clear h-11 w-full rounded-xl border border-border bg-card px-12 pr-10 text-sm text-foreground placeholder:text-muted-foreground md:h-12"
               placeholder="Search stores, drinks, matcha..."
               type="search"
               value={query}
@@ -654,13 +660,25 @@ function PlaceholderPage({
   );
 }
 
+function LegacyExploreRedirect() {
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() ?? "";
+  return (
+    <Navigate
+      replace
+      to={query ? `/search?q=${encodeURIComponent(query)}` : "/"}
+    />
+  );
+}
+
 export function App() {
   return (
     <Routes>
       <Route element={<HomePage />} path="/" />
       <Route element={<StoresPage />} path="/stores" />
       <Route element={<StoreDetailPage />} path="/stores/:slug" />
-      <Route element={<ExplorePage />} path="/explore" />
+      <Route element={<SearchPage />} path="/search" />
+      <Route element={<LegacyExploreRedirect />} path="/explore" />
       <Route element={<DrinksPage />} path="/drinks" />
       <Route
         element={<DrinkDetailPage />}

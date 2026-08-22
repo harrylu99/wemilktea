@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 
 const publicRoutes = [
   "/",
-  "/explore",
+  "/search",
   "/stores",
   "/stores/does-not-exist",
   "/drinks",
@@ -184,7 +184,7 @@ test.describe("public responsive smoke", () => {
     );
     for (const width of [375, 430, 600, 767, 769, 1024, 1279, 1281, 1440]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const route of ["/", "/explore", "/stores", "/drinks", "/picker"]) {
+      for (const route of ["/", "/search", "/stores", "/drinks", "/picker"]) {
         await page.goto(route);
         await waitForPublicPage(page);
         const dimensions = await page.evaluate(() => ({
@@ -219,9 +219,51 @@ test.describe("public responsive smoke", () => {
       page.getByRole("button", { name: "Milk Tea" })
     ).toHaveAttribute("aria-pressed", "true");
 
-    await page.goto("/explore?q=tea");
+    await page.goto("/search?q=tea");
     await waitForPublicPage(page);
-    await expect(page.getByLabel("Search stores or drinks")).toHaveValue("tea");
+    await expect(page.getByLabel("Search drinks and stores")).toHaveValue(
+      "tea"
+    );
+  });
+
+  test("legacy Explore URLs redirect to the correct public destination", async ({
+    page
+  }) => {
+    await page.goto("/explore");
+    await expect(page).toHaveURL(/\/$/);
+    await page.goto("/explore?q=milk tea");
+    await expect(page).toHaveURL(
+      /\/search\?q=milk\+tea|\/search\?q=milk%20tea/
+    );
+    await page.goto("/explore?filter=seasonal");
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("custom clear controls are scoped to fields that render one", async ({
+    page
+  }) => {
+    for (const [route, , clearLabel] of [
+      ["/drinks", "Search drinks, brands or categories", "Clear drink search"],
+      ["/stores", "Search stores", "Clear store search"],
+      ["/search", "Search drinks and stores", "Clear search"]
+    ] as const) {
+      await page.goto(route);
+      await waitForPublicPage(page);
+      const input = page.locator('input[type="search"]').last();
+      await input.fill("milk");
+      await expect(input).toHaveClass(/search-input-custom-clear/);
+      await expect(page.getByRole("button", { name: clearLabel })).toHaveCount(
+        1
+      );
+      await page.getByRole("button", { name: clearLabel }).click();
+      await expect(input).toHaveValue("");
+    }
+
+    await page.goto("/");
+    await waitForPublicPage(page);
+    await expect(page.getByLabel("Search stores or drinks")).not.toHaveClass(
+      /search-input-custom-clear/
+    );
   });
 
   test("representative routes have no browser console errors or uncaught page errors", async ({
@@ -236,7 +278,7 @@ test.describe("public responsive smoke", () => {
 
     for (const route of [
       "/",
-      "/explore",
+      "/search",
       "/stores",
       "/stores/gong-cha-newmarket",
       "/drinks",
@@ -317,7 +359,7 @@ test.describe("public responsive smoke", () => {
   }, testInfo) => {
     const routes =
       testInfo.project.name === "mobile"
-        ? ["/", "/explore", "/stores", "/drinks", "/picker"]
+        ? ["/", "/search", "/stores", "/drinks", "/picker"]
         : testInfo.project.name === "desktop"
           ? ["/", "/stores", "/drinks", "/picker"]
           : ["/stores", "/picker"];
