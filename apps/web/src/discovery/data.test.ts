@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import {
-  filterExploreDrinks,
-  filterExploreStores,
-  exploreSearchMatches
+  filterPublicDiscoveryDrinks,
+  filterPublicDiscoveryStores,
+  searchPublicDiscovery
 } from "./data";
 import type { PublicDrink } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
@@ -56,21 +56,26 @@ const stores: PublicStore[] = [
   }
 ];
 
-test("Explore seasonal filter uses canonical seasonal state", () => {
-  expect(
-    filterExploreDrinks(drinks, { query: "", filter: "seasonal" })
-  ).toEqual([drinks[1]]);
+test("searches canonical drink fields", () => {
+  expect(filterPublicDiscoveryDrinks(drinks, "mango")).toEqual([drinks[1]]);
+  expect(filterPublicDiscoveryDrinks(drinks, "gong cha")).toEqual([drinks[0]]);
 });
 
-test("Explore search matches canonical drink and store fields", () => {
-  const result = exploreSearchMatches(drinks, stores, "albany", "");
-  expect(result.drinks).toEqual([]);
-  expect(result.stores).toEqual(stores);
-  expect(filterExploreDrinks(drinks, { query: "mango", filter: "" })).toEqual([
-    drinks[1]
-  ]);
+test("searches stores case insensitively across store fields", () => {
+  expect(filterPublicDiscoveryStores(stores, "  GONG CHA  ")).toEqual(stores);
+  expect(filterPublicDiscoveryStores(stores, "auckland")).toEqual(stores);
 });
 
-test("Explore store search is case insensitive and trimmed", () => {
-  expect(filterExploreStores(stores, "  GONG CHA  ")).toEqual(stores);
+test("returns grouped Drink and Store search results", () => {
+  expect(searchPublicDiscovery(drinks, stores, "albany")).toEqual({
+    drinks: [],
+    stores
+  });
+});
+
+test("returns no results for an empty query", () => {
+  expect(searchPublicDiscovery(drinks, stores, "  ")).toEqual({
+    drinks: [],
+    stores: []
+  });
 });

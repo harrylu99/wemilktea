@@ -8,7 +8,7 @@ const validPickerResultRoute =
 
 const publicRoutes = [
   ["Home", "/"],
-  ["Explore", "/explore"],
+  ["Search", "/search"],
   ["Stores", "/stores"],
   ["Store Detail", validStoreRoute],
   ["Drinks", "/drinks"],
@@ -19,7 +19,7 @@ const publicRoutes = [
 
 const routeTitles = [
   ["/", "WeMilktea | Discover Milk Tea & Bubble Tea in Auckland"],
-  ["/explore", "Explore Auckland Milk Tea | WeMilktea"],
+  ["/search", "Search WeMilktea"],
   ["/stores", "Milk Tea Stores in Auckland | WeMilktea"],
   [validStoreRoute, "Gong cha Newmarket | Milk Tea in Newmarket | WeMilktea"],
   ["/drinks", "Milk Tea Drinks in Auckland | WeMilktea"],
@@ -210,7 +210,7 @@ test("keyboard journey reaches a drink and its store", async ({ page }) => {
   await homeSearch.pressSequentially("brown sugar");
   await homeSearch.press("Enter");
   await expect(page).toHaveURL(
-    /\/explore\?q=brown\+sugar|\/explore\?q=brown%20sugar/
+    /\/search\?q=brown\+sugar|\/search\?q=brown%20sugar/
   );
   await waitForPublicPage(page);
 

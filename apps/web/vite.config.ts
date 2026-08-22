@@ -104,7 +104,6 @@ async function loadPublishedEntries(env: Record<string, string>) {
 function sitemapXml(origin: string, entries: SitemapEntry[]) {
   const staticEntries: SitemapEntry[] = [
     "/",
-    "/explore",
     "/stores",
     "/drinks",
     "/picker"

@@ -13,7 +13,7 @@ import { publicSiteDescription } from "../seo-utils";
 import { DrinkCard } from "../drinks/page";
 import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
-import { loadPublicExploreData } from "../explore/data";
+import { loadPublicDiscoveryData } from "../discovery/data";
 import {
   selectHomeCategories,
   selectHomeDrinks,
@@ -166,7 +166,7 @@ export function HomePage() {
     setHeroDrink(null);
     setHomeStores([]);
 
-    const result = await loadPublicExploreData();
+    const result = await loadPublicDiscoveryData();
 
     // Ignore an older request if another Home load has started.
     if (requestId !== loadRequestIdRef.current) {
@@ -204,7 +204,7 @@ export function HomePage() {
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = search.trim();
-    navigate(value ? `/explore?q=${encodeURIComponent(value)}` : "/explore");
+    navigate(value ? `/search?q=${encodeURIComponent(value)}` : "/search");
   };
 
   return (
@@ -382,12 +382,6 @@ export function HomePage() {
                   No published stores are available yet.
                 </p>
               )}
-              <Link
-                className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-border bg-card px-5 text-xs font-medium text-foreground hover:bg-accent"
-                to="/explore"
-              >
-                Explore Auckland
-              </Link>
             </section>
 
             <section

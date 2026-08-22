@@ -75,14 +75,14 @@ only when evidence is recorded in the release ticket.
 - [ ] Public Worker deploy succeeded.
 - [ ] Admin Worker deploy succeeded.
 - [ ] Production browser variables are configured by name and environment.
-- [ ] Direct reload works for `/`, `/explore`, `/stores`, `/stores/:slug`, `/drinks`, `/drinks/:brandSlug/:productSlug`, `/picker` and Picker Result.
+- [ ] Direct reload works for `/`, `/search`, `/explore` legacy redirect, `/stores`, `/stores/:slug`, `/drinks`, `/drinks/:brandSlug/:productSlug`, `/picker` and Picker Result.
 - [ ] Admin direct protected-route navigation and refresh work.
 - [ ] No localhost, dev endpoints, service-role keys or R2 secrets appear in bundles/network.
 - [ ] Console has no unexplained critical errors.
 
 ## Production smoke
 
-- [ ] Home → Explore → Drinks → Drink Detail → Store Detail.
+- [ ] Home → Search → Drinks → Drink Detail → Store Detail.
 - [ ] Home → Stores → Store Detail → Directions.
 - [ ] Home → Picker → Picker Result → View drink / View store / Pick again.
 - [ ] Picker Result direct URL, new tab and refresh behave deterministically.

@@ -7,7 +7,7 @@ WeMilktea helps people discover milk tea in Auckland and helps the internal team
 V1 includes these routes and flows:
 
 - Home
-- Explore
+- Search
 - Stores and store detail
 - Drinks and drink detail
 - Daily Milk Tea Picker and picker result

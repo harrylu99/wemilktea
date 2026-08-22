@@ -540,7 +540,7 @@ Record the exact origins and timestamp in the release ticket. Run the safe
 public journey:
 
 ```text
-Home → Explore → Drinks → Drink Detail → Store Detail
+Home → Search → Drinks → Drink Detail → Store Detail
 Home → Stores → Store Detail → Directions
 Home → Picker → Picker Result → View drink / View store / Pick again
 Stores → Suggest Store → validation → approved test submission → success

@@ -9,7 +9,7 @@ certification.
 Reviewed the eight public routes and the Suggest Store flow:
 
 - Home `/`
-- Explore `/explore`
+- Search `/search`
 - Stores `/stores`
 - Store Detail `/stores/gong-cha-newmarket`
 - Drinks `/drinks`
@@ -54,7 +54,7 @@ bun run e2e -- e2e/accessibility.playwright.ts
 
 Keyboard-only browser journeys completed:
 
-- Home → Search → Explore result → Drink Detail → Store Detail.
+- Home → Search result → Drink Detail → Store Detail.
 - Home → Stores → Suggest Store → invalid submission → Escape/close.
 - Home → Picker → choose a craving → draw → Picker Result → View drink → Pick
   again.
@@ -74,7 +74,7 @@ available. Reduced-motion browser emulation skips the draw transition.
 - Mobile menu state now exposes `aria-expanded` and `aria-controls`; Escape
   closes it and returns focus to the trigger.
 - Search controls have programmatic names. On routes without an inline search
-  field, Header Search is a real link to Explore rather than a no-op button.
+  field, Header Search is a real link to Search rather than a no-op button.
 - URL-backed category/filter buttons expose `aria-pressed`. Picker choices use
   native radio semantics within a fieldset and a visible text label; decorative
   craving icons are hidden from assistive technology.
@@ -149,14 +149,14 @@ existing light theme; dark design tokens remain outside this ticket.
 Initial axe findings were resolved as follows:
 
 - `FIX NOW` — repeated fallback-label contrast failures: corrected shared
-  fallback label usage across Home, Explore, Stores, Drinks, Drink Detail, and
+  fallback label usage across Home, Search, Stores, Drinks, Drink Detail, and
   Picker Result.
 - `FIX NOW` — Store Detail mobile sticky action was outside a landmark: wrapped
   the action in a labeled complementary landmark.
 - `FIX NOW` — Stores and Drinks lacked route-specific document titles: added
   `Stores | WeMilktea` and `Drinks | WeMilktea`.
 - `FIX NOW` — Header Search was a no-op on routes without an inline search:
-  those instances now navigate to Explore.
+  those instances now navigate to Search.
 - `FIX NOW` — mobile menu and Stores filter disclosure lacked complete Escape
   and focus-return behavior: added controlled-state metadata and restoration.
 - `FIX NOW` — Suggest Store invalid submission left focus on the submit button:
