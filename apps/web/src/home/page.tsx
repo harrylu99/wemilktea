@@ -330,10 +330,10 @@ export function HomePage() {
                 </Link>
               </div>
               {drinks.length > 0 ? (
-                <div className="mt-4 flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-4">
+                <div className="mt-4 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
                   {drinks.map((drink, index) => (
                     <DrinkCard
-                      className="w-[224px] shrink-0"
+                      className="w-[224px] shrink-0 lg:w-full lg:max-w-[280px] lg:min-w-0 lg:justify-self-center"
                       drink={drink}
                       index={index}
                       key={drink.id}
