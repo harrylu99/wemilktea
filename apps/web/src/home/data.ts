@@ -25,10 +25,25 @@ export function selectHomeDrinks(drinks: PublicDrink[]) {
     .slice(0, HOME_DRINK_LIMIT);
 }
 
-export function selectHomeStores(stores: PublicStore[]) {
-  return [...stores]
-    .sort((left, right) => left.displayName.localeCompare(right.displayName))
-    .slice(0, HOME_STORE_LIMIT);
+export function selectHomeStores(
+  stores: PublicStore[],
+  random: () => number = Math.random
+) {
+  const pool = [...stores];
+  const limit = Math.min(pool.length, HOME_STORE_LIMIT);
+
+  for (let index = 0; index < limit; index += 1) {
+    const remaining = pool.length - index;
+    const rawOffset = Math.floor(random() * remaining);
+    const offset = Number.isFinite(rawOffset)
+      ? Math.min(Math.max(rawOffset, 0), remaining - 1)
+      : 0;
+    const selectedIndex = index + offset;
+
+    [pool[index], pool[selectedIndex]] = [pool[selectedIndex], pool[index]];
+  }
+
+  return pool.slice(0, limit);
 }
 
 export function selectHomeCategories(categories: PublicDrinkCategory[]) {

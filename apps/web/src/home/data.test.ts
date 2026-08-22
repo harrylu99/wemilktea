@@ -106,14 +106,56 @@ test("falls back to all drinks when none have images", () => {
   ).toBe(secondDrink);
 });
 
-test("selects a bounded, stable store preview", () => {
+test("returns no Home store previews for an empty list", () => {
+  expect(selectHomeStores([], () => 0)).toEqual([]);
+});
+
+test("returns the only Home store when one is available", () => {
+  const onlyStore = store("Tea Talk", "00000000-0000-0000-0000-000000000001");
+
+  expect(selectHomeStores([onlyStore], () => 0)).toEqual([onlyStore]);
+});
+
+test("randomly selects at most two unique Home stores", () => {
+  const stores = [
+    store("Tea Talk", "00000000-0000-0000-0000-000000000001"),
+    store("Gong cha Albany", "00000000-0000-0000-0000-000000000002"),
+    store("Chatime CBD", "00000000-0000-0000-0000-000000000003")
+  ];
+
+  const selected = selectHomeStores(stores, () => 0.5);
+
+  expect(selected).toHaveLength(2);
+  expect(new Set(selected.map((item) => item.id)).size).toBe(2);
+});
+
+test("supports deterministic Home store sampling", () => {
+  const stores = [
+    store("Store A", "00000000-0000-0000-0000-000000000001"),
+    store("Store B", "00000000-0000-0000-0000-000000000002"),
+    store("Store C", "00000000-0000-0000-0000-000000000003"),
+    store("Store D", "00000000-0000-0000-0000-000000000004")
+  ];
+  const randomValues = [0.75, 0];
+
   expect(
-    selectHomeStores([
-      store("Tea Talk", "00000000-0000-0000-0000-000000000003"),
-      store("Gong cha Albany", "00000000-0000-0000-0000-000000000001"),
-      store("Chatime CBD", "00000000-0000-0000-0000-000000000002")
-    ]).map((item) => item.displayName)
-  ).toEqual(["Chatime CBD", "Gong cha Albany"]);
+    selectHomeStores(stores, () => randomValues.shift() ?? 0).map(
+      (item) => item.displayName
+    )
+  ).toEqual(["Store D", "Store B"]);
+});
+
+test("does not mutate the source Home store list", () => {
+  const stores = [
+    store("Store A", "00000000-0000-0000-0000-000000000001"),
+    store("Store B", "00000000-0000-0000-0000-000000000002"),
+    store("Store C", "00000000-0000-0000-0000-000000000003")
+  ];
+  const originalOrder = stores.map((item) => item.id);
+
+  selectHomeStores(stores, () => 0.9);
+
+  expect(stores.map((item) => item.id)).toEqual(originalOrder);
 });
 
 test("keeps canonical category shortcuts", () => {

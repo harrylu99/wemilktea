@@ -153,6 +153,7 @@ export function HomePage() {
     categories: PublicDrinkCategory[];
   } | null>(null);
   const [heroDrink, setHeroDrink] = useState<PublicDrink | null>(null);
+  const [homeStores, setHomeStores] = useState<PublicStore[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
@@ -163,6 +164,7 @@ export function HomePage() {
     setStatus("loading");
     setContent(null);
     setHeroDrink(null);
+    setHomeStores([]);
 
     const result = await loadPublicExploreData();
 
@@ -177,6 +179,7 @@ export function HomePage() {
     }
     setContent(result.data);
     setHeroDrink(selectHomeHeroDrink(result.data.drinks));
+    setHomeStores(selectHomeStores(result.data.stores));
     setStatus("ready");
   }, []);
 
@@ -192,10 +195,6 @@ export function HomePage() {
   const drinks = useMemo(
     () => selectHomeDrinks(content?.drinks ?? []),
     [content?.drinks]
-  );
-  const stores = useMemo(
-    () => selectHomeStores(content?.stores ?? []),
-    [content?.stores]
   );
   const categories = useMemo(
     () => selectHomeCategories(content?.categories ?? []),
@@ -368,9 +367,9 @@ export function HomePage() {
                   View all
                 </Link>
               </div>
-              {stores.length > 0 ? (
+              {homeStores.length > 0 ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {stores.map((store, index) => (
+                  {homeStores.map((store, index) => (
                     <StorePreviewCard
                       index={index}
                       key={store.id}
