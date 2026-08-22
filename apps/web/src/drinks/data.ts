@@ -81,15 +81,19 @@ function firstRelation<T>(value: T | T[]) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function imageUrlFromAsset(asset: z.infer<typeof imageAssetSchema>) {
+function imageUrlFromAsset(
+  asset: z.infer<typeof imageAssetSchema>,
+  imageBaseUrl = r2PublicBaseUrl
+) {
   if (asset.provenance === "google") return null;
   return asset.storage_key
-    ? publicImageUrl(r2PublicBaseUrl, asset.storage_key)
+    ? publicImageUrl(imageBaseUrl, asset.storage_key)
     : (asset.external_url ?? null);
 }
 
 export function primaryProductImage(
-  links: z.infer<typeof productImageSchema>[]
+  links: z.infer<typeof productImageSchema>[],
+  imageBaseUrl = r2PublicBaseUrl
 ): {
   url: string | null;
   altText: string | null;
@@ -99,14 +103,15 @@ export function primaryProductImage(
   const asset = firstRelation(link.image_assets);
   if (!asset) return { url: null, altText: null };
   return {
-    url: imageUrlFromAsset(asset),
+    url: imageUrlFromAsset(asset, imageBaseUrl),
     altText: asset.alt_text ?? null
   };
 }
 
 export function normalizePublicDrink(
   value: unknown,
-  availableStoreCount = 0
+  availableStoreCount = 0,
+  imageBaseUrl = r2PublicBaseUrl
 ): PublicDrink | null {
   const parsed = publicProductQueryRowSchema.safeParse(value);
   if (!parsed.success) return null;
@@ -115,7 +120,7 @@ export function normalizePublicDrink(
   const category = firstRelation(parsed.data.categories);
   if (!brand || !category) return null;
 
-  const image = primaryProductImage(parsed.data.product_images);
+  const image = primaryProductImage(parsed.data.product_images, imageBaseUrl);
   return {
     id: parsed.data.id,
     name: parsed.data.name,
