@@ -132,7 +132,7 @@ export function PickerPage() {
         title="Daily Milk Tea Picker | WeMilktea"
       />
       <PublicHeader />
-      <main className="flex-1 mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
+      <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <div className="mb-8">
           <p className="text-xs font-medium tracking-wide text-primary">
             DAILY MILK TEA PICKER

@@ -139,7 +139,7 @@ export function SearchPage() {
         title="Search WeMilktea"
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
-      <main className="flex-1 mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 lg:pt-8">
+      <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 lg:pt-8">
         <p className="text-xs font-medium tracking-wide text-primary">SEARCH</p>
         <h1 className="mt-3 text-3xl font-semibold">
           Search drinks and stores

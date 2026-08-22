@@ -319,7 +319,7 @@ export function StoreDetailPage() {
         }
       />
       <PublicHeader />
-      <main className="flex-1 mx-auto max-w-[1250px] px-5 pb-28 pt-5 sm:px-8 md:pb-10 lg:px-0">
+      <main className="flex-1 w-full mx-auto max-w-[1250px] px-5 pb-28 pt-5 sm:px-8 md:pb-10 lg:px-0">
         <Link
           className="inline-flex min-h-11 items-center text-sm font-semibold text-foreground hover:text-primary"
           to="/stores"

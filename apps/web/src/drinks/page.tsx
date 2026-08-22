@@ -172,7 +172,7 @@ export function DrinksPage() {
         title="Milk Tea Drinks in Auckland | WeMilktea"
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
-      <main className="flex-1 mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
+      <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>
         <h1 className="mt-4 text-[32px] font-semibold leading-10">
           Find your next cup
