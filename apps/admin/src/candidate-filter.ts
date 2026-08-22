@@ -8,6 +8,8 @@ export const candidateFilters = [
   "rejected"
 ] as const;
 
+export const CANDIDATE_PAGE_SIZE = 25;
+
 export type CandidateFilter = (typeof candidateFilters)[number];
 
 export function candidateFilterLabel(filter: CandidateFilter) {
@@ -29,10 +31,35 @@ export function searchParamsForCandidateFilter(
 ) {
   const nextSearchParams = new URLSearchParams(searchParams);
 
+  nextSearchParams.delete("page");
+
   if (filter === "all") {
     nextSearchParams.delete("status");
   } else {
     nextSearchParams.set("status", filter);
+  }
+
+  return nextSearchParams;
+}
+
+export function candidatePageFromSearchParams(searchParams: URLSearchParams) {
+  const rawPage = searchParams.get("page");
+  if (!rawPage || !/^\d+$/.test(rawPage)) return 1;
+
+  const page = Number(rawPage);
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+export function searchParamsForCandidatePage(
+  searchParams: URLSearchParams,
+  page: number
+) {
+  const nextSearchParams = new URLSearchParams(searchParams);
+
+  if (page <= 1) {
+    nextSearchParams.delete("page");
+  } else {
+    nextSearchParams.set("page", String(page));
   }
 
   return nextSearchParams;

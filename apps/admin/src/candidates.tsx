@@ -10,7 +10,7 @@ import {
   storeCandidateSummarySchema,
   type StoreCandidateSummary
 } from "@wemilktea/validation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   Link,
   useLocation,
@@ -25,9 +25,12 @@ import {
 import {
   candidateFilterFromSearchParams,
   candidateFilterLabel,
+  candidatePageFromSearchParams,
   candidateReviewReturnPath,
   candidateFilters,
+  CANDIDATE_PAGE_SIZE,
   type CandidateFilter,
+  searchParamsForCandidatePage,
   searchParamsForCandidateFilter
 } from "./candidate-filter";
 import { DiscoveryControl } from "./discovery-control";
@@ -113,9 +116,12 @@ export function CandidateQueuePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const [candidates, setCandidates] = useState<StoreCandidateSummary[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const filter = candidateFilterFromSearchParams(searchParams);
+  const page = candidatePageFromSearchParams(searchParams);
 
   const loadCandidates = useCallback(async () => {
     const client = supabase;
@@ -127,14 +133,26 @@ export function CandidateQueuePage() {
     }
 
     setIsLoading(true);
-    const { data, error } = await client
+    let query = client
       .from("store_candidates")
       .select(
-        "id, google_place_id, status, source_provenance, first_seen_at, last_seen_at, reviewed_at, possible_location_id, resolved_location_id, rejection_reason"
-      )
-      .order("last_seen_at", { ascending: false });
+        "id, google_place_id, status, source_provenance, first_seen_at, last_seen_at, reviewed_at, possible_location_id, resolved_location_id, rejection_reason",
+        { count: "exact" }
+      );
+
+    if (filter !== "all") {
+      query = query.eq("status", filter);
+    }
+
+    const from = (page - 1) * CANDIDATE_PAGE_SIZE;
+    const to = from + CANDIDATE_PAGE_SIZE - 1;
+    const { data, error, count } = await query
+      .order("last_seen_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
 
     let loaded = false;
+    let waitingForPageNormalization = false;
     if (error) {
       setErrorMessage("Candidates could not be loaded. Please try again.");
     } else {
@@ -142,27 +160,56 @@ export function CandidateQueuePage() {
       if (!parsed.success) {
         setErrorMessage("Candidates returned an invalid response.");
       } else {
-        setErrorMessage(null);
-        setCandidates(parsed.data);
-        loaded = true;
+        const safeTotalCount = count ?? 0;
+        const totalPages = Math.max(
+          1,
+          Math.ceil(safeTotalCount / CANDIDATE_PAGE_SIZE)
+        );
+
+        if (page > totalPages) {
+          waitingForPageNormalization = true;
+          setSearchParams(
+            searchParamsForCandidatePage(searchParams, totalPages),
+            { replace: true }
+          );
+        } else {
+          setErrorMessage(null);
+          setTotalCount(safeTotalCount);
+          setCandidates(parsed.data);
+          loaded = true;
+        }
       }
     }
 
-    setIsLoading(false);
+    if (!waitingForPageNormalization) setIsLoading(false);
     return loaded;
-  }, []);
+  }, [filter, page, searchParams, setSearchParams]);
 
   useEffect(() => {
     void loadCandidates();
-  }, [loadCandidates]);
+  }, [loadCandidates, reloadKey]);
 
-  const visibleCandidates = useMemo(
-    () =>
-      filter === "all"
-        ? candidates
-        : candidates.filter((candidate) => candidate.status === filter),
-    [candidates, filter]
-  );
+  useEffect(() => {
+    const normalized = searchParamsForCandidatePage(searchParams, page);
+    if (normalized.toString() !== searchParams.toString()) {
+      setSearchParams(normalized, { replace: true });
+    }
+  }, [page, searchParams, setSearchParams]);
+
+  const handleDiscoverySuccess = useCallback(() => {
+    setIsLoading(true);
+    const firstPage = searchParamsForCandidatePage(searchParams, 1);
+    if (firstPage.toString() === searchParams.toString()) {
+      setReloadKey((current) => current + 1);
+    } else {
+      setSearchParams(firstPage, { replace: true });
+    }
+    return true;
+  }, [searchParams, setSearchParams]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / CANDIDATE_PAGE_SIZE));
+  const rangeStart = (page - 1) * CANDIDATE_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * CANDIDATE_PAGE_SIZE, totalCount);
 
   return (
     <section>
@@ -210,12 +257,12 @@ export function CandidateQueuePage() {
             {errorMessage}
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleCandidates.length === 0 ? (
+        {!isLoading && !errorMessage && candidates.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
             No candidates match this filter.
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleCandidates.length > 0 ? (
+        {!isLoading && !errorMessage && candidates.length > 0 ? (
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead className="border-b border-border bg-muted text-muted-foreground">
               <tr>
@@ -230,7 +277,7 @@ export function CandidateQueuePage() {
               </tr>
             </thead>
             <tbody>
-              {visibleCandidates.map((candidate) => (
+              {candidates.map((candidate) => (
                 <tr
                   className="border-b border-border last:border-0"
                   key={candidate.id}
@@ -269,7 +316,48 @@ export function CandidateQueuePage() {
           </table>
         ) : null}
       </div>
-      <DiscoveryControl onDiscoverySuccess={loadCandidates} />
+      {!isLoading && !errorMessage && totalCount > 0 ? (
+        <nav
+          aria-label="Candidate pagination"
+          className="mt-4 flex items-center justify-between gap-4 text-sm"
+        >
+          <p className="text-muted-foreground">
+            Showing {rangeStart}–{rangeEnd} of {totalCount} candidates
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={page <= 1}
+              type="button"
+              aria-label="Previous page"
+              onClick={() =>
+                setSearchParams(
+                  searchParamsForCandidatePage(searchParams, page - 1)
+                )
+              }
+            >
+              Previous
+            </button>
+            <span aria-live="polite">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={page >= totalPages}
+              type="button"
+              aria-label="Next page"
+              onClick={() =>
+                setSearchParams(
+                  searchParamsForCandidatePage(searchParams, page + 1)
+                )
+              }
+            >
+              Next
+            </button>
+          </div>
+        </nav>
+      ) : null}
+      <DiscoveryControl onDiscoverySuccess={handleDiscoverySuccess} />
     </section>
   );
 }
