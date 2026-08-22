@@ -175,7 +175,7 @@ export function DrinksPage() {
       <main className="flex-1 mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>
         <h1 className="mt-4 text-[32px] font-semibold leading-10">
-          Find your next cup
+          Meet your next favourite.
         </h1>
 
         <div className="mt-[18px]">

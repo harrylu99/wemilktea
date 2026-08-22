@@ -451,7 +451,7 @@ function StoresPage() {
           STORES · AUCKLAND
         </p>
         <h1 className="mt-4 max-w-[467px] text-2xl font-semibold leading-8 md:text-[28px] md:leading-9 lg:text-[32px] lg:leading-10">
-          Find milk tea around Auckland
+          Let’s find somewhere good.
         </h1>
 
         <div className="mt-4">
