@@ -43,14 +43,107 @@ const store = (displayName: string, id: string): PublicStore => ({
   imageAltText: null
 });
 
-test("selects a stable bounded drink preview without popularity claims", () => {
+test("returns an empty drink preview for an empty list", () => {
+  expect(selectHomeDrinks([], () => 0)).toEqual([]);
+});
+
+test("returns all unique drinks when fewer than four are available", () => {
+  const first = drink("First Drink", "drink-1");
+  const second = drink("Second Drink", "drink-2");
+
+  const selected = selectHomeDrinks([first, second, first], () => 0);
+
+  expect(selected).toEqual([first, second]);
+  expect(new Set(selected.map((item) => item.id)).size).toBe(2);
+});
+
+test("selects exactly four unique drinks from a larger list", () => {
+  const drinks = [
+    drink("Drink A", "drink-a"),
+    drink("Drink B", "drink-b"),
+    drink("Drink C", "drink-c"),
+    drink("Drink D", "drink-d"),
+    drink("Drink E", "drink-e")
+  ];
+
+  const selected = selectHomeDrinks(drinks, () => 0.5);
+
+  expect(selected).toHaveLength(4);
+  expect(new Set(selected.map((item) => item.id)).size).toBe(4);
+});
+
+test("supports deterministic partial Fisher-Yates drink sampling", () => {
+  const drinks = ["A", "B", "C", "D", "E", "F"].map((name, index) =>
+    drinkWithImage(name, `drink-${index}`)
+  );
+  const randomValues = [0, 0.8, 0.5, 0];
+
   expect(
-    selectHomeDrinks([
-      drink("Taro Milk Tea", "00000000-0000-0000-0000-000000000003"),
-      drink("Brown Sugar Milk Tea", "00000000-0000-0000-0000-000000000001"),
-      drink("Matcha Milk Tea", "00000000-0000-0000-0000-000000000002")
-    ]).map((item) => item.name)
-  ).toEqual(["Brown Sugar Milk Tea", "Matcha Milk Tea", "Taro Milk Tea"]);
+    selectHomeDrinks(drinks, () => randomValues.shift() ?? 0).map(
+      (item) => item.name
+    )
+  ).toEqual(["A", "F", "E", "D"]);
+});
+
+test("does not mutate the source drink list", () => {
+  const drinks = [
+    drink("Drink A", "drink-a"),
+    drink("Drink B", "drink-b"),
+    drink("Drink C", "drink-c"),
+    drink("Drink D", "drink-d"),
+    drink("Drink E", "drink-e")
+  ];
+  const originalOrder = drinks.map((item) => item.id);
+
+  selectHomeDrinks(drinks, () => 0.9);
+
+  expect(drinks.map((item) => item.id)).toEqual(originalOrder);
+});
+
+test("prefers image-backed drinks before filling from the fallback pool", () => {
+  const selected = selectHomeDrinks(
+    [
+      drinkWithImage("Image A", "image-a"),
+      drink("Fallback A", "fallback-a"),
+      drinkWithImage("Image B", "image-b"),
+      drink("Fallback B", "fallback-b"),
+      drink("Fallback C", "fallback-c")
+    ],
+    () => 0
+  );
+
+  expect(selected.map((item) => item.name)).toEqual([
+    "Image A",
+    "Image B",
+    "Fallback A",
+    "Fallback B"
+  ]);
+});
+
+test("fills safely when fewer than four drinks have images", () => {
+  const selected = selectHomeDrinks(
+    [
+      drinkWithImage("Image A", "image-a"),
+      drink("Fallback A", "fallback-a"),
+      drink("Fallback B", "fallback-b"),
+      drink("Fallback C", "fallback-c")
+    ],
+    () => 0
+  );
+
+  expect(selected).toHaveLength(4);
+  expect(selected[0]?.imageUrl).toBeTruthy();
+  expect(new Set(selected.map((item) => item.id)).size).toBe(4);
+});
+
+test("excludes the hero when enough alternative drinks exist", () => {
+  const drinks = ["Hero", "A", "B", "C", "D"].map((name, index) =>
+    drinkWithImage(name, `drink-${index}`)
+  );
+
+  expect(
+    selectHomeDrinks(drinks, () => 0, "drink-0").map((item) => item.name)
+  ).toEqual(["A", "B", "C", "D"]);
 });
 
 test("returns null for an empty hero candidate pool", () => {
