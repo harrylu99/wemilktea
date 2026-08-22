@@ -20,6 +20,7 @@ import {
   type SupportedContentType
 } from "./storage";
 import {
+  formatManifestValidationIssues,
   storeShowcaseManifestSchema,
   type StoreShowcaseManifest,
   type StoreShowcaseManifestEntry
@@ -115,9 +116,13 @@ function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
-function parseManifest(value: unknown): StoreShowcaseManifest {
+export function parseStoreManifest(value: unknown): StoreShowcaseManifest {
   const result = storeShowcaseManifestSchema.safeParse(value);
-  if (!result.success) throw new Error("Store showcase manifest is invalid.");
+  if (!result.success) {
+    throw new Error(
+      `Store showcase manifest is invalid: ${formatManifestValidationIssues(result.error)}`
+    );
+  }
   return result.data;
 }
 
@@ -207,6 +212,8 @@ export async function applyApprovedStoreEntries({
     let contentType: SupportedContentType;
     let byteSize: number;
     let storageKey: string;
+    let width: number | null;
+    let height: number | null;
     let uploaded = false;
     let objectAlreadyExisted = false;
 
@@ -214,6 +221,8 @@ export async function applyApprovedStoreEntries({
       contentType = source.contentType as SupportedContentType;
       byteSize = source.byteSize as number;
       storageKey = source.storageKey;
+      width = source.width;
+      height = source.height;
       reused += 1;
       console.log(
         `REUSE ${entry.externalPhotoId}: existing Pexels stock asset`
@@ -236,6 +245,8 @@ export async function applyApprovedStoreEntries({
         contentType
       });
       uploaded = !objectAlreadyExisted;
+      width = null;
+      height = null;
     }
 
     try {
@@ -248,8 +259,8 @@ export async function applyApprovedStoreEntries({
         altText: source?.altText ?? "Bubble tea shop interior",
         contentType,
         byteSize,
-        width: source?.width ?? entry.width,
-        height: source?.height ?? entry.height,
+        width,
+        height,
         searchTerm: entry.searchTerm,
         sortOrder: index
       });
@@ -289,7 +300,7 @@ async function runDiscover(output: string | null) {
 }
 
 async function runManifest(manifestPath: string, apply: boolean) {
-  const manifest = parseManifest(
+  const manifest = parseStoreManifest(
     JSON.parse(await Bun.file(manifestPath).text()) as unknown
   );
   const environment = parseEnvironment(operatorEnvironmentSchema);

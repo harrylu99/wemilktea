@@ -68,8 +68,8 @@ export const showcaseManifestEntrySchema = z.object({
   photographer: z.string().trim().min(1).max(160),
   photographerUrl: urlSchema,
   attributionText: z.string().trim().min(1).max(500),
-  width: z.number().int().positive().max(10000),
-  height: z.number().int().positive().max(10000)
+  width: z.number().int().positive(),
+  height: z.number().int().positive()
 });
 
 export type ShowcaseManifestEntry = z.infer<typeof showcaseManifestEntrySchema>;
@@ -92,8 +92,8 @@ export const storeShowcaseManifestEntrySchema = z.object({
   photographer: z.string().trim().min(1).max(160),
   photographerUrl: urlSchema,
   attributionText: z.string().trim().min(1).max(500),
-  width: z.number().int().positive().max(10000),
-  height: z.number().int().positive().max(10000)
+  width: z.number().int().positive(),
+  height: z.number().int().positive()
 });
 
 export type StoreShowcaseManifestEntry = z.infer<
@@ -107,6 +107,18 @@ export const storeShowcaseManifestSchema = z.object({
 });
 
 export type StoreShowcaseManifest = z.infer<typeof storeShowcaseManifestSchema>;
+
+export function formatManifestValidationIssues(error: z.ZodError) {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.reduce((result, segment) => {
+        if (typeof segment === "number") return `${result}[${segment}]`;
+        return result ? `${result}.${segment}` : segment;
+      }, "");
+      return `${path || "manifest"}: ${issue.message}`;
+    })
+    .join("; ");
+}
 
 export type ShowcaseCategory = {
   id: string;

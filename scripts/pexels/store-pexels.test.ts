@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   applyApprovedStoreEntries,
+  parseStoreManifest,
   validateApprovedStoreEntries
 } from "./import-store-showcase";
 import {
@@ -25,10 +26,13 @@ function response(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-const photo = (id: number) => ({
+const photo = (
+  id: number,
+  dimensions: { width?: number; height?: number } = {}
+) => ({
   id,
-  width: 1200,
-  height: 800,
+  width: dimensions.width ?? 1200,
+  height: dimensions.height ?? 800,
   url: `https://www.pexels.com/photo/${id}/`,
   photographer: "Example Photographer",
   photographer_url: "https://www.pexels.com/@example",
@@ -68,6 +72,37 @@ test("Store manifest discovery is bounded, deduplicated, and unapproved", async 
     manifest.entries.length
   );
   expect(perPageForLimit(MAX_STORE_SHOWCASE_CANDIDATES, calls)).toBe(9);
+});
+
+test("Store discovery accepts and validates source dimensions above asset limits", async () => {
+  const manifest = await discoverStoreShowcaseManifest("test-key", async () =>
+    response({ photos: [photo(99, { height: 12001 })] })
+  );
+
+  expect(manifest.entries[0]?.height).toBe(12001);
+  expect(storeShowcaseManifestSchema.parse(manifest).entries[0]?.height).toBe(
+    12001
+  );
+});
+
+test("Store dry-run validation accepts reviewed entries with source dimensions", () => {
+  const approved = validateApprovedStoreEntries({
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    entries: [{ ...entry, width: 12000, height: 12001 }]
+  });
+
+  expect(approved).toHaveLength(1);
+});
+
+test("Store manifest errors include the invalid entry path", () => {
+  expect(() =>
+    parseStoreManifest({
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      entries: [{ ...entry, approved: "yes" }]
+    })
+  ).toThrow(/entries\[0\]\.approved/);
 });
 
 test("Store approved validation rejects duplicate provider/photo identities", () => {
@@ -167,5 +202,35 @@ test("Store apply reuses a Product-pool stock asset without downloading or uploa
 
   expect(result).toEqual({ imported: 1, reused: 1, skipped: 0 });
   expect(upsertInput?.externalPhotoId).toBe(entry.externalPhotoId);
+  expect(upsertInput?.width).toBe(entry.width);
+  expect(upsertInput?.height).toBe(entry.height);
   expect(identity).toBe("pexels:123");
+});
+
+test("Store apply does not persist Pexels source dimensions for new assets", async () => {
+  let upsertInput: Record<string, unknown> | null = null;
+  const result = await applyApprovedStoreEntries({
+    approved: [{ ...entry, width: 12000, height: 12001 }],
+    existingIdentities: new Set(),
+    existingSources: new Map(),
+    repository: {
+      upsertStoreShowcaseImage: async (input) => {
+        upsertInput = input as unknown as Record<string, unknown>;
+        return { pool_id: "pool", image_id: "image", created: true };
+      }
+    },
+    storage: {
+      objectExists: async () => false,
+      putObject: async () => undefined,
+      deleteObject: async () => undefined
+    },
+    download: async () => ({
+      bytes: new Uint8Array([1, 2, 3]),
+      contentType: "image/jpeg" as const
+    })
+  });
+
+  expect(result).toEqual({ imported: 1, reused: 0, skipped: 0 });
+  expect(upsertInput?.width).toBeNull();
+  expect(upsertInput?.height).toBeNull();
 });

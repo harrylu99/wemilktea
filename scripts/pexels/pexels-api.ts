@@ -5,7 +5,9 @@ import {
   type ShowcaseManifest,
   type ShowcaseManifestEntry,
   type StoreShowcaseManifest,
-  type StoreShowcaseManifestEntry
+  type StoreShowcaseManifestEntry,
+  showcaseManifestSchema,
+  storeShowcaseManifestSchema
 } from "./types";
 
 const pexelsPhotoSchema = z.object({
@@ -115,11 +117,11 @@ export async function discoverShowcaseManifest(
     }
   }
 
-  return {
+  return showcaseManifestSchema.parse({
     version: 1,
     generatedAt: new Date().toISOString(),
     entries
-  };
+  });
 }
 
 export async function discoverStoreShowcaseManifest(
@@ -159,9 +161,9 @@ export async function discoverStoreShowcaseManifest(
     }
   }
 
-  return {
+  return storeShowcaseManifestSchema.parse({
     version: 1,
     generatedAt: new Date().toISOString(),
     entries
-  };
+  });
 }

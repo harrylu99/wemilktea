@@ -153,8 +153,8 @@ test("discovery spreads requests and caps each category at 40 candidates", async
 test("discovery deduplicates Pexels IDs across search terms within a category", async () => {
   const photosBySearchTerm = new Map<string, ReturnType<typeof photo>[]>([
     ["milk tea", [photo(1), photo(2)]],
-    ["bubble tea", [photo(2), photo(3)]],
-    ["brown sugar boba", [photo(3), photo(4)]]
+    ["boba milk tea", [photo(2), photo(3)]],
+    ["boba tea", [photo(3), photo(4)]]
   ]);
   const manifest = await discoverShowcaseManifest("test-key", async (input) => {
     const query = new URL(String(input)).searchParams.get("query") ?? "";
@@ -290,6 +290,54 @@ test("apply skips existing pool identities before downloading an image", async (
 
   expect(result).toEqual({ imported: 0, skipped: 1 });
   expect(downloaded).toBe(false);
+});
+
+test("Product apply does not persist Pexels source dimensions for new assets", async () => {
+  const entry: ShowcaseManifestEntry = {
+    approved: true,
+    categorySlug: "milk-tea",
+    searchTerm: "milk tea",
+    provider: "pexels",
+    externalPhotoId: "789",
+    photoUrl: "https://www.pexels.com/photo/789/",
+    imageUrl: "https://images.pexels.com/photos/789/large.jpeg",
+    photographer: "Example Photographer",
+    photographerUrl: "https://www.pexels.com/@example",
+    attributionText: "Photo by Example Photographer via Pexels",
+    width: 12000,
+    height: 12001
+  };
+  const category = {
+    id: "00000000-0000-0000-0000-000000000001",
+    slug: "milk-tea",
+    name: "Milk Tea"
+  };
+  let upsertInput: Record<string, unknown> | null = null;
+
+  const result = await applyApprovedEntries({
+    approved: [entry],
+    categoriesBySlug: new Map([["milk-tea", category]]),
+    existingIdentities: new Set(),
+    repository: {
+      upsertShowcaseImage: async (input) => {
+        upsertInput = input as unknown as Record<string, unknown>;
+        return { pool_id: "pool", image_id: "image", created: true };
+      }
+    },
+    storage: {
+      objectExists: async () => false,
+      putObject: async () => undefined,
+      deleteObject: async () => undefined
+    },
+    download: async () => ({
+      bytes: new Uint8Array([1, 2, 3]),
+      contentType: "image/jpeg" as const
+    })
+  });
+
+  expect(result).toEqual({ imported: 1, skipped: 0 });
+  expect(upsertInput?.width).toBeNull();
+  expect(upsertInput?.height).toBeNull();
 });
 
 test("assignment selection is stable for existing usage and balances new links", () => {
