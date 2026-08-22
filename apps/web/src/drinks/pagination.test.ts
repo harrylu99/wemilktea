@@ -21,6 +21,18 @@ test("paginates 849 results into 20-drink pages and reports the range", () => {
 
 test("builds compact page controls for the beginning, middle, and end", () => {
   expect(paginationItems(1, 43)).toEqual([1, 2, 3, "ellipsis", 43]);
+  expect(paginationItems(3, 16)).toEqual([1, 2, 3, 4, "ellipsis", 16]);
+  expect(paginationItems(8, 16)).toEqual([
+    1,
+    "ellipsis",
+    7,
+    8,
+    9,
+    "ellipsis",
+    16
+  ]);
+  expect(paginationItems(14, 16)).toEqual([1, "ellipsis", 13, 14, 15, 16]);
+  expect(paginationItems(16, 16)).toEqual([1, "ellipsis", 14, 15, 16]);
   expect(paginationItems(21, 43)).toEqual([
     1,
     "ellipsis",
@@ -67,6 +79,8 @@ test("renders accessible controls and hides itself for one page", () => {
   );
   expect(markup).toContain('aria-label="Drink results pagination"');
   expect(markup).toContain('aria-current="page"');
+  expect(markup).toContain("bg-[#6f9e62]");
+  expect(markup).toContain("border-transparent");
   expect(markup).toContain("Previous");
   expect(markup).toContain("Next");
   expect(markup).toContain("21–40 of 45 drinks");

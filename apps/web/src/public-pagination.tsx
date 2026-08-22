@@ -15,7 +15,9 @@ type PublicPaginationProps = {
 const controlClassName =
   "inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm leading-5 text-muted-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-[#f3f5ef] disabled:opacity-70";
 const pageClassName =
-  "inline-flex size-11 items-center justify-center rounded-xl border border-border bg-card text-xs font-medium leading-4 text-foreground transition-colors hover:bg-accent";
+  "inline-flex size-11 items-center justify-center rounded-xl text-xs font-medium leading-4 text-foreground transition-colors";
+const defaultPageClassName = `${pageClassName} border border-border bg-card hover:bg-accent`;
+const activePageClassName = `${pageClassName} border border-transparent bg-[#6f9e62] hover:bg-[#6f9e62]`;
 
 function PageButton({
   page,
@@ -31,11 +33,7 @@ function PageButton({
     <button
       aria-current={active ? "page" : undefined}
       aria-label={`Go to page ${page}`}
-      className={
-        active
-          ? `${pageClassName} border-[#6f9e62] bg-[#6f9e62]`
-          : pageClassName
-      }
+      className={active ? activePageClassName : defaultPageClassName}
       type="button"
       onClick={() => onPageChange(page)}
     >
