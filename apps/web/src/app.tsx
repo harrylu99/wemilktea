@@ -22,6 +22,7 @@ import {
 } from "./stores/google-map";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { PublicHeader } from "./public-header";
+import { PublicFooter } from "./public-footer";
 import { Seo } from "./seo";
 import { StoreDetailPage } from "./store-detail";
 import { SuggestStoreCta, SuggestStoreDialog } from "./stores/suggest-store";
@@ -433,7 +434,7 @@ function StoresPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <Seo
         description="Explore milk tea and bubble tea stores across Auckland, browse locations and discover somewhere new to try."
         path="/stores"
@@ -445,7 +446,7 @@ function StoresPage() {
         title="Milk Tea Stores in Auckland | WeMilktea"
       />
       <PublicHeader onSearch={focusSearch} />
-      <main className="mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
+      <main className="flex-1 mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">
           STORES · AUCKLAND
         </p>
@@ -627,6 +628,7 @@ function StoresPage() {
           </div>
         ) : null}
       </main>
+      <PublicFooter />
       <SuggestStoreDialog
         onClose={() => setSuggestStoreOpen(false)}
         open={suggestStoreOpen}

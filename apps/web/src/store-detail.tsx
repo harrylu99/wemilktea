@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PublicHeader } from "./public-header";
+import { PublicFooter } from "./public-footer";
 import {
   loadGoogleMaps,
   type GoogleMapInstance,
@@ -288,7 +289,7 @@ export function StoreDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <Seo
         description={
           store
@@ -318,7 +319,7 @@ export function StoreDetailPage() {
         }
       />
       <PublicHeader />
-      <main className="mx-auto max-w-[1250px] px-5 pb-28 pt-5 sm:px-8 md:pb-10 lg:px-0">
+      <main className="flex-1 mx-auto max-w-[1250px] px-5 pb-28 pt-5 sm:px-8 md:pb-10 lg:px-0">
         <Link
           className="inline-flex min-h-11 items-center text-sm font-semibold text-foreground hover:text-primary"
           to="/stores"
@@ -483,6 +484,7 @@ export function StoreDetailPage() {
           </a>
         </aside>
       ) : null}
+      <PublicFooter />
     </div>
   );
 }

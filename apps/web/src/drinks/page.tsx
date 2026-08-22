@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
+import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import {
   drinkDetailPath,
@@ -161,7 +162,7 @@ export function DrinksPage() {
   const clearFilters = () => setSearchParams({}, { replace: true });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <Seo
         description="Browse canonical milk tea and bubble tea drinks available around Auckland."
         path="/drinks"
@@ -171,7 +172,7 @@ export function DrinksPage() {
         title="Milk Tea Drinks in Auckland | WeMilktea"
       />
       <PublicHeader onSearch={() => searchRef.current?.focus()} />
-      <main className="mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
+      <main className="flex-1 mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>
         <h1 className="mt-4 text-[32px] font-semibold leading-10">
           Find your next cup
@@ -302,6 +303,7 @@ export function DrinksPage() {
           ) : null}
         </section>
       </main>
+      <PublicFooter />
     </div>
   );
 }
