@@ -184,12 +184,14 @@ The Maps key must be restricted by HTTP referrer to the final public origin
 used by the map renderer. The R2 value is a public read base URL, never a
 credential.
 
-Set `VITE_PUBLIC_SITE_URL` to the final public HTTPS origin. The public build
-uses it for canonical/social URLs and for the generated `robots.txt` and
-`sitemap.xml`; configure it in the Cloudflare Workers Builds environment before
-the Vite build runs. A Worker runtime variable set after static assets are built
-cannot change these files, and the Web production build rejects a missing or
-unsafe value instead of deploying the local `http://localhost:5173` fallback.
+Set `VITE_PUBLIC_SITE_URL` to the final public HTTPS origin for the `main`
+Cloudflare Workers build. Cloudflare supplies `WORKERS_CI_BRANCH`; the Web
+build rejects a missing or unsafe value only when that branch is `main`, rather
+than treating every Vite `production` mode build as a production deployment.
+Non-main Workers builds do not require a separate preview origin and are forced
+noindex. A Worker runtime variable set after static assets are built cannot
+change generated `robots.txt` or `sitemap.xml`. Local builds retain the
+`http://localhost:5173` fallback.
 
 Set `VITE_PUBLIC_NO_INDEX=true` only for the persistent Web DEV Worker. This
 overrides route-level public robots values, changes the static HTML and runtime

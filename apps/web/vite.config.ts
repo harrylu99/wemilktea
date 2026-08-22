@@ -2,7 +2,10 @@ import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { loadEnv, type Plugin, defineConfig } from "vite";
-import { resolvePublicSiteOrigin } from "./src/seo-origin";
+import {
+  resolvePublicSiteOrigin,
+  shouldNoIndexWebBuild
+} from "./src/seo-origin";
 
 type SitemapEntry = {
   path: string;
@@ -146,10 +149,19 @@ Sitemap: ${origin}/sitemap.xml
 `;
 }
 
-function seoFilesPlugin(env: Record<string, string>, mode: string): Plugin {
-  const noIndex = env.VITE_PUBLIC_NO_INDEX === "true";
+function seoFilesPlugin(
+  env: Record<string, string>,
+  workersCiBranch: string | undefined
+): Plugin {
+  const noIndex = shouldNoIndexWebBuild(
+    env.VITE_PUBLIC_NO_INDEX,
+    workersCiBranch
+  );
   const render = async () => {
-    const origin = resolvePublicSiteOrigin(env.VITE_PUBLIC_SITE_URL, mode);
+    const origin = resolvePublicSiteOrigin(
+      env.VITE_PUBLIC_SITE_URL,
+      workersCiBranch
+    );
     let entries: SitemapEntry[] = [];
     try {
       entries = await loadPublishedEntries(env);
@@ -211,8 +223,18 @@ function seoFilesPlugin(env: Record<string, string>, mode: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, appRoot, "");
+  const workersCiBranch = process.env.WORKERS_CI_BRANCH;
+  const noIndex = shouldNoIndexWebBuild(
+    env.VITE_PUBLIC_NO_INDEX,
+    workersCiBranch
+  );
   return {
-    plugins: [react(), tailwindcss(), seoFilesPlugin(env, mode)],
+    define: {
+      "import.meta.env.VITE_PUBLIC_NO_INDEX": JSON.stringify(
+        noIndex ? "true" : "false"
+      )
+    },
+    plugins: [react(), tailwindcss(), seoFilesPlugin(env, workersCiBranch)],
     resolve: {
       alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) }
     }

@@ -9,11 +9,12 @@ function isLoopbackHost(hostname: string) {
 
 export function resolvePublicSiteOrigin(
   value: string | undefined,
-  mode: string
+  workersCiBranch: string | undefined
 ) {
+  const isMainWorkersBuild = workersCiBranch?.trim() === "main";
   const configured = value?.trim();
   if (!configured) {
-    if (mode === "production") {
+    if (isMainWorkersBuild) {
       throw new Error(
         "VITE_PUBLIC_SITE_URL is required for production Web builds."
       );
@@ -25,7 +26,7 @@ export function resolvePublicSiteOrigin(
   try {
     parsed = new URL(configured);
   } catch {
-    if (mode === "production") {
+    if (isMainWorkersBuild) {
       throw new Error(
         "VITE_PUBLIC_SITE_URL must be a valid HTTPS public origin for production Web builds."
       );
@@ -34,7 +35,7 @@ export function resolvePublicSiteOrigin(
   }
 
   if (
-    mode === "production" &&
+    isMainWorkersBuild &&
     (parsed.protocol !== "https:" || isLoopbackHost(parsed.hostname))
   ) {
     throw new Error(
@@ -43,4 +44,12 @@ export function resolvePublicSiteOrigin(
   }
 
   return parsed.origin;
+}
+
+export function shouldNoIndexWebBuild(
+  configuredNoIndex: string | undefined,
+  workersCiBranch: string | undefined
+) {
+  const branch = workersCiBranch?.trim();
+  return configuredNoIndex === "true" || Boolean(branch && branch !== "main");
 }
