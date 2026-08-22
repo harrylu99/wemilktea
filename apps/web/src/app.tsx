@@ -328,7 +328,7 @@ function StoresPage() {
         setErrorMessage("Stores are unavailable right now. Please try again.");
       } else {
         const normalized = (data ?? [])
-          .map(normalizePublicStore)
+          .map((row) => normalizePublicStore(row))
           .filter((store): store is PublicStore => store !== null);
         setStores(normalized);
         setErrorMessage(null);

@@ -64,6 +64,37 @@ test("normalizes the EWKB geography returned by Supabase REST", () => {
   expect(store?.longitude).toBeCloseTo(174.7633, 4);
 });
 
+test("normalizes a Store with a stock location image", () => {
+  const store = normalizePublicStore(
+    {
+      id: stores[0].id,
+      slug: stores[0].slug,
+      display_name: stores[0].displayName,
+      suburb: stores[0].suburb,
+      address: stores[0].address,
+      coordinates: "POINT(174.7023 -36.726)",
+      brands: { name: stores[0].brandName, slug: stores[0].brandSlug },
+      location_images: [
+        {
+          image_assets: {
+            id: "6ebec59b-e16e-4be4-a8cb-647c29fd81c0",
+            provenance: "stock",
+            storage_key: "showcase/pexels/31578571.jpg",
+            external_url: null,
+            alt_text: "Bubble tea shop interior"
+          }
+        }
+      ]
+    },
+    "https://images.example.test"
+  );
+
+  expect(store).toMatchObject({
+    imageUrl: "https://images.example.test/showcase/pexels/31578571.jpg",
+    imageAltText: "Bubble tea shop interior"
+  });
+});
+
 test("skips public stores with invalid coordinates", () => {
   expect(
     normalizePublicStore({

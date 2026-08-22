@@ -13,7 +13,7 @@ const brandSchema = z.object({
 
 const imageAssetSchema = z.object({
   id: z.string().uuid(),
-  provenance: z.enum(["wemilktea", "merchant", "user", "google"]),
+  provenance: z.enum(["wemilktea", "merchant", "user", "google", "stock"]),
   storage_key: z.string().nullable().optional(),
   external_url: z.string().url().nullable().optional(),
   alt_text: z.string().nullable().optional(),
@@ -96,10 +96,13 @@ export type PublicStoreDetailResult =
       error: "not_found" | "query_failed" | "invalid_data" | string;
     };
 
-function publicImageFromAsset(value: z.infer<typeof imageAssetSchema>) {
+function publicImageFromAsset(
+  value: z.infer<typeof imageAssetSchema>,
+  imageBaseUrl = r2PublicBaseUrl
+) {
   if (value.provenance === "google") return null;
   const url = value.storage_key
-    ? publicImageUrl(r2PublicBaseUrl, value.storage_key)
+    ? publicImageUrl(imageBaseUrl, value.storage_key)
     : (value.external_url ?? null);
   return {
     id: value.id,
@@ -110,7 +113,8 @@ function publicImageFromAsset(value: z.infer<typeof imageAssetSchema>) {
 }
 
 export function normalizePublicStoreDetail(
-  value: unknown
+  value: unknown,
+  imageBaseUrl = r2PublicBaseUrl
 ): PublicStoreDetail | null {
   const parsed = locationDetailRowSchema.safeParse(value);
   if (!parsed.success) return null;
@@ -121,7 +125,7 @@ export function normalizePublicStoreDetail(
 
   const images = parsed.data.location_images
     .map((link) => firstRelation(link.image_assets))
-    .map(publicImageFromAsset)
+    .map((asset) => (asset ? publicImageFromAsset(asset, imageBaseUrl) : null))
     .filter((image): image is PublicStoreImage => image !== null);
 
   return {

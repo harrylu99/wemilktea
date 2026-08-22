@@ -40,6 +40,45 @@ test("normalizes a published canonical store detail row", () => {
   expect(store?.images).toEqual([]);
 });
 
+test("normalizes a stock image on Store detail", () => {
+  const store = normalizePublicStoreDetail(
+    {
+      id: storeId,
+      slug: "gong-cha-albany",
+      display_name: "Gong cha Albany",
+      suburb: "Albany",
+      address: "219 Don McKinnon Drive, Albany, Auckland",
+      coordinates: "0101000020E6100000637FD93D79D66540B0726891ED5C42C0",
+      brands: { id: brandId, name: "Gong cha", slug: "gong-cha" },
+      location_images: [
+        {
+          image_assets: {
+            id: "6ebec59b-e16e-4be4-a8cb-647c29fd81c0",
+            provenance: "stock",
+            storage_key: "showcase/pexels/31578571.jpg",
+            external_url: null,
+            alt_text: "Bubble tea shop interior",
+            attribution_text: "Photo by Pexels"
+          }
+        }
+      ]
+    },
+    "https://images.example.test"
+  );
+
+  expect(store?.images).toEqual([
+    {
+      id: "6ebec59b-e16e-4be4-a8cb-647c29fd81c0",
+      url: "https://images.example.test/showcase/pexels/31578571.jpg",
+      altText: "Bubble tea shop interior",
+      attributionText: "Photo by Pexels"
+    }
+  ]);
+  expect(store?.imageUrl).toBe(
+    "https://images.example.test/showcase/pexels/31578571.jpg"
+  );
+});
+
 test("normalizes available location products without exposing unpublished rows", () => {
   const drinks = normalizePublicStoreDrinks([
     {
