@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicImageUrl } from "@wemilktea/config";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import { firstRelation } from "../lib/relations";
 import { primaryProductImage, productImageSchema } from "../drinks/data";
 import { coordinatePair, type PublicStore } from "./data";
 
@@ -94,10 +95,6 @@ export type PublicStoreDetailResult =
       data: null;
       error: "not_found" | "query_failed" | "invalid_data" | string;
     };
-
-function firstRelation<T>(value: T | T[]) {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 function publicImageFromAsset(value: z.infer<typeof imageAssetSchema>) {
   if (value.provenance === "google") return null;

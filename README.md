@@ -46,10 +46,40 @@ supabase/
 bun install
 cp apps/web/.env.example apps/web/.env.local
 cp apps/admin/.env.example apps/admin/.env.local
-bun run dev
+bun --filter @wemilktea/web dev
 ```
 
-Run the admin application separately with `bun run dev:admin`.
+Run the Admin application separately with `bun --filter @wemilktea/admin dev`.
+
+### Local development against production services
+
+The ignored `apps/web/.env.local` and `apps/admin/.env.local` files may contain
+browser-safe production Supabase/R2 values for local debugging. The Web app
+runs at `http://localhost:5173` and the Admin app runs at
+`http://localhost:5174`; both can run at the same time.
+
+Equivalent root scripts are available:
+
+```sh
+bun run dev
+bun run dev:web
+bun run dev:admin
+```
+
+Local Web/Admin use the production backend when those production public values
+are configured. Local Admin is therefore a real production write surface:
+creating, editing, publishing, uploading, archiving, or deleting data from
+localhost changes production. Do not run seed, migration, import, Pexels, or
+assignment commands as part of frontend startup, and prefer read-only smoke
+tests.
+
+The current Admin login uses direct email/password sign-in and does not need a
+localhost redirect for login, session restoration, or logout. If an email
+confirmation or password-reset flow is introduced or tested locally, add the
+exact `http://localhost:5174/` URL to the production Supabase Auth URL
+configuration; do not add a wildcard. No production CORS change is required
+for the current direct read/auth smoke tests. Do not broaden Edge Function or
+R2 CORS to make local mutation flows work.
 
 ## Environment variables
 

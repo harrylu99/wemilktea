@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import { firstRelation } from "../lib/relations";
 import {
   normalizePublicDrink,
   publicProductQueryRowSchema,
@@ -36,10 +37,6 @@ export type PublicDrinkDetailResult =
       data: null;
       error: "not_found" | "query_failed" | "invalid_data" | string;
     };
-
-function firstRelation<T>(value: T | T[]) {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export function normalizePublicDrinkAvailableStore(
   value: unknown
