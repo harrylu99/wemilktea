@@ -1,4 +1,9 @@
 import { formatStatusLabel } from "./lib/status-label";
+import {
+  PAGE_SIZE,
+  pageFromSearchParams,
+  searchParamsForPage
+} from "./management-pagination-state";
 
 export const candidateFilters = [
   "all",
@@ -7,6 +12,8 @@ export const candidateFilters = [
   "approved",
   "rejected"
 ] as const;
+
+export const CANDIDATE_PAGE_SIZE = PAGE_SIZE;
 
 export type CandidateFilter = (typeof candidateFilters)[number];
 
@@ -29,6 +36,8 @@ export function searchParamsForCandidateFilter(
 ) {
   const nextSearchParams = new URLSearchParams(searchParams);
 
+  nextSearchParams.delete("page");
+
   if (filter === "all") {
     nextSearchParams.delete("status");
   } else {
@@ -36,6 +45,17 @@ export function searchParamsForCandidateFilter(
   }
 
   return nextSearchParams;
+}
+
+export function candidatePageFromSearchParams(searchParams: URLSearchParams) {
+  return pageFromSearchParams(searchParams);
+}
+
+export function searchParamsForCandidatePage(
+  searchParams: URLSearchParams,
+  page: number
+) {
+  return searchParamsForPage(searchParams, page);
 }
 
 function isCandidateListPath(value: string) {

@@ -6,7 +6,13 @@ import {
   type BrandOption
 } from "@wemilktea/validation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from "react-router-dom";
 import { z } from "zod";
 import {
   ImageStorageError,
@@ -20,6 +26,16 @@ import { slugify } from "./lib/slug";
 import { formatStatusLabel } from "./lib/status-label";
 import { ManagementDetailSkeleton, ManagementTableSkeleton } from "./loading";
 import { ConfirmDialog } from "./confirm-dialog";
+import { PAGE_SIZE, searchParamsForPage } from "./management-pagination-state";
+import { ManagementPagination } from "./management-pagination";
+import {
+  productListStateFromSearchParams,
+  productManagementReturnPath,
+  productStatuses,
+  searchParamsForProductFilters,
+  searchParamsForProductPage,
+  type ProductStatus
+} from "./product-list-state";
 
 const categorySchema = z.object({
   id: z.string().uuid(),
@@ -149,6 +165,8 @@ type AvailabilityDraft = {
   exists: boolean;
 };
 
+const productIdRowSchema = z.object({ id: z.string().uuid() });
+
 function friendlyProductError(message: string | undefined) {
   switch (message) {
     case "product_not_found":
@@ -234,57 +252,191 @@ function normalizeManagedImage(value: unknown): ManagedImage | null {
 }
 
 export function ProductsPage() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<
     z.infer<typeof productManagementListItemSchema>[]
   >([]);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "draft" | "published">("all");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { query, status, page } =
+    productListStateFromSearchParams(searchParams);
 
   const load = useCallback(async () => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setErrorMessage(supabaseConfigurationError);
       setIsLoading(false);
       return;
     }
+
     setIsLoading(true);
-    const result = await supabase
+
+    let matchingProductIds: string[] | null = null;
+    const normalizedQuery = query.trim();
+    if (normalizedQuery) {
+      const pattern = `%${normalizedQuery}%`;
+      const [nameResult, slugResult, brandResult, categoryResult] =
+        await Promise.all([
+          client.from("products").select("id").ilike("name", pattern),
+          client.from("products").select("id").ilike("slug", pattern),
+          client.from("brands").select("id").ilike("name", pattern),
+          client.from("categories").select("id").ilike("name", pattern)
+        ]);
+
+      const parsedNameIds = productIdRowSchema
+        .array()
+        .safeParse(nameResult.data);
+      const parsedSlugIds = productIdRowSchema
+        .array()
+        .safeParse(slugResult.data);
+      const parsedBrandIds = productIdRowSchema
+        .array()
+        .safeParse(brandResult.data);
+      const parsedCategoryIds = productIdRowSchema
+        .array()
+        .safeParse(categoryResult.data);
+
+      if (
+        nameResult.error ||
+        slugResult.error ||
+        brandResult.error ||
+        categoryResult.error ||
+        !parsedNameIds.success ||
+        !parsedSlugIds.success ||
+        !parsedBrandIds.success ||
+        !parsedCategoryIds.success
+      ) {
+        setErrorMessage("Products could not be loaded. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const [brandProductResult, categoryProductResult] = await Promise.all([
+        parsedBrandIds.data.length
+          ? client
+              .from("products")
+              .select("id")
+              .in(
+                "brand_id",
+                parsedBrandIds.data.map((row) => row.id)
+              )
+          : Promise.resolve({ data: [], error: null }),
+        parsedCategoryIds.data.length
+          ? client
+              .from("products")
+              .select("id")
+              .in(
+                "category_id",
+                parsedCategoryIds.data.map((row) => row.id)
+              )
+          : Promise.resolve({ data: [], error: null })
+      ]);
+      const parsedBrandProductIds = productIdRowSchema
+        .array()
+        .safeParse(brandProductResult.data);
+      const parsedCategoryProductIds = productIdRowSchema
+        .array()
+        .safeParse(categoryProductResult.data);
+
+      if (
+        brandProductResult.error ||
+        categoryProductResult.error ||
+        !parsedBrandProductIds.success ||
+        !parsedCategoryProductIds.success
+      ) {
+        setErrorMessage("Products could not be loaded. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      matchingProductIds = [
+        ...new Set([
+          ...parsedNameIds.data.map((row) => row.id),
+          ...parsedSlugIds.data.map((row) => row.id),
+          ...parsedBrandProductIds.data.map((row) => row.id),
+          ...parsedCategoryProductIds.data.map((row) => row.id)
+        ])
+      ];
+    }
+
+    if (matchingProductIds && matchingProductIds.length === 0) {
+      setProducts([]);
+      setTotalCount(0);
+      setErrorMessage(null);
+      setIsLoading(false);
+      return;
+    }
+
+    let productQuery = client
       .from("products")
       .select(
-        "id, brand_id, category_id, name, slug, description, is_seasonal, is_published, created_at, updated_at, brands!inner(name, slug), categories!inner(name, slug)"
-      )
-      .order("updated_at", { ascending: false });
+        "id, brand_id, category_id, name, slug, description, is_seasonal, is_published, created_at, updated_at, brands!inner(name, slug), categories!inner(name, slug)",
+        { count: "exact" }
+      );
+    if (status !== "all") {
+      productQuery = productQuery.eq("is_published", status === "published");
+    }
+    if (matchingProductIds) {
+      productQuery = productQuery.in("id", matchingProductIds);
+    }
+
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const result = await productQuery
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+    let waitingForPageNormalization = false;
     const parsed = productManagementListItemSchema
       .array()
       .safeParse(result.data);
     if (result.error || !parsed.success) {
       setErrorMessage("Products could not be loaded. Please try again.");
     } else {
-      setProducts(parsed.data);
-      setErrorMessage(null);
+      const safeTotalCount = result.count ?? 0;
+      const totalPages = Math.max(1, Math.ceil(safeTotalCount / PAGE_SIZE));
+      if (page > totalPages) {
+        waitingForPageNormalization = true;
+        setSearchParams(searchParamsForProductPage(searchParams, totalPages), {
+          replace: true
+        });
+      } else {
+        setProducts(parsed.data);
+        setTotalCount(safeTotalCount);
+        setErrorMessage(null);
+      }
     }
-    setIsLoading(false);
-  }, []);
+    if (!waitingForPageNormalization) setIsLoading(false);
+  }, [page, query, searchParams, setSearchParams, status]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const visibleProducts = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return products.filter((product) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        `${product.name} ${product.slug} ${product.brands.name} ${product.categories.name}`
-          .toLowerCase()
-          .includes(normalizedQuery);
-      const matchesStatus =
-        status === "all" ||
-        (status === "published" ? product.is_published : !product.is_published);
-      return matchesQuery && matchesStatus;
-    });
-  }, [products, query, status]);
+  useEffect(() => {
+    setSearchDraft(query);
+  }, [query]);
+
+  useEffect(() => {
+    if (searchDraft.trim() === query) return;
+    const timeout = setTimeout(() => {
+      setSearchParams(
+        searchParamsForProductFilters(searchParams, { query: searchDraft }),
+        { replace: true }
+      );
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [query, searchDraft, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const normalized = searchParamsForProductPage(searchParams, page);
+    if (normalized.toString() !== searchParams.toString()) {
+      setSearchParams(normalized, { replace: true });
+    }
+  }, [page, searchParams, setSearchParams]);
 
   return (
     <section>
@@ -325,8 +477,8 @@ export function ProductsPage() {
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             id="product-search"
             placeholder="Name, brand, category, or slug"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
           />
         </label>
         <label className="w-44 text-sm font-medium" htmlFor="product-status">
@@ -335,11 +487,19 @@ export function ProductsPage() {
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             id="product-status"
             value={status}
-            onChange={(event) => setStatus(event.target.value as typeof status)}
+            onChange={(event) =>
+              setSearchParams(
+                searchParamsForProductFilters(searchParams, {
+                  status: event.target.value as ProductStatus
+                })
+              )
+            }
           >
-            <option value="all">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
+            {productStatuses.map((value) => (
+              <option key={value} value={value}>
+                {value === "all" ? "All statuses" : formatStatusLabel(value)}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -352,12 +512,12 @@ export function ProductsPage() {
             {errorMessage}
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleProducts.length === 0 ? (
+        {!isLoading && !errorMessage && products.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
             No products match these filters.
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleProducts.length > 0 ? (
+        {!isLoading && !errorMessage && products.length > 0 ? (
           <table className="w-full min-w-[52rem] text-left text-sm">
             <thead className="border-b border-border bg-muted text-muted-foreground">
               <tr>
@@ -372,7 +532,7 @@ export function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {visibleProducts.map((product) => (
+              {products.map((product) => (
                 <tr
                   className="border-b border-border last:border-0"
                   key={product.id}
@@ -395,6 +555,9 @@ export function ProductsPage() {
                     <Link
                       className="rounded-md border border-border px-3 py-2 font-medium hover:bg-muted"
                       to={`/products/${product.id}`}
+                      state={{
+                        returnTo: `${location.pathname}${location.search}`
+                      }}
                     >
                       Manage
                     </Link>
@@ -405,14 +568,25 @@ export function ProductsPage() {
           </table>
         ) : null}
       </div>
+      {!isLoading && !errorMessage ? (
+        <ManagementPagination
+          page={page}
+          totalCount={totalCount}
+          onPageChange={(nextPage) =>
+            setSearchParams(searchParamsForPage(searchParams, nextPage))
+          }
+        />
+      ) : null}
     </section>
   );
 }
 
 export function ProductManagementPage() {
   const { productId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const isNew = productId === "new";
+  const returnToProducts = productManagementReturnPath(location.state);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -873,7 +1047,8 @@ export function ProductManagementPage() {
     <section className="max-w-5xl">
       <Link
         className="text-sm font-medium text-primary hover:underline"
-        to="/products"
+        replace
+        to={returnToProducts}
       >
         ← Products
       </Link>
