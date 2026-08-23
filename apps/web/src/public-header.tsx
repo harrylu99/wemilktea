@@ -12,7 +12,7 @@ function ThemeControl() {
     <button
       aria-checked={resolvedTheme === "dark"}
       aria-label={`Switch to ${nextTheme} mode`}
-      className="grid size-11 place-items-center rounded-md text-foreground transition-colors hover:bg-accent motion-reduce:transition-none"
+      className="group grid size-11 place-items-center rounded-md text-foreground"
       data-resolved-theme={resolvedTheme}
       role="switch"
       title={`Switch to ${nextTheme} mode`}
@@ -21,7 +21,7 @@ function ThemeControl() {
     >
       <span
         aria-hidden="true"
-        className="relative grid h-6 w-11 grid-cols-2 place-items-center rounded-full border border-border bg-secondary text-[11px] leading-none"
+        className="relative grid h-6 w-11 grid-cols-2 place-items-center rounded-full border border-border bg-secondary text-[11px] leading-none transition-colors group-hover:border-primary group-hover:bg-accent motion-reduce:transition-none"
       >
         <span>☀</span>
         <span>☾</span>
