@@ -1,6 +1,32 @@
 import { applicationMetadata } from "@wemilktea/config";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useTheme } from "./theme-context";
+import { themePreferences, type ThemePreference } from "./theme-preference";
+
+function ThemeControl({ mobile = false }: { mobile?: boolean }) {
+  const { preference, setPreference } = useTheme();
+
+  return (
+    <label className="block">
+      <span className="sr-only">Colour theme</span>
+      <select
+        aria-label="Colour theme"
+        className={`h-11 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground ${mobile ? "w-[84px]" : "w-[92px]"}`}
+        value={preference}
+        onChange={(event) =>
+          setPreference(event.target.value as ThemePreference)
+        }
+      >
+        {themePreferences.map((option) => (
+          <option key={option} value={option}>
+            {option[0].toUpperCase() + option.slice(1)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,6 +89,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
               <span aria-hidden="true">⌕</span> Search
             </Link>
           )}
+          <ThemeControl />
           <Link
             className="rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground"
             to="/picker"
@@ -89,6 +116,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
               <span aria-hidden="true">⌕</span>
             </Link>
           )}
+          <ThemeControl mobile />
           <button
             ref={menuButtonRef}
             aria-controls="mobile-navigation"

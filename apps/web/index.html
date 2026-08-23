@@ -25,6 +25,28 @@
       content="Discover milk tea stores, bubble tea drinks and new favourites around Auckland with WeMilktea."
     />
     <meta name="twitter:image" content="/og-default.svg" />
+    <script>
+      (() => {
+        const preference = (() => {
+          try {
+            const saved = localStorage.getItem("wemilktea-theme");
+            return saved === "light" || saved === "dark" || saved === "system"
+              ? saved
+              : "system";
+          } catch {
+            return "system";
+          }
+        })();
+        const theme =
+          preference === "system"
+            ? matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : preference;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

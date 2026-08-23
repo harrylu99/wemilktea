@@ -13,11 +13,11 @@ type PublicPaginationProps = {
 };
 
 const controlClassName =
-  "inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm leading-5 text-muted-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-[#f3f5ef] disabled:opacity-70";
+  "inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm leading-5 text-muted-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-secondary disabled:opacity-70";
 const pageClassName =
   "inline-flex size-11 items-center justify-center rounded-xl text-xs font-medium leading-4 text-foreground transition-colors";
 const defaultPageClassName = `${pageClassName} border border-border bg-card hover:bg-accent`;
-const activePageClassName = `${pageClassName} border border-transparent bg-[#6f9e62] hover:bg-[#6f9e62]`;
+const activePageClassName = `${pageClassName} border border-primary bg-primary text-primary-foreground hover:bg-primary`;
 
 function PageButton({
   page,

@@ -79,8 +79,7 @@ test("renders accessible controls and hides itself for one page", () => {
   );
   expect(markup).toContain('aria-label="Drink results pagination"');
   expect(markup).toContain('aria-current="page"');
-  expect(markup).toContain("bg-[#6f9e62]");
-  expect(markup).toContain("border-transparent");
+  expect(markup).toContain("border-primary bg-primary text-primary-foreground");
   expect(markup).toContain("Previous");
   expect(markup).toContain("Next");
   expect(markup).toContain("21–40 of 45 drinks");

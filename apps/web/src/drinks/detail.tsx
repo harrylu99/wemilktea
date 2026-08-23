@@ -304,7 +304,7 @@ export function DrinkDetailPage() {
             </section>
 
             {drink.availableStores.length > 0 ? (
-              <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 p-3 shadow-[0_-4px_8px_rgba(20,31,20,0.12)] backdrop-blur md:hidden">
+              <div className="detail-drink-sticky-action fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 p-3 backdrop-blur md:hidden">
                 <div className="mx-auto flex max-w-[390px] items-center justify-between gap-3">
                   <span className="text-xs font-medium text-foreground">
                     Drink detail
