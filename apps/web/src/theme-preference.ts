@@ -18,6 +18,10 @@ export function resolveTheme(
   return preference;
 }
 
+export function nextExplicitTheme(theme: ResolvedTheme): ResolvedTheme {
+  return theme === "light" ? "dark" : "light";
+}
+
 export function applyTheme(
   root: Pick<HTMLElement, "dataset" | "style">,
   theme: ResolvedTheme

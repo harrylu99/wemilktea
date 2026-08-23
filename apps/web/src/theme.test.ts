@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   applyTheme,
+  nextExplicitTheme,
   readThemePreference,
   resolveTheme
 } from "./theme-preference";
@@ -37,5 +38,10 @@ describe("public theme preferences", () => {
     expect(resolveTheme("system", true)).toBe("dark");
     expect(resolveTheme("light", true)).toBe("light");
     expect(resolveTheme("dark", false)).toBe("dark");
+  });
+
+  test("quick switching always stores an explicit opposite appearance", () => {
+    expect(nextExplicitTheme("light")).toBe("dark");
+    expect(nextExplicitTheme("dark")).toBe("light");
   });
 });
