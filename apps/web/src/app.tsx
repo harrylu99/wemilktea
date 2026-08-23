@@ -43,12 +43,14 @@ function StoreImage({ store, index }: { store: PublicStore; index: number }) {
   const accent = index % 2 === 0 ? "bg-[#a97850]" : "bg-[#c58a62]";
   if (store.imageUrl && !hasImageError) {
     return (
-      <img
-        alt={store.imageAltText ?? `${store.displayName} store`}
-        className="size-[62px] shrink-0 rounded-lg border border-border object-cover md:size-[74px]"
-        src={store.imageUrl}
-        onError={() => setHasImageError(true)}
-      />
+      <div className="size-[62px] shrink-0 overflow-hidden rounded-lg border border-border md:size-[74px]">
+        <img
+          alt={store.imageAltText ?? `${store.displayName} store`}
+          className="discovery-card-image size-full object-cover"
+          src={store.imageUrl}
+          onError={() => setHasImageError(true)}
+        />
+      </div>
     );
   }
 
@@ -86,7 +88,7 @@ function StoreCard({
 
   return (
     <Link
-      className={`flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 transition-shadow hover:shadow-md md:min-h-[92px] ${selected ? "ring-2 ring-primary ring-offset-2" : ""}`}
+      className={`discovery-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px] ${selected ? "ring-2 ring-primary ring-offset-2" : ""}`}
       to={`/stores/${store.slug}`}
       onFocus={onSelect}
       onMouseEnter={onSelect}
@@ -463,7 +465,7 @@ function StoresPage() {
             <input
               ref={searchRef}
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-10 text-base text-foreground placeholder:text-muted-foreground"
-              placeholder="Search stores, drinks, matcha..."
+              placeholder="Search for your next drink place"
               type="search"
               value={query}
               onChange={(event) => updateSearchParam("q", event.target.value)}

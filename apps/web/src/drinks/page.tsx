@@ -235,7 +235,7 @@ export function DrinksPage() {
               aria-label="Search drinks, brands or categories"
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-12 text-base text-foreground placeholder:text-muted-foreground"
               id="drink-search"
-              placeholder="Search drinks, brands or categories"
+              placeholder="Search for whatever you are keen on today."
               ref={searchRef}
               type="search"
               value={query}
