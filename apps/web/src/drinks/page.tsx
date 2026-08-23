@@ -82,11 +82,11 @@ export function DrinkCard({
 function DrinkSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)] lg:justify-between"
       aria-label="Loading drinks"
       role="status"
     >
-      {Array.from({ length: 4 }, (_, index) => (
+      {Array.from({ length: 5 }, (_, index) => (
         <div
           className="h-[284px] w-full animate-pulse overflow-hidden rounded-xl border border-border bg-card"
           key={index}
