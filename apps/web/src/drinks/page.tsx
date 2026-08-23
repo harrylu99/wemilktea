@@ -26,12 +26,14 @@ function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
 
   if (drink.imageUrl && !hasImageError) {
     return (
-      <img
-        alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
-        className="h-[148px] w-full object-cover"
-        src={drink.imageUrl}
-        onError={() => setHasImageError(true)}
-      />
+      <div className="h-[148px] overflow-hidden">
+        <img
+          alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
+          className="discovery-card-image h-full w-full object-cover"
+          src={drink.imageUrl}
+          onError={() => setHasImageError(true)}
+        />
+      </div>
     );
   }
 
@@ -57,7 +59,7 @@ export function DrinkCard({
   return (
     <Link
       aria-label={`View ${drink.name} by ${drink.brandName}`}
-      className={`flex min-h-[284px] flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md ${className ?? ""}`}
+      className={`discovery-card flex min-h-[284px] flex-col overflow-hidden rounded-xl border border-border bg-card ${className ?? ""}`}
       to={drinkDetailPath(drink)}
     >
       <DrinkImage drink={drink} index={index} />
@@ -80,11 +82,11 @@ export function DrinkCard({
 function DrinkSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)]"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)] lg:justify-between"
       aria-label="Loading drinks"
       role="status"
     >
-      {Array.from({ length: 4 }, (_, index) => (
+      {Array.from({ length: 5 }, (_, index) => (
         <div
           className="h-[284px] w-full animate-pulse overflow-hidden rounded-xl border border-border bg-card"
           key={index}
@@ -113,7 +115,7 @@ function CategoryChip({
   return (
     <button
       aria-pressed={selected}
-      className={`h-11 shrink-0 rounded-full border px-4 text-xs font-medium transition-colors ${selected ? "border-[#93b58b] bg-[#93b58b] text-foreground" : "border-border bg-[#f3f5ef] text-foreground hover:bg-accent"}`}
+      className={`h-11 shrink-0 cursor-pointer rounded-full border px-4 text-xs font-medium transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary text-foreground hover:bg-accent"}`}
       type="button"
       onClick={onClick}
     >
@@ -217,7 +219,7 @@ export function DrinksPage() {
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>
         <h1 className="mt-4 text-[32px] font-semibold leading-10">
-          Find your next cup
+          What are we feeling today?
         </h1>
 
         <div className="mt-[18px]">
@@ -233,7 +235,7 @@ export function DrinksPage() {
               aria-label="Search drinks, brands or categories"
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-12 text-base text-foreground placeholder:text-muted-foreground"
               id="drink-search"
-              placeholder="Search drinks, brands or categories"
+              placeholder="Search for whatever you are keen on today"
               ref={searchRef}
               type="search"
               value={query}

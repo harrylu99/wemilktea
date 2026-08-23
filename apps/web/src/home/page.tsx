@@ -34,16 +34,18 @@ function StorePreviewCard({
 
   return (
     <Link
-      className="flex min-h-[96px] items-center gap-3 rounded-xl border border-border bg-card p-2 transition-shadow hover:shadow-md"
+      className="discovery-card flex min-h-[96px] items-center gap-3 rounded-xl border border-border bg-card p-2"
       to={`/stores/${store.slug}`}
     >
       {store.imageUrl && !imageError ? (
-        <img
-          alt={store.imageAltText ?? `${store.displayName} store`}
-          className="size-[80px] shrink-0 rounded-lg border border-border object-cover"
-          src={store.imageUrl}
-          onError={() => setImageError(true)}
-        />
+        <div className="size-[80px] shrink-0 overflow-hidden rounded-lg border border-border">
+          <img
+            alt={store.imageAltText ?? `${store.displayName} store`}
+            className="discovery-card-image size-full object-cover"
+            src={store.imageUrl}
+            onError={() => setImageError(true)}
+          />
+        </div>
       ) : (
         <div
           aria-hidden="true"

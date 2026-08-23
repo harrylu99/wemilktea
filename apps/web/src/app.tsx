@@ -1,4 +1,11 @@
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   Link,
   Navigate,
@@ -43,12 +50,14 @@ function StoreImage({ store, index }: { store: PublicStore; index: number }) {
   const accent = index % 2 === 0 ? "bg-[#a97850]" : "bg-[#c58a62]";
   if (store.imageUrl && !hasImageError) {
     return (
-      <img
-        alt={store.imageAltText ?? `${store.displayName} store`}
-        className="size-[62px] shrink-0 rounded-lg border border-border object-cover md:size-[74px]"
-        src={store.imageUrl}
-        onError={() => setHasImageError(true)}
-      />
+      <div className="size-[62px] shrink-0 overflow-hidden rounded-lg border border-border md:size-[74px]">
+        <img
+          alt={store.imageAltText ?? `${store.displayName} store`}
+          className="discovery-card-image size-full object-cover"
+          src={store.imageUrl}
+          onError={() => setHasImageError(true)}
+        />
+      </div>
     );
   }
 
@@ -86,7 +95,9 @@ function StoreCard({
 
   return (
     <Link
-      className={`flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 transition-shadow hover:shadow-md md:min-h-[92px] ${selected ? "ring-2 ring-primary ring-offset-2" : ""}`}
+      className="discovery-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px]"
+      data-highlighted={selected || undefined}
+      id={`store-card-${store.id}`}
       to={`/stores/${store.slug}`}
       onFocus={onSelect}
       onMouseEnter={onSelect}
@@ -110,11 +121,13 @@ function MapFallback({
   stores,
   selectedId,
   onSelect,
+  onHover,
   message
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onHover: (id: string) => void;
   message?: string;
 }) {
   return (
@@ -142,6 +155,7 @@ function MapFallback({
             style={position}
             type="button"
             onClick={() => onSelect(store.id)}
+            onMouseEnter={() => onHover(store.id)}
           >
             <span aria-hidden="true" className="store-map-marker-cup">
               <span className="store-map-marker-lid" />
@@ -160,11 +174,13 @@ function MapFallback({
 function GoogleMapPanel({
   stores,
   selectedId,
-  onSelect
+  onSelect,
+  onHover
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onHover: (id: string) => void;
 }) {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -179,7 +195,7 @@ function GoogleMapPanel({
         setMap: (map: GoogleMapInstance | null) => void;
         setZIndex: (zIndex: number | null) => void;
       };
-      listener: { remove: () => void };
+      listeners: Array<{ remove: () => void }>;
     }>
   >([]);
   const [state, setState] = useState<"loading" | "ready" | "unavailable">(
@@ -225,8 +241,8 @@ function GoogleMapPanel({
     const googleMaps = mapsApiRef.current;
     if (state !== "ready" || !map || !googleMaps) return;
 
-    markersRef.current.forEach(({ marker, listener }) => {
-      listener.remove();
+    markersRef.current.forEach(({ marker, listeners }) => {
+      listeners.forEach((listener) => listener.remove());
       marker.setMap(null);
     });
 
@@ -241,8 +257,11 @@ function GoogleMapPanel({
         title: store.displayName,
         zIndex: selectedIdRef.current === store.id ? 2 : 1
       });
-      const listener = marker.addListener("click", () => onSelect(store.id));
-      return { id: store.id, marker, listener };
+      const listeners = [
+        marker.addListener("click", () => onSelect(store.id)),
+        marker.addListener("mouseover", () => onHover(store.id))
+      ];
+      return { id: store.id, marker, listeners };
     });
 
     if (stores.length === 1) {
@@ -251,7 +270,7 @@ function GoogleMapPanel({
     } else if (stores.length > 1) {
       map.fitBounds(bounds);
     }
-  }, [onSelect, state, stores]);
+  }, [onHover, onSelect, state, stores]);
 
   useEffect(() => {
     if (state !== "ready") return;
@@ -268,6 +287,7 @@ function GoogleMapPanel({
       {state === "unavailable" ? (
         <MapFallback
           message="Map unavailable right now. You can still browse the store list."
+          onHover={onHover}
           onSelect={onSelect}
           selectedId={selectedId}
           stores={stores}
@@ -365,13 +385,14 @@ function StoresPage() {
     [stores]
   );
 
-  useEffect(() => {
-    if (visibleStores.length === 0) {
-      setSelectedId(null);
-    } else if (!visibleStores.some((store) => store.id === selectedId)) {
-      setSelectedId(visibleStores[0].id);
-    }
-  }, [visibleStores, selectedId]);
+  const handleMapHover = useCallback((id: string) => {
+    setSelectedId(id);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`store-card-${id}`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }, []);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -451,7 +472,7 @@ function StoresPage() {
           STORES · AUCKLAND
         </p>
         <h1 className="mt-4 max-w-[467px] text-2xl font-semibold leading-8 md:text-[28px] md:leading-9 lg:text-[32px] lg:leading-10">
-          Find milk tea around Auckland
+          Where are we getting milk tea?
         </h1>
 
         <div className="mt-4">
@@ -462,8 +483,8 @@ function StoresPage() {
             </span>
             <input
               ref={searchRef}
-              className="search-input-custom-clear h-11 w-full rounded-xl border border-border bg-card px-12 pr-10 text-sm text-foreground placeholder:text-muted-foreground md:h-12"
-              placeholder="Search stores, drinks, matcha..."
+              className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-10 text-base text-foreground placeholder:text-muted-foreground"
+              placeholder="Search for your next drink place"
               type="search"
               value={query}
               onChange={(event) => updateSearchParam("q", event.target.value)}
@@ -488,7 +509,7 @@ function StoresPage() {
         >
           <button
             aria-pressed={nearMe}
-            className={`h-11 rounded-xl border border-border px-4 text-xs font-semibold ${nearMe ? "bg-accent text-primary" : "bg-card"}`}
+            className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${nearMe ? "bg-accent text-primary" : "bg-card"}`}
             type="button"
             onClick={requestNearMe}
           >
@@ -499,7 +520,7 @@ function StoresPage() {
               ref={filtersButtonRef}
               aria-controls="store-filters-popover"
               aria-expanded={filtersOpen}
-              className={`h-11 rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
+              className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
               type="button"
               onClick={() => setFiltersOpen((open) => !open)}
             >
@@ -594,6 +615,7 @@ function StoresPage() {
             <GoogleMapPanel
               stores={visibleStores}
               selectedId={selectedId}
+              onHover={handleMapHover}
               onSelect={setSelectedId}
             />
             <section

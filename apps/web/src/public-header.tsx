@@ -1,6 +1,39 @@
 import { applicationMetadata } from "@wemilktea/config";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useTheme } from "./theme-context";
+import { nextExplicitTheme } from "./theme-preference";
+
+function ThemeControl() {
+  const { resolvedTheme, setPreference } = useTheme();
+  const nextTheme = nextExplicitTheme(resolvedTheme);
+
+  return (
+    <button
+      aria-checked={resolvedTheme === "dark"}
+      aria-label={`Switch to ${nextTheme} mode`}
+      className="group grid size-11 cursor-pointer place-items-center rounded-md text-foreground"
+      data-resolved-theme={resolvedTheme}
+      role="switch"
+      title={`Switch to ${nextTheme} mode`}
+      type="button"
+      onClick={() => setPreference(nextTheme)}
+    >
+      <span
+        aria-hidden="true"
+        className="relative grid h-6 w-11 grid-cols-2 place-items-center rounded-full border border-border bg-secondary text-[11px] leading-none transition-colors group-hover:border-primary group-hover:bg-accent motion-reduce:transition-none"
+      >
+        <span>☀</span>
+        <span>☾</span>
+        <span
+          className={`absolute left-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground transition-transform motion-reduce:transition-none ${resolvedTheme === "dark" ? "translate-x-5" : "translate-x-0"}`}
+        >
+          {resolvedTheme === "dark" ? "☾" : "☀"}
+        </span>
+      </span>
+    </button>
+  );
+}
 
 export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,7 +60,10 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-6 px-4 sm:px-6 md:h-[72px] lg:px-8">
-        <Link className="flex-1 text-2xl font-semibold leading-8" to="/">
+        <Link
+          className="mr-auto cursor-pointer text-2xl font-semibold leading-8"
+          to="/"
+        >
           {applicationMetadata.web.name}
         </Link>
         <nav
@@ -63,6 +99,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
               <span aria-hidden="true">⌕</span> Search
             </Link>
           )}
+          <ThemeControl />
           <Link
             className="rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground"
             to="/picker"
@@ -89,6 +126,7 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
               <span aria-hidden="true">⌕</span>
             </Link>
           )}
+          <ThemeControl />
           <button
             ref={menuButtonRef}
             aria-controls="mobile-navigation"
