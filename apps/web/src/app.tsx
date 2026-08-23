@@ -462,7 +462,7 @@ function StoresPage() {
             </span>
             <input
               ref={searchRef}
-              className="search-input-custom-clear h-11 w-full rounded-xl border border-border bg-card px-12 pr-10 text-sm text-foreground placeholder:text-muted-foreground md:h-12"
+              className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-10 text-base text-foreground placeholder:text-muted-foreground"
               placeholder="Search stores, drinks, matcha..."
               type="search"
               value={query}
@@ -488,7 +488,7 @@ function StoresPage() {
         >
           <button
             aria-pressed={nearMe}
-            className={`h-11 rounded-xl border border-border px-4 text-xs font-semibold ${nearMe ? "bg-accent text-primary" : "bg-card"}`}
+            className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${nearMe ? "bg-accent text-primary" : "bg-card"}`}
             type="button"
             onClick={requestNearMe}
           >
@@ -499,7 +499,7 @@ function StoresPage() {
               ref={filtersButtonRef}
               aria-controls="store-filters-popover"
               aria-expanded={filtersOpen}
-              className={`h-11 rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
+              className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
               type="button"
               onClick={() => setFiltersOpen((open) => !open)}
             >
