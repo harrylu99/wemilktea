@@ -355,7 +355,7 @@ export function StoreDetailPage() {
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   <a
-                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground"
+                    className="hidden min-h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground md:inline-flex"
                     href={directionsUrl(store)}
                     rel="noreferrer"
                     target="_blank"

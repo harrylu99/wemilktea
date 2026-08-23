@@ -266,12 +266,12 @@ export function DrinkDetailPage() {
                   </p>
                 ) : null}
                 <button
-                  className="mt-auto inline-flex min-h-[52px] w-[200px] items-center justify-center rounded-xl bg-primary px-6 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-auto hidden min-h-[52px] w-[200px] items-center justify-center rounded-xl bg-primary px-6 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60 md:inline-flex"
                   type="button"
                   disabled={drink.availableStores.length === 0}
                   onClick={findDrink}
                 >
-                  Find this drink
+                  Where to get it
                 </button>
               </section>
             </div>
@@ -314,7 +314,7 @@ export function DrinkDetailPage() {
                     type="button"
                     onClick={findDrink}
                   >
-                    Find this drink
+                    Where to get it
                   </button>
                 </div>
               </div>
