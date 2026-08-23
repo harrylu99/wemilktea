@@ -12,7 +12,7 @@ function ThemeControl() {
     <button
       aria-checked={resolvedTheme === "dark"}
       aria-label={`Switch to ${nextTheme} mode`}
-      className="group grid size-11 place-items-center rounded-md text-foreground"
+      className="group grid size-11 cursor-pointer place-items-center rounded-md text-foreground"
       data-resolved-theme={resolvedTheme}
       role="switch"
       title={`Switch to ${nextTheme} mode`}
