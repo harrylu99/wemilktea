@@ -30,9 +30,7 @@
         const preference = (() => {
           try {
             const saved = localStorage.getItem("wemilktea-theme");
-            return saved === "light" || saved === "dark" || saved === "system"
-              ? saved
-              : "system";
+            return saved === "light" || saved === "dark" ? saved : "system";
           } catch {
             return "system";
           }

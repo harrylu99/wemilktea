@@ -1,13 +1,10 @@
 export const THEME_STORAGE_KEY = "wemilktea-theme";
-export const themePreferences = ["light", "dark", "system"] as const;
 
-export type ThemePreference = (typeof themePreferences)[number];
-export type ResolvedTheme = Exclude<ThemePreference, "system">;
+export type ResolvedTheme = "light" | "dark";
+export type ThemePreference = ResolvedTheme | "system";
 
 export function readThemePreference(value: string | null): ThemePreference {
-  return themePreferences.includes(value as ThemePreference)
-    ? (value as ThemePreference)
-    : "system";
+  return value === "light" || value === "dark" ? value : "system";
 }
 
 export function resolveTheme(

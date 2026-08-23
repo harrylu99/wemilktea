@@ -1,10 +1,9 @@
 import { createContext, useContext } from "react";
-import type { ResolvedTheme, ThemePreference } from "./theme-preference";
+import type { ResolvedTheme } from "./theme-preference";
 
 type ThemeContextValue = {
-  preference: ThemePreference;
   resolvedTheme: ResolvedTheme;
-  setPreference: (preference: ThemePreference) => void;
+  setPreference: (preference: ResolvedTheme) => void;
 };
 
 export const ThemeContext = createContext<ThemeContextValue | null>(null);

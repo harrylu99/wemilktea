@@ -11,6 +11,7 @@ import {
   readThemePreference,
   resolveTheme,
   THEME_STORAGE_KEY,
+  type ResolvedTheme,
   type ThemePreference
 } from "./theme-preference";
 
@@ -47,7 +48,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", updateSystemTheme);
   }, [preference]);
 
-  const setPreference = useCallback((nextPreference: ThemePreference) => {
+  const setPreference = useCallback((nextPreference: ResolvedTheme) => {
     setPreferenceState(nextPreference);
     setIsSystemDark(systemIsDark());
     try {
@@ -58,8 +59,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ preference, resolvedTheme, setPreference }),
-    [preference, resolvedTheme, setPreference]
+    () => ({ resolvedTheme, setPreference }),
+    [resolvedTheme, setPreference]
   );
 
   return (

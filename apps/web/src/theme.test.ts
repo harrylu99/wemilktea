@@ -7,15 +7,15 @@ import {
 } from "./theme-preference";
 
 describe("public theme preferences", () => {
-  test("defaults an absent or invalid preference to System", () => {
+  test("uses System internally only when there is no explicit saved preference", () => {
     expect(readThemePreference(null)).toBe("system");
     expect(readThemePreference("sepia")).toBe("system");
+    expect(readThemePreference("system")).toBe("system");
   });
 
-  test("preserves saved Light, Dark, and System preferences", () => {
+  test("preserves explicit Light and Dark preferences", () => {
     expect(readThemePreference("light")).toBe("light");
     expect(readThemePreference("dark")).toBe("dark");
-    expect(readThemePreference("system")).toBe("system");
   });
 
   test("applies explicit Light and Dark themes to the document root", () => {
@@ -33,14 +33,22 @@ describe("public theme preferences", () => {
     expect(root.style.colorScheme).toBe("light");
   });
 
-  test("reacts to system changes only while the System preference is selected", () => {
+  test("follows Light and Dark operating-system preferences before selection", () => {
     expect(resolveTheme("system", false)).toBe("light");
     expect(resolveTheme("system", true)).toBe("dark");
+  });
+
+  test("quick switching from a system-resolved theme stores the opposite explicit theme", () => {
+    expect(nextExplicitTheme(resolveTheme("system", false))).toBe("dark");
+    expect(nextExplicitTheme(resolveTheme("system", true))).toBe("light");
+  });
+
+  test("explicit preferences ignore later operating-system changes", () => {
     expect(resolveTheme("light", true)).toBe("light");
     expect(resolveTheme("dark", false)).toBe("dark");
   });
 
-  test("quick switching always stores an explicit opposite appearance", () => {
+  test("quick switching alternates explicit Light and Dark preferences", () => {
     expect(nextExplicitTheme("light")).toBe("dark");
     expect(nextExplicitTheme("dark")).toBe("light");
   });

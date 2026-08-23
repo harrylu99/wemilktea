@@ -2,118 +2,36 @@ import { applicationMetadata } from "@wemilktea/config";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useTheme } from "./theme-context";
-import {
-  nextExplicitTheme,
-  themePreferences,
-  type ThemePreference
-} from "./theme-preference";
-
-function themeLabel(theme: ThemePreference) {
-  return theme[0].toUpperCase() + theme.slice(1);
-}
+import { nextExplicitTheme } from "./theme-preference";
 
 function ThemeControl() {
-  const { preference, resolvedTheme, setPreference } = useTheme();
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const controlRef = useRef<HTMLDivElement>(null);
-  const optionsButtonRef = useRef<HTMLButtonElement>(null);
+  const { resolvedTheme, setPreference } = useTheme();
   const nextTheme = nextExplicitTheme(resolvedTheme);
 
-  useEffect(() => {
-    if (!optionsOpen) return;
-
-    const closeOptions = (event: KeyboardEvent | PointerEvent) => {
-      if (
-        event instanceof KeyboardEvent
-          ? event.key !== "Escape"
-          : controlRef.current?.contains(event.target as Node)
-      ) {
-        return;
-      }
-      setOptionsOpen(false);
-      window.requestAnimationFrame(() => optionsButtonRef.current?.focus());
-    };
-
-    document.addEventListener("keydown", closeOptions);
-    document.addEventListener("pointerdown", closeOptions);
-    return () => {
-      document.removeEventListener("keydown", closeOptions);
-      document.removeEventListener("pointerdown", closeOptions);
-    };
-  }, [optionsOpen]);
-
-  const choosePreference = (nextPreference: ThemePreference) => {
-    setPreference(nextPreference);
-    setOptionsOpen(false);
-    window.requestAnimationFrame(() => optionsButtonRef.current?.focus());
-  };
-
   return (
-    <div ref={controlRef} className="relative flex items-center">
-      <button
-        aria-label={`Theme: ${preference === "system" ? `System (${resolvedTheme})` : themeLabel(preference)}. Switch to ${themeLabel(nextTheme)}.`}
-        aria-pressed={resolvedTheme === "dark"}
-        className="grid size-11 place-items-center rounded-md text-foreground"
-        data-resolved-theme={resolvedTheme}
-        title={`Switch to ${themeLabel(nextTheme)}`}
-        type="button"
-        onClick={() => setPreference(nextTheme)}
+    <button
+      aria-checked={resolvedTheme === "dark"}
+      aria-label={`Switch to ${nextTheme} mode`}
+      className="grid size-11 place-items-center rounded-md text-foreground transition-colors hover:bg-accent motion-reduce:transition-none"
+      data-resolved-theme={resolvedTheme}
+      role="switch"
+      title={`Switch to ${nextTheme} mode`}
+      type="button"
+      onClick={() => setPreference(nextTheme)}
+    >
+      <span
+        aria-hidden="true"
+        className="relative grid h-6 w-11 grid-cols-2 place-items-center rounded-full border border-border bg-secondary text-[11px] leading-none"
       >
+        <span>☀</span>
+        <span>☾</span>
         <span
-          aria-hidden="true"
-          className="relative h-6 w-11 rounded-full border border-border bg-secondary"
+          className={`absolute left-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground transition-transform motion-reduce:transition-none ${resolvedTheme === "dark" ? "translate-x-5" : "translate-x-0"}`}
         >
-          <span className="absolute left-1 top-0.5 text-[10px] leading-5">
-            ☀
-          </span>
-          <span className="absolute right-1 top-0.5 text-[10px] leading-5">
-            ☾
-          </span>
-          <span
-            className={`absolute left-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-primary text-[11px] leading-5 text-primary-foreground transition-transform motion-reduce:transition-none ${resolvedTheme === "dark" ? "translate-x-5" : "translate-x-0"}`}
-          >
-            {resolvedTheme === "dark" ? "☾" : "☀"}
-          </span>
+          {resolvedTheme === "dark" ? "☾" : "☀"}
         </span>
-      </button>
-      <button
-        ref={optionsButtonRef}
-        aria-controls="theme-preferences"
-        aria-expanded={optionsOpen}
-        aria-label="Theme options"
-        className="grid h-11 w-7 place-items-center rounded-md text-sm text-muted-foreground hover:text-foreground"
-        title="Theme options"
-        type="button"
-        onClick={() => setOptionsOpen((open) => !open)}
-      >
-        <span aria-hidden="true">⌄</span>
-      </button>
-      {optionsOpen ? (
-        <div
-          id="theme-preferences"
-          className="theme-popover absolute right-0 top-full z-30 mt-2 grid w-44 gap-1 rounded-lg border border-border bg-popover p-1.5 text-popover-foreground"
-          role="group"
-          aria-label="Colour theme"
-        >
-          {themePreferences.map((option) => (
-            <button
-              key={option}
-              aria-pressed={preference === option}
-              className={`flex min-h-10 w-full items-center justify-between rounded-md px-3 text-left text-xs font-medium ${preference === option ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-              type="button"
-              onClick={() => choosePreference(option)}
-            >
-              <span>{themeLabel(option)}</span>
-              {option === "system" ? (
-                <span className="text-[11px] opacity-75">
-                  {themeLabel(resolvedTheme)}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+      </span>
+    </button>
   );
 }
 
