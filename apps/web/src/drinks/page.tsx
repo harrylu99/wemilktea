@@ -219,7 +219,7 @@ export function DrinksPage() {
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>
         <h1 className="mt-4 text-[32px] font-semibold leading-10">
-          Find your next cup
+          What are we feeling today?
         </h1>
 
         <div className="mt-[18px]">
@@ -235,7 +235,7 @@ export function DrinksPage() {
               aria-label="Search drinks, brands or categories"
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-12 text-base text-foreground placeholder:text-muted-foreground"
               id="drink-search"
-              placeholder="Search for whatever you are keen on today."
+              placeholder="Search for whatever you are keen on today"
               ref={searchRef}
               type="search"
               value={query}
