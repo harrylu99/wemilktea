@@ -225,6 +225,7 @@ body {
 .suggest-store-cta {
   display: flex;
   width: 100%;
+  cursor: pointer;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;

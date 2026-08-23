@@ -115,7 +115,7 @@ function CategoryChip({
   return (
     <button
       aria-pressed={selected}
-      className={`h-11 shrink-0 rounded-full border px-4 text-xs font-medium transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary text-foreground hover:bg-accent"}`}
+      className={`h-11 shrink-0 cursor-pointer rounded-full border px-4 text-xs font-medium transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary text-foreground hover:bg-accent"}`}
       type="button"
       onClick={onClick}
     >
