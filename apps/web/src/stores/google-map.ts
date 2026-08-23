@@ -16,7 +16,7 @@ export type GoogleMarkerIcon = {
 
 type GoogleMarker = {
   addListener: (
-    eventName: "click",
+    eventName: "click" | "mouseover",
     handler: () => void
   ) => { remove: () => void };
   setIcon: (icon: GoogleMarkerIcon) => void;

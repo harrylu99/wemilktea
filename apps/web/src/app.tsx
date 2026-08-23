@@ -1,4 +1,11 @@
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   Link,
   Navigate,
@@ -89,6 +96,7 @@ function StoreCard({
   return (
     <Link
       className={`discovery-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px] ${selected ? "ring-2 ring-primary ring-offset-2" : ""}`}
+      id={`store-card-${store.id}`}
       to={`/stores/${store.slug}`}
       onFocus={onSelect}
       onMouseEnter={onSelect}
@@ -112,11 +120,13 @@ function MapFallback({
   stores,
   selectedId,
   onSelect,
+  onHover,
   message
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onHover: (id: string) => void;
   message?: string;
 }) {
   return (
@@ -144,6 +154,7 @@ function MapFallback({
             style={position}
             type="button"
             onClick={() => onSelect(store.id)}
+            onMouseEnter={() => onHover(store.id)}
           >
             <span aria-hidden="true" className="store-map-marker-cup">
               <span className="store-map-marker-lid" />
@@ -162,11 +173,13 @@ function MapFallback({
 function GoogleMapPanel({
   stores,
   selectedId,
-  onSelect
+  onSelect,
+  onHover
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onHover: (id: string) => void;
 }) {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -181,7 +194,7 @@ function GoogleMapPanel({
         setMap: (map: GoogleMapInstance | null) => void;
         setZIndex: (zIndex: number | null) => void;
       };
-      listener: { remove: () => void };
+      listeners: Array<{ remove: () => void }>;
     }>
   >([]);
   const [state, setState] = useState<"loading" | "ready" | "unavailable">(
@@ -227,8 +240,8 @@ function GoogleMapPanel({
     const googleMaps = mapsApiRef.current;
     if (state !== "ready" || !map || !googleMaps) return;
 
-    markersRef.current.forEach(({ marker, listener }) => {
-      listener.remove();
+    markersRef.current.forEach(({ marker, listeners }) => {
+      listeners.forEach((listener) => listener.remove());
       marker.setMap(null);
     });
 
@@ -243,8 +256,11 @@ function GoogleMapPanel({
         title: store.displayName,
         zIndex: selectedIdRef.current === store.id ? 2 : 1
       });
-      const listener = marker.addListener("click", () => onSelect(store.id));
-      return { id: store.id, marker, listener };
+      const listeners = [
+        marker.addListener("click", () => onSelect(store.id)),
+        marker.addListener("mouseover", () => onHover(store.id))
+      ];
+      return { id: store.id, marker, listeners };
     });
 
     if (stores.length === 1) {
@@ -253,7 +269,7 @@ function GoogleMapPanel({
     } else if (stores.length > 1) {
       map.fitBounds(bounds);
     }
-  }, [onSelect, state, stores]);
+  }, [onHover, onSelect, state, stores]);
 
   useEffect(() => {
     if (state !== "ready") return;
@@ -270,6 +286,7 @@ function GoogleMapPanel({
       {state === "unavailable" ? (
         <MapFallback
           message="Map unavailable right now. You can still browse the store list."
+          onHover={onHover}
           onSelect={onSelect}
           selectedId={selectedId}
           stores={stores}
@@ -367,13 +384,14 @@ function StoresPage() {
     [stores]
   );
 
-  useEffect(() => {
-    if (visibleStores.length === 0) {
-      setSelectedId(null);
-    } else if (!visibleStores.some((store) => store.id === selectedId)) {
-      setSelectedId(visibleStores[0].id);
-    }
-  }, [visibleStores, selectedId]);
+  const handleMapHover = useCallback((id: string) => {
+    setSelectedId(id);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`store-card-${id}`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }, []);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -596,6 +614,7 @@ function StoresPage() {
             <GoogleMapPanel
               stores={visibleStores}
               selectedId={selectedId}
+              onHover={handleMapHover}
               onSelect={setSelectedId}
             />
             <section
