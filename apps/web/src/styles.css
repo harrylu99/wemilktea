@@ -114,13 +114,15 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .discovery-card:hover {
+  .discovery-card:hover,
+  .discovery-card[data-highlighted] {
     border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
     box-shadow: 0 8px 20px rgb(var(--shadow-rgb) / 0.1);
     transform: translateY(-1px);
   }
 
-  .discovery-card:hover .discovery-card-image {
+  .discovery-card:hover .discovery-card-image,
+  .discovery-card[data-highlighted] .discovery-card-image {
     transform: scale(1.025);
   }
 }
@@ -132,7 +134,9 @@ body {
   }
 
   .discovery-card:hover,
-  .discovery-card:hover .discovery-card-image {
+  .discovery-card[data-highlighted],
+  .discovery-card:hover .discovery-card-image,
+  .discovery-card[data-highlighted] .discovery-card-image {
     transform: none;
   }
 }

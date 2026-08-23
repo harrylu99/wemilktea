@@ -95,7 +95,8 @@ function StoreCard({
 
   return (
     <Link
-      className={`discovery-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px] ${selected ? "ring-2 ring-primary ring-offset-2" : ""}`}
+      className="discovery-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px]"
+      data-highlighted={selected || undefined}
       id={`store-card-${store.id}`}
       to={`/stores/${store.slug}`}
       onFocus={onSelect}
