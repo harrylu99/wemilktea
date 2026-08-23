@@ -60,7 +60,10 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-6 px-4 sm:px-6 md:h-[72px] lg:px-8">
-        <Link className="flex-1 text-2xl font-semibold leading-8" to="/">
+        <Link
+          className="mr-auto cursor-pointer text-2xl font-semibold leading-8"
+          to="/"
+        >
           {applicationMetadata.web.name}
         </Link>
         <nav
