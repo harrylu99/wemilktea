@@ -26,12 +26,14 @@ function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
 
   if (drink.imageUrl && !hasImageError) {
     return (
-      <img
-        alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
-        className="h-[148px] w-full object-cover"
-        src={drink.imageUrl}
-        onError={() => setHasImageError(true)}
-      />
+      <div className="h-[148px] overflow-hidden">
+        <img
+          alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
+          className="discovery-card-image h-full w-full object-cover"
+          src={drink.imageUrl}
+          onError={() => setHasImageError(true)}
+        />
+      </div>
     );
   }
 
@@ -57,7 +59,7 @@ export function DrinkCard({
   return (
     <Link
       aria-label={`View ${drink.name} by ${drink.brandName}`}
-      className={`flex min-h-[284px] flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md ${className ?? ""}`}
+      className={`discovery-card flex min-h-[284px] flex-col overflow-hidden rounded-xl border border-border bg-card ${className ?? ""}`}
       to={drinkDetailPath(drink)}
     >
       <DrinkImage drink={drink} index={index} />

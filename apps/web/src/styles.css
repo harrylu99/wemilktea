@@ -97,6 +97,46 @@ body {
   outline-offset: 2px;
 }
 
+.discovery-card {
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.discovery-card-image {
+  transition: transform 150ms ease;
+}
+
+.discovery-card:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 8px 20px rgb(var(--shadow-rgb) / 0.1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .discovery-card:hover {
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    box-shadow: 0 8px 20px rgb(var(--shadow-rgb) / 0.1);
+    transform: translateY(-1px);
+  }
+
+  .discovery-card:hover .discovery-card-image {
+    transform: scale(1.025);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery-card,
+  .discovery-card-image {
+    transition: none;
+  }
+
+  .discovery-card:hover,
+  .discovery-card:hover .discovery-card-image {
+    transform: none;
+  }
+}
+
 .store-list-panel {
   max-height: 740px;
   overflow-y: auto;
