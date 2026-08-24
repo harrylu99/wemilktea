@@ -306,7 +306,7 @@ export function DrinksPage() {
               </div>
               <div
                 aria-label="Drink categories"
-                className="hide-scrollbar flex max-w-full gap-2 overflow-x-auto pb-1"
+                className="flex max-w-full flex-wrap gap-2 pb-1"
                 role="group"
               >
                 <CategoryChip

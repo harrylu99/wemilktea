@@ -2,6 +2,7 @@ import {
   type MouseEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -41,7 +42,11 @@ import { HomePage } from "./home/page";
 import { PickerPage } from "./picker/page";
 import { PickerResultPage } from "./picker/result-page";
 import { SearchPage } from "./search/page";
-import { getMobileStorePreviewId } from "./stores/map-interaction";
+import {
+  getMobileStorePreviewId,
+  shouldPreserveListOnDesktopToMobile,
+  shouldRevealSelectedStoreOnListTransition
+} from "./stores/map-interaction";
 import { shouldScrollToTop } from "./route-scroll";
 import { useDismissiblePopover } from "./use-dismissible-popover";
 
@@ -58,16 +63,28 @@ function supportsStoreMapHover() {
   );
 }
 
-function useIsDesktopLayout() {
-  const [isDesktop, setIsDesktop] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia(desktopMediaQuery).matches
-  );
+function useIsDesktopLayout(
+  onChange?: (isDesktopLayout: boolean, wasDesktopLayout: boolean) => void
+) {
+  const initialIsDesktop =
+    typeof window !== "undefined" &&
+    window.matchMedia(desktopMediaQuery).matches;
+  const [isDesktop, setIsDesktop] = useState(initialIsDesktop);
+  const currentLayoutRef = useRef(initialIsDesktop);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(desktopMediaQuery);
-    const update = () => setIsDesktop(mediaQuery.matches);
+    const update = () => {
+      const nextLayout = mediaQuery.matches;
+      const previousLayout = currentLayoutRef.current;
+      if (nextLayout === previousLayout) return;
+
+      currentLayoutRef.current = nextLayout;
+      onChangeRef.current?.(nextLayout, previousLayout);
+      setIsDesktop(nextLayout);
+    };
     update();
     mediaQuery.addEventListener("change", update);
     return () => mediaQuery.removeEventListener("change", update);
@@ -428,7 +445,26 @@ function StoresPage() {
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
-  const isDesktopLayout = useIsDesktopLayout();
+  const pendingListRevealIdRef = useRef<string | null>(null);
+  const handleDesktopLayoutChange = useCallback(
+    (isDesktopLayout: boolean, wasDesktopLayout: boolean) => {
+      const activeElement = document.activeElement;
+      const listHasFocus = Boolean(
+        activeElement && storeListRef.current?.contains(activeElement)
+      );
+      if (
+        shouldPreserveListOnDesktopToMobile(
+          wasDesktopLayout,
+          isDesktopLayout,
+          listHasFocus
+        )
+      ) {
+        setMobileView("list");
+      }
+    },
+    []
+  );
+  const isDesktopLayout = useIsDesktopLayout(handleDesktopLayoutChange);
 
   const query = searchParams.get("q") ?? "";
   const brandSlug = searchParams.get("brand") ?? "";
@@ -543,6 +579,42 @@ function StoresPage() {
     },
     [isDesktopLayout]
   );
+
+  const handleMobileViewChange = useCallback(
+    (nextView: "list" | "map") => {
+      if (
+        shouldRevealSelectedStoreOnListTransition(
+          mobileView,
+          nextView,
+          selectedId,
+          visibleStores.map((store) => store.id)
+        )
+      ) {
+        pendingListRevealIdRef.current = selectedId;
+      } else {
+        pendingListRevealIdRef.current = null;
+      }
+      setMobileView(nextView);
+    },
+    [mobileView, selectedId, visibleStores]
+  );
+
+  useLayoutEffect(() => {
+    if (mobileView !== "list") return;
+
+    const pendingId = pendingListRevealIdRef.current;
+    pendingListRevealIdRef.current = null;
+    if (!pendingId) return;
+
+    const card = document.getElementById(`store-card-${pendingId}`);
+    if (!card) return;
+
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
+      .matches
+      ? "auto"
+      : "smooth";
+    card.scrollIntoView({ block: "nearest", behavior });
+  }, [mobileView]);
 
   const closeFilters = useCallback(() => {
     setFiltersOpen(false);
@@ -767,7 +839,7 @@ function StoresPage() {
                 aria-pressed={mobileView === "list"}
                 className={`min-h-10 min-w-16 cursor-pointer rounded-md px-3 text-xs font-semibold ${mobileView === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
                 type="button"
-                onClick={() => setMobileView("list")}
+                onClick={() => handleMobileViewChange("list")}
               >
                 List
               </button>
@@ -775,7 +847,7 @@ function StoresPage() {
                 aria-pressed={mobileView === "map"}
                 className={`min-h-10 min-w-16 cursor-pointer rounded-md px-3 text-xs font-semibold ${mobileView === "map" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
                 type="button"
-                onClick={() => setMobileView("map")}
+                onClick={() => handleMobileViewChange("map")}
               >
                 Map
               </button>
