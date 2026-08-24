@@ -45,11 +45,30 @@ const googleMapsBrowserKey =
     ? import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY.trim()
     : "";
 const hoverMediaQuery = "(hover: hover) and (pointer: fine)";
+const desktopMediaQuery = "(min-width: 768px)";
 
 function supportsStoreMapHover() {
   return (
     typeof window !== "undefined" && window.matchMedia(hoverMediaQuery).matches
   );
+}
+
+function useIsDesktopLayout() {
+  const [isDesktop, setIsDesktop] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia(desktopMediaQuery).matches
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(desktopMediaQuery);
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return isDesktop;
 }
 
 function StoreImage({ store, index }: { store: PublicStore; index: number }) {
@@ -159,17 +178,19 @@ function MapFallback({
   selectedId,
   onSelect,
   onHover,
+  mobileMapActive,
   message
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onHover: (id: string) => void;
+  mobileMapActive: boolean;
   message?: string;
 }) {
   return (
     <section
-      className="map-fallback map-surface relative min-h-[180px] overflow-hidden rounded-xl border border-border"
+      className={`map-fallback map-surface relative overflow-hidden rounded-xl border border-border ${mobileMapActive ? "mobile-google-map-panel" : ""}`}
       aria-label="Map of Auckland stores"
     >
       <p className="absolute left-4 top-4 z-10 text-xs font-semibold text-foreground md:left-6 md:top-6 md:text-sm">
@@ -216,7 +237,8 @@ function GoogleMapPanel({
   onSelect,
   onHover,
   mobilePreviewStore,
-  mobilePreviewIndex
+  mobilePreviewIndex,
+  mobileMapActive
 }: {
   stores: PublicStore[];
   selectedId: string | null;
@@ -224,6 +246,7 @@ function GoogleMapPanel({
   onHover: (id: string) => void;
   mobilePreviewStore: PublicStore | null;
   mobilePreviewIndex: number;
+  mobileMapActive: boolean;
 }) {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -336,12 +359,13 @@ function GoogleMapPanel({
           onSelect={onSelect}
           selectedId={selectedId}
           stores={stores}
+          mobileMapActive={mobileMapActive}
         />
       ) : (
         <>
           <div
             ref={mapElementRef}
-            className="google-map-panel map-surface"
+            className={`google-map-panel map-surface ${mobileMapActive ? "mobile-google-map-panel" : ""}`}
             aria-hidden={state !== "ready"}
           />
           {state === "loading" ? (
@@ -366,6 +390,7 @@ function StoresPage() {
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobilePreviewId, setMobilePreviewId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"list" | "map">("list");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -376,6 +401,7 @@ function StoresPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
+  const isDesktopLayout = useIsDesktopLayout();
 
   const query = searchParams.get("q") ?? "";
   const brandSlug = searchParams.get("brand") ?? "";
@@ -677,6 +703,35 @@ function StoresPage() {
             {errorMessage}
           </p>
         ) : null}
+        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
+            <p className="text-sm font-semibold text-foreground">
+              {visibleStores.length} stores
+            </p>
+            <div
+              className="flex rounded-lg border border-border bg-card p-1"
+              aria-label="Store result view"
+              role="group"
+            >
+              <button
+                aria-pressed={mobileView === "list"}
+                className={`min-h-10 min-w-16 cursor-pointer rounded-md px-3 text-xs font-semibold ${mobileView === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                type="button"
+                onClick={() => setMobileView("list")}
+              >
+                List
+              </button>
+              <button
+                aria-pressed={mobileView === "map"}
+                className={`min-h-10 min-w-16 cursor-pointer rounded-md px-3 text-xs font-semibold ${mobileView === "map" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                type="button"
+                onClick={() => setMobileView("map")}
+              >
+                Map
+              </button>
+            </div>
+          </div>
+        ) : null}
         {!isLoading && !errorMessage && visibleStores.length === 0 ? (
           <section className="mt-8 rounded-xl border border-border bg-card p-6">
             <h2 className="text-xl font-semibold">No stores found</h2>
@@ -698,39 +753,44 @@ function StoresPage() {
 
         {!isLoading && !errorMessage && visibleStores.length > 0 ? (
           <div className="mt-4 grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
-            <GoogleMapPanel
-              mobilePreviewIndex={mobilePreviewIndex}
-              mobilePreviewStore={mobilePreviewStore}
-              stores={visibleStores}
-              selectedId={selectedId}
-              onHover={handleMapHover}
-              onSelect={handleMapMarkerSelect}
-            />
-            <section
-              ref={storeListRef}
-              className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
-              aria-labelledby="nearby-stores-heading"
-            >
-              <h2
-                className="text-xl font-semibold leading-7"
-                id="nearby-stores-heading"
+            {isDesktopLayout || mobileView === "map" ? (
+              <GoogleMapPanel
+                mobileMapActive={!isDesktopLayout}
+                mobilePreviewIndex={mobilePreviewIndex}
+                mobilePreviewStore={mobilePreviewStore}
+                stores={visibleStores}
+                selectedId={selectedId}
+                onHover={handleMapHover}
+                onSelect={handleMapMarkerSelect}
+              />
+            ) : null}
+            {isDesktopLayout || mobileView === "list" ? (
+              <section
+                ref={storeListRef}
+                className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
+                aria-labelledby="nearby-stores-heading"
               >
-                Nearby stores
-                <span className="sr-only">
-                  , {visibleStores.length} results
-                </span>
-              </h2>
-              {visibleStores.map((store, index) => (
-                <StoreCard
-                  index={index}
-                  key={store.id}
-                  selected={selectedId === store.id}
-                  store={store}
-                  userLocation={userLocation}
-                  onSelect={() => setSelectedId(store.id)}
-                />
-              ))}
-            </section>
+                <h2
+                  className="text-xl font-semibold leading-7"
+                  id="nearby-stores-heading"
+                >
+                  Nearby stores
+                  <span className="sr-only">
+                    , {visibleStores.length} results
+                  </span>
+                </h2>
+                {visibleStores.map((store, index) => (
+                  <StoreCard
+                    index={index}
+                    key={store.id}
+                    selected={selectedId === store.id}
+                    store={store}
+                    userLocation={userLocation}
+                    onSelect={() => setSelectedId(store.id)}
+                  />
+                ))}
+              </section>
+            ) : null}
           </div>
         ) : null}
         {!isLoading && !errorMessage && visibleStores.length > 0 ? (

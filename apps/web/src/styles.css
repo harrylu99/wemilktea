@@ -1004,6 +1004,10 @@ body {
     min-height: 180px;
   }
 
+  .mobile-google-map-panel {
+    min-height: min(68dvh, 560px);
+  }
+
   .store-list-panel {
     max-height: none;
     overflow: visible;
