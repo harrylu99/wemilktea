@@ -43,7 +43,7 @@ import { PickerPage } from "./picker/page";
 import { PickerResultPage } from "./picker/result-page";
 import { SearchPage } from "./search/page";
 import {
-  getMobileStorePreviewId,
+  getMobilePreviewId,
   shouldPreserveListOnDesktopToMobile,
   shouldRevealSelectedStoreOnListTransition
 } from "./stores/map-interaction";
@@ -151,7 +151,7 @@ function StoreCard({
   index: number;
   userLocation: Coordinates | null;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (source: "focus" | "hover") => void;
 }) {
   const distance = userLocation
     ? distanceKm(
@@ -168,8 +168,8 @@ function StoreCard({
       data-highlighted={selected || undefined}
       id={`store-card-${store.id}`}
       to={`/stores/${store.slug}`}
-      onFocus={onSelect}
-      onMouseEnter={onSelect}
+      onFocus={() => onSelect("focus")}
+      onMouseEnter={() => onSelect("hover")}
     >
       <StoreImage index={index} store={store} />
       <div className="min-w-0 flex-1">
@@ -432,7 +432,7 @@ function StoresPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mobilePreviewId, setMobilePreviewId] = useState<string | null>(null);
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "map">("map");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
@@ -446,6 +446,9 @@ function StoresPage() {
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
   const pendingListRevealIdRef = useRef<string | null>(null);
+  const listRevealHoverLockRef = useRef<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
   const handleDesktopLayoutChange = useCallback(
     (isDesktopLayout: boolean, wasDesktopLayout: boolean) => {
       const activeElement = document.activeElement;
@@ -527,6 +530,11 @@ function StoresPage() {
     [stores]
   );
 
+  const mobilePreviewId = getMobilePreviewId(
+    selectedId,
+    showMobilePreview,
+    isDesktopLayout
+  );
   const mobilePreviewStore = mobilePreviewId
     ? (visibleStores.find((store) => store.id === mobilePreviewId) ?? null)
     : null;
@@ -537,22 +545,19 @@ function StoresPage() {
   useEffect(() => {
     if (selectedId && !visibleStores.some((store) => store.id === selectedId)) {
       setSelectedId(null);
+      setShowMobilePreview(false);
     }
-    if (
-      mobilePreviewId &&
-      !visibleStores.some((store) => store.id === mobilePreviewId)
-    ) {
-      setMobilePreviewId(null);
-    }
-  }, [mobilePreviewId, selectedId, visibleStores]);
+  }, [selectedId, visibleStores]);
 
   const handleMapHover = useCallback(
     (id: string) => {
+      selectedIdRef.current = id;
       setSelectedId(id);
       if (!isDesktopLayout) {
-        setMobilePreviewId(getMobileStorePreviewId(id, isDesktopLayout));
+        setShowMobilePreview(true);
         return;
       }
+      setShowMobilePreview(false);
 
       const list = storeListRef.current;
       const card = document.getElementById(`store-card-${id}`);
@@ -574,29 +579,51 @@ function StoresPage() {
 
   const handleMapMarkerSelect = useCallback(
     (id: string) => {
+      selectedIdRef.current = id;
       setSelectedId(id);
-      setMobilePreviewId(getMobileStorePreviewId(id, isDesktopLayout));
+      setShowMobilePreview(!isDesktopLayout);
+    },
+    [isDesktopLayout]
+  );
+
+  const handleStoreSelect = useCallback(
+    (id: string, source: "focus" | "hover") => {
+      if (
+        source === "hover" &&
+        listRevealHoverLockRef.current &&
+        listRevealHoverLockRef.current !== id
+      ) {
+        return;
+      }
+      selectedIdRef.current = id;
+      setSelectedId(id);
+      setShowMobilePreview(!isDesktopLayout);
     },
     [isDesktopLayout]
   );
 
   const handleMobileViewChange = useCallback(
     (nextView: "list" | "map") => {
+      const currentSelectedId = selectedIdRef.current;
       if (
         shouldRevealSelectedStoreOnListTransition(
           mobileView,
           nextView,
-          selectedId,
+          currentSelectedId,
           visibleStores.map((store) => store.id)
         )
       ) {
-        pendingListRevealIdRef.current = selectedId;
+        pendingListRevealIdRef.current = currentSelectedId;
       } else {
         pendingListRevealIdRef.current = null;
       }
+      if (nextView === "map" && mobileView === "list" && !isDesktopLayout) {
+        setSelectedId(currentSelectedId);
+        setShowMobilePreview(currentSelectedId !== null);
+      }
       setMobileView(nextView);
     },
-    [mobileView, selectedId, visibleStores]
+    [isDesktopLayout, mobileView, visibleStores]
   );
 
   useLayoutEffect(() => {
@@ -609,11 +636,14 @@ function StoresPage() {
     const card = document.getElementById(`store-card-${pendingId}`);
     if (!card) return;
 
-    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
-      .matches
-      ? "auto"
-      : "smooth";
-    card.scrollIntoView({ block: "nearest", behavior });
+    listRevealHoverLockRef.current = pendingId;
+    card.scrollIntoView({ block: "nearest", behavior: "auto" });
+    const frameId = window.requestAnimationFrame(() => {
+      if (listRevealHoverLockRef.current === pendingId) {
+        listRevealHoverLockRef.current = null;
+      }
+    });
+    return () => window.cancelAnimationFrame(frameId);
   }, [mobileView]);
 
   const closeFilters = useCallback(() => {
@@ -908,7 +938,7 @@ function StoresPage() {
                     selected={selectedId === store.id}
                     store={store}
                     userLocation={userLocation}
-                    onSelect={() => setSelectedId(store.id)}
+                    onSelect={(source) => handleStoreSelect(store.id, source)}
                   />
                 ))}
               </section>

@@ -1,17 +1,25 @@
 import { expect, test } from "bun:test";
 import {
-  getMobileStorePreviewId,
+  getMobilePreviewId,
   shouldPreserveListOnDesktopToMobile,
   shouldRevealSelectedStoreOnListTransition
 } from "./map-interaction";
 
-test("keeps a selected Store actionable in a narrow map-only layout", () => {
-  // A hover-capable device can still be below the desktop breakpoint.
-  expect(getMobileStorePreviewId("store-1", false)).toBe("store-1");
+test("keeps a selected Store preview actionable in a narrow map-only layout", () => {
+  expect(getMobilePreviewId("store-1", true, false)).toBe("store-1");
+});
+
+test("does not show a preview on a fresh mobile Map", () => {
+  expect(getMobilePreviewId(null, false, false)).toBeNull();
 });
 
 test("does not render a mobile preview in the desktop combined layout", () => {
-  expect(getMobileStorePreviewId("store-1", true)).toBeNull();
+  expect(getMobilePreviewId("store-1", true, true)).toBeNull();
+});
+
+test("selection changes keep the preview on the latest selected Store", () => {
+  expect(getMobilePreviewId("store-2", true, false)).toBe("store-2");
+  expect(getMobilePreviewId("store-1", false, false)).toBeNull();
 });
 
 test("only reveals a selected visible Store after an explicit Map to List switch", () => {

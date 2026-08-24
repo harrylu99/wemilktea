@@ -1,8 +1,9 @@
-export function getMobileStorePreviewId(
-  storeId: string,
+export function getMobilePreviewId(
+  selectedId: string | null,
+  showMobilePreview: boolean,
   isDesktopLayout: boolean
 ) {
-  return isDesktopLayout ? null : storeId;
+  return !isDesktopLayout && showMobilePreview ? selectedId : null;
 }
 
 export function shouldRevealSelectedStoreOnListTransition(

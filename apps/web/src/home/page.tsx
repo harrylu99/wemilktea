@@ -15,6 +15,8 @@ import { DrinkCard } from "../drinks/page";
 import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
 import { loadPublicDiscoveryData } from "../discovery/data";
+import { HorizontalScrollControls } from "../horizontal-scroll-controls";
+import { useHorizontalScrollControls } from "../horizontal-scroll";
 import {
   selectHomeCategories,
   selectHomeDrinks,
@@ -149,6 +151,8 @@ export function HomePage() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const loadRequestIdRef = useRef(0);
+  const drinksScrollerRef = useRef<HTMLDivElement>(null);
+  const categoriesScrollerRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [content, setContent] = useState<{
     drinks: PublicDrink[];
@@ -203,6 +207,14 @@ export function HomePage() {
   const categories = useMemo(
     () => selectHomeCategories(content?.categories ?? []),
     [content?.categories]
+  );
+  const drinksScroll = useHorizontalScrollControls(
+    drinksScrollerRef,
+    status === "ready" && drinks.length > 0
+  );
+  const categoriesScroll = useHorizontalScrollControls(
+    categoriesScrollerRef,
+    status === "ready" && categories.length > 0
   );
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -324,15 +336,29 @@ export function HomePage() {
                     Maybe today&apos;s the day.
                   </p>
                 </div>
-                <Link
-                  className="text-sm font-semibold text-primary"
-                  to="/drinks"
-                >
-                  View all
-                </Link>
+                <div className="flex shrink-0 items-center gap-3">
+                  <Link
+                    className="text-sm font-semibold text-primary"
+                    to="/drinks"
+                  >
+                    View all
+                  </Link>
+                  {drinksScroll.hasOverflow ? (
+                    <HorizontalScrollControls
+                      canScrollNext={drinksScroll.canScrollNext}
+                      canScrollPrevious={drinksScroll.canScrollPrevious}
+                      label="drinks"
+                      onNext={drinksScroll.scrollNext}
+                      onPrevious={drinksScroll.scrollPrevious}
+                    />
+                  ) : null}
+                </div>
               </div>
               {drinks.length > 0 ? (
-                <div className="hide-scrollbar mt-4 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
+                <div
+                  ref={drinksScrollerRef}
+                  className="hide-scrollbar mt-4 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible"
+                >
                   {drinks.map((drink, index) => (
                     <DrinkCard
                       className="w-[224px] shrink-0 lg:w-full lg:max-w-[280px] lg:min-w-0 lg:justify-self-center"
@@ -394,14 +420,28 @@ export function HomePage() {
               className="mt-10"
               aria-labelledby="home-categories-heading"
             >
-              <h2
-                className="text-xl font-semibold"
-                id="home-categories-heading"
-              >
-                Explore by type
-              </h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2
+                  className="text-xl font-semibold"
+                  id="home-categories-heading"
+                >
+                  Explore by type
+                </h2>
+                {categoriesScroll.hasOverflow ? (
+                  <HorizontalScrollControls
+                    canScrollNext={categoriesScroll.canScrollNext}
+                    canScrollPrevious={categoriesScroll.canScrollPrevious}
+                    label="drink types"
+                    onNext={categoriesScroll.scrollNext}
+                    onPrevious={categoriesScroll.scrollPrevious}
+                  />
+                ) : null}
+              </div>
               {categories.length > 0 ? (
-                <div className="hide-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-2">
+                <div
+                  ref={categoriesScrollerRef}
+                  className="hide-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-2"
+                >
                   {categories.map((category) => (
                     <CategoryLink category={category} key={category.id} />
                   ))}

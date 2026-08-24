@@ -14,6 +14,16 @@
   display: none;
 }
 
+.horizontal-scroll-controls {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .horizontal-scroll-controls {
+    display: flex;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
