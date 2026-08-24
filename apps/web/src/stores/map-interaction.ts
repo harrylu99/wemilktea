@@ -27,3 +27,11 @@ export function shouldPreserveListOnDesktopToMobile(
 ) {
   return wasDesktopLayout && !isDesktopLayout && listHasFocus;
 }
+
+export function shouldPreserveMapOnDesktopToMobile(
+  wasDesktopLayout: boolean,
+  isDesktopLayout: boolean,
+  mapHasFocus: boolean
+) {
+  return wasDesktopLayout && !isDesktopLayout && mapHasFocus;
+}

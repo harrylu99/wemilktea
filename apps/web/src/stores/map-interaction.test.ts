@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   getMobilePreviewId,
   shouldPreserveListOnDesktopToMobile,
+  shouldPreserveMapOnDesktopToMobile,
   shouldRevealSelectedStoreOnListTransition
 } from "./map-interaction";
 
@@ -48,4 +49,10 @@ test("preserves List context only when focused during desktop to mobile transiti
   expect(shouldPreserveListOnDesktopToMobile(true, false, true)).toBe(true);
   expect(shouldPreserveListOnDesktopToMobile(true, false, false)).toBe(false);
   expect(shouldPreserveListOnDesktopToMobile(false, true, true)).toBe(false);
+});
+
+test("preserves Map context when its marker is focused during desktop to mobile transition", () => {
+  expect(shouldPreserveMapOnDesktopToMobile(true, false, true)).toBe(true);
+  expect(shouldPreserveMapOnDesktopToMobile(true, false, false)).toBe(false);
+  expect(shouldPreserveMapOnDesktopToMobile(false, true, true)).toBe(false);
 });

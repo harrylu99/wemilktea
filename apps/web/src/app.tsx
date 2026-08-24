@@ -1,5 +1,6 @@
 import {
   type MouseEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -45,6 +46,7 @@ import { SearchPage } from "./search/page";
 import {
   getMobilePreviewId,
   shouldPreserveListOnDesktopToMobile,
+  shouldPreserveMapOnDesktopToMobile,
   shouldRevealSelectedStoreOnListTransition
 } from "./stores/map-interaction";
 import { shouldScrollToTop } from "./route-scroll";
@@ -281,7 +283,8 @@ function GoogleMapPanel({
   onHover,
   mobilePreviewStore,
   mobilePreviewIndex,
-  mobileMapActive
+  mobileMapActive,
+  mapPanelRef
 }: {
   stores: PublicStore[];
   selectedId: string | null;
@@ -290,6 +293,7 @@ function GoogleMapPanel({
   mobilePreviewStore: PublicStore | null;
   mobilePreviewIndex: number;
   mobileMapActive: boolean;
+  mapPanelRef: RefObject<HTMLDivElement | null>;
 }) {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -394,7 +398,7 @@ function GoogleMapPanel({
   }, [selectedId, state]);
 
   return (
-    <div className="relative order-1 md:order-2">
+    <div ref={mapPanelRef} className="relative order-1 md:order-2">
       {state === "unavailable" ? (
         <MapFallback
           message="Map unavailable right now. You can still browse the store list."
@@ -445,6 +449,7 @@ function StoresPage() {
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
+  const mapPanelRef = useRef<HTMLDivElement>(null);
   const pendingListRevealIdRef = useRef<string | null>(null);
   const listRevealHoverLockRef = useRef<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -455,6 +460,9 @@ function StoresPage() {
       const listHasFocus = Boolean(
         activeElement && storeListRef.current?.contains(activeElement)
       );
+      const mapHasFocus = Boolean(
+        activeElement && mapPanelRef.current?.contains(activeElement)
+      );
       if (
         shouldPreserveListOnDesktopToMobile(
           wasDesktopLayout,
@@ -463,6 +471,17 @@ function StoresPage() {
         )
       ) {
         setMobileView("list");
+      } else if (
+        shouldPreserveMapOnDesktopToMobile(
+          wasDesktopLayout,
+          isDesktopLayout,
+          mapHasFocus
+        )
+      ) {
+        setMobileView("map");
+      }
+      if (wasDesktopLayout && !isDesktopLayout) {
+        setShowMobilePreview(selectedIdRef.current !== null);
       }
     },
     []
@@ -914,6 +933,7 @@ function StoresPage() {
                 selectedId={selectedId}
                 onHover={handleMapHover}
                 onSelect={handleMapMarkerSelect}
+                mapPanelRef={mapPanelRef}
               />
             ) : null}
             {isDesktopLayout || mobileView === "list" ? (

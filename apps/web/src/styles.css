@@ -18,7 +18,7 @@
   display: none;
 }
 
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (any-pointer: fine) {
   .horizontal-scroll-controls {
     display: flex;
   }
