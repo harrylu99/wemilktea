@@ -44,6 +44,13 @@ const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
     ? import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY.trim()
     : "";
+const hoverMediaQuery = "(hover: hover) and (pointer: fine)";
+
+function supportsStoreMapHover() {
+  return (
+    typeof window !== "undefined" && window.matchMedia(hoverMediaQuery).matches
+  );
+}
 
 function StoreImage({ store, index }: { store: PublicStore; index: number }) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -117,6 +124,36 @@ function StoreCard({
   );
 }
 
+function StoreMapPreview({
+  store,
+  index
+}: {
+  store: PublicStore;
+  index: number;
+}) {
+  return (
+    <Link
+      aria-label={`View ${store.displayName} store details`}
+      aria-live="polite"
+      className="store-map-preview absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-card-foreground shadow-md md:hidden"
+      to={`/stores/${store.slug}`}
+    >
+      <StoreImage index={index} store={store} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold">
+          {store.displayName}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {store.suburb} · {store.brandName}
+        </span>
+      </span>
+      <span aria-hidden="true" className="text-xl text-muted-foreground">
+        ›
+      </span>
+    </Link>
+  );
+}
+
 function MapFallback({
   stores,
   selectedId,
@@ -139,7 +176,7 @@ function MapFallback({
         MAP / STORE PINS
       </p>
       {message ? (
-        <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-xs text-muted-foreground md:text-sm">
+        <p className="pointer-events-none absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-xs text-muted-foreground md:text-sm">
           {message}
         </p>
       ) : null}
@@ -148,14 +185,16 @@ function MapFallback({
         const isSelected = selectedId === store.id;
         return (
           <button
-            aria-label={`Show ${store.displayName} on the list`}
+            aria-label={`Select ${store.displayName}`}
             aria-pressed={isSelected}
             className={`store-map-marker absolute -translate-x-1/2 -translate-y-1/2 ${isSelected ? "store-map-marker-selected" : ""}`}
             key={store.id}
             style={position}
             type="button"
             onClick={() => onSelect(store.id)}
-            onMouseEnter={() => onHover(store.id)}
+            onMouseEnter={() => {
+              if (supportsStoreMapHover()) onHover(store.id);
+            }}
           >
             <span aria-hidden="true" className="store-map-marker-cup">
               <span className="store-map-marker-lid" />
@@ -175,12 +214,16 @@ function GoogleMapPanel({
   stores,
   selectedId,
   onSelect,
-  onHover
+  onHover,
+  mobilePreviewStore,
+  mobilePreviewIndex
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onHover: (id: string) => void;
+  mobilePreviewStore: PublicStore | null;
+  mobilePreviewIndex: number;
 }) {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -259,7 +302,9 @@ function GoogleMapPanel({
       });
       const listeners = [
         marker.addListener("click", () => onSelect(store.id)),
-        marker.addListener("mouseover", () => onHover(store.id))
+        marker.addListener("mouseover", () => {
+          if (supportsStoreMapHover()) onHover(store.id);
+        })
       ];
       return { id: store.id, marker, listeners };
     });
@@ -306,6 +351,12 @@ function GoogleMapPanel({
           ) : null}
         </>
       )}
+      {mobilePreviewStore ? (
+        <StoreMapPreview
+          index={mobilePreviewIndex}
+          store={mobilePreviewStore}
+        />
+      ) : null}
     </div>
   );
 }
@@ -314,6 +365,7 @@ function StoresPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobilePreviewId, setMobilePreviewId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -323,6 +375,7 @@ function StoresPage() {
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const storeListRef = useRef<HTMLElement>(null);
 
   const query = searchParams.get("q") ?? "";
   const brandSlug = searchParams.get("brand") ?? "";
@@ -385,13 +438,46 @@ function StoresPage() {
     [stores]
   );
 
+  const mobilePreviewStore = mobilePreviewId
+    ? (visibleStores.find((store) => store.id === mobilePreviewId) ?? null)
+    : null;
+  const mobilePreviewIndex = mobilePreviewStore
+    ? visibleStores.indexOf(mobilePreviewStore)
+    : 0;
+
+  useEffect(() => {
+    if (selectedId && !visibleStores.some((store) => store.id === selectedId)) {
+      setSelectedId(null);
+    }
+    if (
+      mobilePreviewId &&
+      !visibleStores.some((store) => store.id === mobilePreviewId)
+    ) {
+      setMobilePreviewId(null);
+    }
+  }, [mobilePreviewId, selectedId, visibleStores]);
+
   const handleMapHover = useCallback((id: string) => {
     setSelectedId(id);
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(`store-card-${id}`)
-        ?.scrollIntoView({ block: "nearest" });
-    });
+    const list = storeListRef.current;
+    const card = document.getElementById(`store-card-${id}`);
+    if (!list || !card) return;
+
+    const listRect = list.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    if (cardRect.top < listRect.top) {
+      list.scrollBy({ top: cardRect.top - listRect.top, behavior: "smooth" });
+    } else if (cardRect.bottom > listRect.bottom) {
+      list.scrollBy({
+        top: cardRect.bottom - listRect.bottom,
+        behavior: "smooth"
+      });
+    }
+  }, []);
+
+  const handleMapMarkerSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    if (!supportsStoreMapHover()) setMobilePreviewId(id);
   }, []);
 
   useEffect(() => {
@@ -613,12 +699,15 @@ function StoresPage() {
         {!isLoading && !errorMessage && visibleStores.length > 0 ? (
           <div className="mt-4 grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
             <GoogleMapPanel
+              mobilePreviewIndex={mobilePreviewIndex}
+              mobilePreviewStore={mobilePreviewStore}
               stores={visibleStores}
               selectedId={selectedId}
               onHover={handleMapHover}
-              onSelect={setSelectedId}
+              onSelect={handleMapMarkerSelect}
             />
             <section
+              ref={storeListRef}
               className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
               aria-labelledby="nearby-stores-heading"
             >
