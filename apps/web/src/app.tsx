@@ -11,6 +11,8 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
+  useNavigationType,
   useSearchParams
 } from "react-router-dom";
 import {
@@ -39,6 +41,8 @@ import { HomePage } from "./home/page";
 import { PickerPage } from "./picker/page";
 import { PickerResultPage } from "./picker/result-page";
 import { SearchPage } from "./search/page";
+import { shouldScrollToTop } from "./route-scroll";
+import { useDismissiblePopover } from "./use-dismissible-popover";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -69,6 +73,27 @@ function useIsDesktopLayout() {
   }, []);
 
   return isDesktop;
+}
+
+function RouteScrollManager() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const previousPathnameRef = useRef(location.pathname);
+
+  useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+    previousPathnameRef.current = location.pathname;
+
+    if (
+      !shouldScrollToTop(previousPathname, location.pathname, navigationType)
+    ) {
+      return;
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, navigationType]);
+
+  return null;
 }
 
 function StoreImage({ store, index }: { store: PublicStore; index: number }) {
@@ -390,7 +415,7 @@ function StoresPage() {
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobilePreviewId, setMobilePreviewId] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<"list" | "map">("list");
+  const [mobileView, setMobileView] = useState<"list" | "map">("map");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -400,6 +425,7 @@ function StoresPage() {
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
   const isDesktopLayout = useIsDesktopLayout();
 
@@ -506,19 +532,17 @@ function StoresPage() {
     if (!supportsStoreMapHover()) setMobilePreviewId(id);
   }, []);
 
-  useEffect(() => {
-    if (!filtersOpen) return;
+  const closeFilters = useCallback(() => {
+    setFiltersOpen(false);
+    filtersButtonRef.current?.focus();
+  }, []);
 
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setFiltersOpen(false);
-      filtersButtonRef.current?.focus();
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [filtersOpen]);
+  useDismissiblePopover({
+    onClose: closeFilters,
+    open: filtersOpen,
+    popoverRef: filtersPopoverRef,
+    triggerRef: filtersButtonRef
+  });
 
   const updateSearchParam = (name: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -642,9 +666,23 @@ function StoresPage() {
               <div
                 id="store-filters-popover"
                 className="filter-popover"
+                ref={filtersPopoverRef}
                 role="group"
                 aria-label="Store filters"
               >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-popover-foreground">
+                    Filter stores
+                  </p>
+                  <button
+                    aria-label="Close filters"
+                    className="grid size-10 cursor-pointer place-items-center rounded-md text-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                    type="button"
+                    onClick={closeFilters}
+                  >
+                    ×
+                  </button>
+                </div>
                 <label htmlFor="store-area">Area</label>
                 <select
                   id="store-area"
@@ -846,31 +884,34 @@ function LegacyExploreRedirect() {
 
 export function App() {
   return (
-    <Routes>
-      <Route element={<HomePage />} path="/" />
-      <Route element={<StoresPage />} path="/stores" />
-      <Route element={<StoreDetailPage />} path="/stores/:slug" />
-      <Route element={<SearchPage />} path="/search" />
-      <Route element={<LegacyExploreRedirect />} path="/explore" />
-      <Route element={<DrinksPage />} path="/drinks" />
-      <Route
-        element={<DrinkDetailPage />}
-        path="/drinks/:brandSlug/:productSlug"
-      />
-      <Route
-        element={<PickerResultPage />}
-        path="/picker/result/:brandSlug/:productSlug"
-      />
-      <Route element={<PickerPage />} path="/picker" />
-      <Route
-        element={
-          <PlaceholderPage
-            description="This page is not available yet."
-            title="WeMilktea"
-          />
-        }
-        path="*"
-      />
-    </Routes>
+    <>
+      <RouteScrollManager />
+      <Routes>
+        <Route element={<HomePage />} path="/" />
+        <Route element={<StoresPage />} path="/stores" />
+        <Route element={<StoreDetailPage />} path="/stores/:slug" />
+        <Route element={<SearchPage />} path="/search" />
+        <Route element={<LegacyExploreRedirect />} path="/explore" />
+        <Route element={<DrinksPage />} path="/drinks" />
+        <Route
+          element={<DrinkDetailPage />}
+          path="/drinks/:brandSlug/:productSlug"
+        />
+        <Route
+          element={<PickerResultPage />}
+          path="/picker/result/:brandSlug/:productSlug"
+        />
+        <Route element={<PickerPage />} path="/picker" />
+        <Route
+          element={
+            <PlaceholderPage
+              description="This page is not available yet."
+              title="WeMilktea"
+            />
+          }
+          path="*"
+        />
+      </Routes>
+    </>
   );
 }

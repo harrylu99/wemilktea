@@ -332,7 +332,7 @@ export function HomePage() {
                 </Link>
               </div>
               {drinks.length > 0 ? (
-                <div className="mt-4 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
+                <div className="hide-scrollbar mt-4 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
                   {drinks.map((drink, index) => (
                     <DrinkCard
                       className="w-[224px] shrink-0 lg:w-full lg:max-w-[280px] lg:min-w-0 lg:justify-self-center"
@@ -401,7 +401,7 @@ export function HomePage() {
                 Explore by type
               </h2>
               {categories.length > 0 ? (
-                <div className="mt-4 flex max-w-full gap-2 overflow-x-auto pb-2">
+                <div className="hide-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-2">
                   {categories.map((category) => (
                     <CategoryLink category={category} key={category.id} />
                   ))}
