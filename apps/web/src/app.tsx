@@ -41,6 +41,7 @@ import { HomePage } from "./home/page";
 import { PickerPage } from "./picker/page";
 import { PickerResultPage } from "./picker/result-page";
 import { SearchPage } from "./search/page";
+import { getMobileStorePreviewId } from "./stores/map-interaction";
 import { shouldScrollToTop } from "./route-scroll";
 import { useDismissiblePopover } from "./use-dismissible-popover";
 
@@ -509,28 +510,39 @@ function StoresPage() {
     }
   }, [mobilePreviewId, selectedId, visibleStores]);
 
-  const handleMapHover = useCallback((id: string) => {
-    setSelectedId(id);
-    const list = storeListRef.current;
-    const card = document.getElementById(`store-card-${id}`);
-    if (!list || !card) return;
+  const handleMapHover = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      if (!isDesktopLayout) {
+        setMobilePreviewId(getMobileStorePreviewId(id, isDesktopLayout));
+        return;
+      }
 
-    const listRect = list.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    if (cardRect.top < listRect.top) {
-      list.scrollBy({ top: cardRect.top - listRect.top, behavior: "smooth" });
-    } else if (cardRect.bottom > listRect.bottom) {
-      list.scrollBy({
-        top: cardRect.bottom - listRect.bottom,
-        behavior: "smooth"
-      });
-    }
-  }, []);
+      const list = storeListRef.current;
+      const card = document.getElementById(`store-card-${id}`);
+      if (!list || !card) return;
 
-  const handleMapMarkerSelect = useCallback((id: string) => {
-    setSelectedId(id);
-    if (!supportsStoreMapHover()) setMobilePreviewId(id);
-  }, []);
+      const listRect = list.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      if (cardRect.top < listRect.top) {
+        list.scrollBy({ top: cardRect.top - listRect.top, behavior: "smooth" });
+      } else if (cardRect.bottom > listRect.bottom) {
+        list.scrollBy({
+          top: cardRect.bottom - listRect.bottom,
+          behavior: "smooth"
+        });
+      }
+    },
+    [isDesktopLayout]
+  );
+
+  const handleMapMarkerSelect = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      setMobilePreviewId(getMobileStorePreviewId(id, isDesktopLayout));
+    },
+    [isDesktopLayout]
+  );
 
   const closeFilters = useCallback(() => {
     setFiltersOpen(false);
