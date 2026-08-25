@@ -200,32 +200,32 @@ test("keyboard journey reaches a drink and its store", async ({ page }) => {
   await page.goto("/");
   await waitForPublicPage(page);
 
-  const headerSearch = page.getByRole("button", {
-    name: "Search stores and drinks"
+  const headerSearch = page.getByRole("link", {
+    name: "Search WeMilktea"
   });
   await headerSearch.focus();
   await headerSearch.press("Enter");
-  const homeSearch = page.getByLabel("Search stores or drinks");
-  await expect(homeSearch).toBeFocused();
-  await homeSearch.pressSequentially("brown sugar");
-  await homeSearch.press("Enter");
+  await expect(page).toHaveURL(/\/search$/);
+  await waitForPublicPage(page);
+  const searchInput = page.getByLabel("Search drinks and stores");
+  await searchInput.focus();
+  await searchInput.fill("brown sugar");
+  await searchInput.press("Enter");
   await expect(page).toHaveURL(
     /\/search\?q=brown\+sugar|\/search\?q=brown%20sugar/
   );
   await waitForPublicPage(page);
 
   const drinkLink = page.getByRole("link", {
-    name: /View Brown Sugar Pearl Milk Tea by Gong cha/i
+    name: /View Brown Sugar Milk Tea by Gong cha/i
   });
   await drinkLink.focus();
   await drinkLink.press("Enter");
-  await expect(page).toHaveURL(
-    /\/drinks\/gong-cha\/brown-sugar-pearl-milk-tea$/
-  );
+  await expect(page).toHaveURL(/\/drinks\/gong-cha\/brown-sugar-milk-tea$/);
   await waitForPublicPage(page);
 
   const findDrink = page
-    .getByRole("button", { name: "Find this drink" })
+    .getByRole("button", { name: "Where to get it" })
     .first();
   await findDrink.focus();
   await findDrink.press("Enter");
@@ -234,11 +234,11 @@ test("keyboard journey reaches a drink and its store", async ({ page }) => {
   ).toBeFocused();
 
   const storeLink = page.getByRole("link", {
-    name: /View Gong cha Newmarket/i
+    name: /View Gong cha.*Newmarket/i
   });
   await storeLink.focus();
   await storeLink.press("Enter");
-  await expect(page).toHaveURL(/\/stores\/gong-cha-newmarket$/);
+  await expect(page).toHaveURL(/\/stores\/gong-cha-broadway-newmarket$/);
   await waitForPublicPage(page);
 });
 
