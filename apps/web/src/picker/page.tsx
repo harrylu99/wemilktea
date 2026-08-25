@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { PublicHeader } from "../public-header";
 import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
@@ -89,6 +89,7 @@ function PickerLoadingState({ message }: { message: string }) {
 }
 
 export function PickerPage() {
+  const navigate = useNavigate();
   const [selectedCraving, setSelectedCraving] = useState<CravingKey>("matcha");
   const [candidates, setCandidates] = useState<PickerCandidate[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -161,13 +162,13 @@ export function PickerPage() {
       "(prefers-reduced-motion: reduce)"
     ).matches;
     if (reducedMotion) {
-      window.location.assign(pickerResultPath(recommendation));
+      navigate(pickerResultPath(recommendation));
       return;
     }
 
     setIsDrawing(true);
     drawingTimer.current = window.setTimeout(() => {
-      window.location.assign(pickerResultPath(recommendation));
+      navigate(pickerResultPath(recommendation));
     }, 260);
   };
 

@@ -19,7 +19,8 @@ test("uses the header Search entry without a standalone Home Search field", () =
   expect(markup).not.toContain('id="home-search"');
   expect(markup).not.toContain('aria-label="Search stores or drinks"');
   expect(markup).toContain('aria-label="Search WeMilktea"');
-  expect(markup).toContain("Have you ever tried this one?");
+  expect(markup).toContain("Finding something worth trying…");
+  expect(markup).not.toContain("Have you ever tried this one?");
   expect(markup).toContain("TODAY’S MILK TEA SIGN");
   expect(markup).toContain("What’s your milk tea sign today?");
   expect(markup).toContain(
@@ -62,4 +63,29 @@ test("renders the featured drink route and omits missing brand copy", () => {
   );
   expect(withoutBrand).not.toContain("Find it at");
   expect(withoutBrand).not.toContain("undefined");
+});
+
+test("keeps the Home Hero loading state intentional", () => {
+  const markup = renderToStaticMarkup(
+    <MemoryRouter>
+      <HomeHeroCopy drink={null} isLoading />
+    </MemoryRouter>
+  );
+
+  expect(markup).toContain("Finding something worth trying…");
+  expect(markup).not.toContain("Have you ever tried this one?");
+  expect(markup).not.toContain("View drink");
+  expect(markup).toContain('aria-hidden="true"');
+});
+
+test("keeps Home Hero errors free of loading placeholders", () => {
+  const markup = renderToStaticMarkup(
+    <MemoryRouter>
+      <HomeHeroCopy drink={null} isError />
+    </MemoryRouter>
+  );
+
+  expect(markup).toContain("Couldn’t pick one right now.");
+  expect(markup).not.toContain("Finding something worth trying…");
+  expect(markup).not.toContain("animate-pulse");
 });

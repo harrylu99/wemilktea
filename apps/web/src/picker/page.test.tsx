@@ -40,7 +40,7 @@ function installBrowserGlobals() {
 installBrowserGlobals();
 
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { ThemeContext } from "../theme-context";
 
 const { act, cleanup, fireEvent, render } =
@@ -54,7 +54,7 @@ const successResult = {
       slug: "matcha-latte",
       brandName: "Gong cha",
       brandSlug: "gong-cha",
-      categorySlug: "milk-tea",
+      categorySlug: "matcha",
       discoveryTags: [],
       imageUrl: null,
       imageAltText: null,
@@ -92,12 +92,17 @@ mock.module("./data", () => ({
 
 const { PickerPage } = await import("./page");
 
+function LocationProbe() {
+  return <div data-testid="location">{useLocation().pathname}</div>;
+}
+
 function renderPicker() {
   return render(
     <ThemeContext.Provider
       value={{ resolvedTheme: "light", setPreference: () => undefined }}
     >
       <MemoryRouter initialEntries={["/picker"]}>
+        <LocationProbe />
         <PickerPage />
       </MemoryRouter>
     </ThemeContext.Provider>
@@ -194,3 +199,24 @@ test.serial("cleans up loading timers when the Picker unmounts", async () => {
   await new Promise((resolve) => setTimeout(resolve, 1050));
   expect(view.queryByText("Reading your milk tea stars...")).toBeNull();
 });
+
+test.serial(
+  "navigates to the result route without a document reload",
+  async () => {
+    const view = renderPicker();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    fireEvent.click(
+      view.getByRole("button", { name: "Draw my milk tea sign" })
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+
+    expect(view.getByTestId("location").textContent).toBe(
+      "/picker/result/gong-cha/matcha-latte"
+    );
+  }
+);

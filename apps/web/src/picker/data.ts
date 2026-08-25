@@ -54,6 +54,49 @@ export type PickerRecommendation = {
 export type PickerQueryResult =
   { data: PickerCandidate[]; error: null } | { data: null; error: string };
 
+export const pickerCandidatesCacheTtlMs = 5 * 60 * 1000;
+
+type PickerCacheOptions = {
+  force?: boolean;
+  now?: () => number;
+};
+
+type PickerCandidatesCache = {
+  load: (options?: PickerCacheOptions) => Promise<PickerQueryResult>;
+};
+
+export function createPickerCandidatesCache(
+  fetchCandidates: () => Promise<PickerQueryResult>,
+  ttlMs = pickerCandidatesCacheTtlMs
+): PickerCandidatesCache {
+  let cached: { data: PickerCandidate[]; cachedAt: number } | undefined;
+  let inFlight: Promise<PickerQueryResult> | undefined;
+
+  return {
+    load(options = {}) {
+      const now = options.now ?? Date.now;
+      if (!options.force && cached && now() - cached.cachedAt < ttlMs) {
+        return Promise.resolve({ data: cached.data, error: null });
+      }
+
+      if (inFlight) return inFlight;
+
+      const request = fetchCandidates()
+        .then((result) => {
+          if (!result.error && result.data) {
+            cached = { data: result.data, cachedAt: now() };
+          }
+          return result;
+        })
+        .finally(() => {
+          inFlight = undefined;
+        });
+      inFlight = request;
+      return request;
+    }
+  };
+}
+
 export function cravingOption(key: CravingKey) {
   return (
     CRAVING_OPTIONS.find((option) => option.key === key) ?? CRAVING_OPTIONS[0]
@@ -140,7 +183,7 @@ export function normalizePickerCandidate(
   return detail;
 }
 
-export async function loadPublicPickerCandidates(): Promise<PickerQueryResult> {
+async function fetchPublicPickerCandidates(): Promise<PickerQueryResult> {
   if (!supabase) {
     return {
       data: null,
@@ -195,6 +238,14 @@ export async function loadPublicPickerCandidates(): Promise<PickerQueryResult> {
     .sort((left, right) => left.name.localeCompare(right.name));
 
   return { data: candidates, error: null };
+}
+
+const pickerCandidatesCache = createPickerCandidatesCache(
+  fetchPublicPickerCandidates
+);
+
+export function loadPublicPickerCandidates(options?: PickerCacheOptions) {
+  return pickerCandidatesCache.load(options);
 }
 
 export { cravingKeySchema };

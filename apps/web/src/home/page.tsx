@@ -150,8 +150,18 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
   );
 }
 
-export function HomeHeroCopy({ drink }: { drink: PublicDrink | null }) {
+export function HomeHeroCopy({
+  drink,
+  isLoading = false,
+  isError = false
+}: {
+  drink: PublicDrink | null;
+  isLoading?: boolean;
+  isError?: boolean;
+}) {
   const brandCopy = homeHeroBrandCopy(drink?.brandName);
+  const showLoading = isLoading && !drink;
+  const showError = isError && !drink;
 
   return (
     <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
@@ -159,10 +169,19 @@ export function HomeHeroCopy({ drink }: { drink: PublicDrink | null }) {
         AUCKLAND MILK TEA
       </p>
       <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
-        Have you ever tried this one?
+        {showError
+          ? "Couldn’t pick one right now."
+          : showLoading
+            ? "Finding something worth trying…"
+            : "Have you ever tried this one?"}
       </h1>
-      {drink ? (
-        <div className="mt-5 max-w-[500px]">
+      {showLoading ? (
+        <div aria-hidden="true" className="mt-5 min-h-[7rem] max-w-[500px]">
+          <div className="h-7 w-4/5 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-5 w-2/5 animate-pulse rounded bg-muted" />
+        </div>
+      ) : drink ? (
+        <div className="mt-5 min-h-[7rem] max-w-[500px]">
           <h2 className="break-words text-xl font-semibold leading-7">
             {drink.name}
           </h2>
@@ -259,7 +278,11 @@ export function HomePage() {
       <PublicHeader />
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <section className="grid items-center gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
-          <HomeHeroCopy drink={heroDrink} />
+          <HomeHeroCopy
+            drink={heroDrink}
+            isError={status === "error"}
+            isLoading={status === "loading"}
+          />
           <HeroVisual drink={heroDrink} isLoading={status === "loading"} />
         </section>
 

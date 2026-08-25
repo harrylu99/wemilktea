@@ -1,9 +1,12 @@
 import { expect, test } from "bun:test";
 import {
+  createPickerCandidatesCache,
   filterPickerCandidates,
+  pickerCandidatesCacheTtlMs,
   pickRecommendation,
   pickerResultPath,
-  type PickerCandidate
+  type PickerCandidate,
+  type PickerQueryResult
 } from "./data";
 
 const store = (slug: string, displayName: string) => ({
@@ -116,4 +119,62 @@ test("builds a reload-safe result route from canonical slugs and craving", () =>
   expect(pickerResultPath(recommendation)).toBe(
     "/picker/result/gong-cha/matcha-latte?store=albany&craving=matcha"
   );
+});
+
+test("reuses a successful Picker candidate result within the cache lifetime", async () => {
+  let calls = 0;
+  let now = 1_000;
+  const result: PickerQueryResult = { data: [matcha], error: null };
+  const cache = createPickerCandidatesCache(async () => {
+    calls += 1;
+    return result;
+  });
+
+  const first = await cache.load({ now: () => now });
+  const second = await cache.load({ now: () => now + 1 });
+
+  expect(calls).toBe(1);
+  expect(second).toEqual(first);
+  now += pickerCandidatesCacheTtlMs;
+  await cache.load({ now: () => now });
+  expect(calls).toBe(2);
+});
+
+test("shares one in-flight Picker candidate request", async () => {
+  let calls = 0;
+  let resolveRequest: ((result: PickerQueryResult) => void) | undefined;
+  const cache = createPickerCandidatesCache(
+    () =>
+      new Promise<PickerQueryResult>((resolve) => {
+        calls += 1;
+        resolveRequest = resolve;
+      })
+  );
+
+  const first = cache.load();
+  const second = cache.load();
+  expect(first).toBe(second);
+  expect(calls).toBe(1);
+
+  resolveRequest?.({ data: [matcha], error: null });
+  await first;
+});
+
+test("does not cache failed Picker candidate requests and supports force reload", async () => {
+  let calls = 0;
+  const cache = createPickerCandidatesCache(async () => {
+    calls += 1;
+    return calls === 1
+      ? { data: null, error: "query_failed" }
+      : { data: [matcha], error: null };
+  });
+
+  const failed = await cache.load();
+  const recovered = await cache.load();
+  const forced = await cache.load({ force: true });
+
+  expect(failed).toEqual({ data: null, error: "query_failed" });
+  expect(recovered).toEqual({ data: [matcha], error: null });
+  expect(forced).toEqual(recovered);
+  expect(calls).toBe(3);
 });
