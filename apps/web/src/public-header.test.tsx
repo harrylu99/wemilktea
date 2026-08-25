@@ -91,6 +91,9 @@ test("marks global Search current without activating another destination", () =>
       link.attributes?.includes('aria-label="Search WeMilktea"')
     )
   ).toBe(true);
+  expect(active.some((link) => link.attributes?.includes("bg-accent"))).toBe(
+    true
+  );
   expect(
     active.every((link) => link.attributes?.includes('href="/search"'))
   ).toBe(true);

@@ -104,7 +104,7 @@ export function PublicHeader() {
           <NavLink
             aria-label="Search WeMilktea"
             className={({ isActive }) =>
-              `grid size-11 place-items-center rounded-md text-xl ${isActive ? "text-foreground" : "text-primary"}`
+              `grid size-11 place-items-center rounded-md text-xl ${isActive ? "bg-accent text-foreground" : "text-primary"}`
             }
             to="/search"
             onClick={() => setMenuOpen(false)}
