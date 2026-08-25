@@ -201,6 +201,34 @@ test.serial("cleans up loading timers when the Picker unmounts", async () => {
 });
 
 test.serial(
+  "does not schedule a ready notice after an in-flight load resolves post-unmount",
+  async () => {
+    deferred = true;
+    const view = renderPicker();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    view.unmount();
+
+    const originalSetTimeout = window.setTimeout;
+    let scheduledAfterUnmount = 0;
+    window.setTimeout = ((handler: TimerHandler, timeout?: number) => {
+      scheduledAfterUnmount += 1;
+      return originalSetTimeout(handler, timeout);
+    }) as typeof window.setTimeout;
+
+    await act(async () => {
+      pendingResolve?.(successResult);
+      await Promise.resolve();
+    });
+
+    window.setTimeout = originalSetTimeout;
+    expect(scheduledAfterUnmount).toBe(0);
+  }
+);
+
+test.serial(
   "navigates to the result route without a document reload",
   async () => {
     const view = renderPicker();

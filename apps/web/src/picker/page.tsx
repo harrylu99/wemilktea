@@ -101,8 +101,10 @@ export function PickerPage() {
   const [showReadyNotice, setShowReadyNotice] = useState(false);
   const drawingTimer = useRef<number | null>(null);
   const readyNoticeTimer = useRef<number | null>(null);
+  const loadRequestId = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
     if (readyNoticeTimer.current !== null) {
       window.clearTimeout(readyNoticeTimer.current);
       readyNoticeTimer.current = null;
@@ -112,6 +114,7 @@ export function PickerPage() {
     setStatus("loading");
     setMessage(null);
     const result = await loadPublicPickerCandidates();
+    if (requestId !== loadRequestId.current) return;
     if (result.error || !result.data) {
       setStatus("error");
       return;
@@ -136,6 +139,7 @@ export function PickerPage() {
   useEffect(() => {
     void load();
     return () => {
+      loadRequestId.current += 1;
       if (drawingTimer.current !== null) {
         window.clearTimeout(drawingTimer.current);
       }
