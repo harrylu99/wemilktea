@@ -96,7 +96,12 @@ function HeroVisual({
     return (
       <div className={heroMediaClassName}>
         <img
-          alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
+          alt={
+            drink.imageAltText ??
+            (drink.brandName
+              ? `${drink.name} from ${drink.brandName}`
+              : drink.name)
+          }
           className="absolute inset-0 h-full w-full object-cover"
           src={drink.imageUrl}
           onError={() => setImageError(true)}
