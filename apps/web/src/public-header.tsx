@@ -35,7 +35,7 @@ function ThemeControl() {
   );
 }
 
-export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
+export function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const links = [
@@ -81,51 +81,32 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
               {label}
             </NavLink>
           ))}
-          {onSearch ? (
-            <button
-              aria-label="Search stores and drinks"
-              className="text-xs font-medium text-muted-foreground hover:text-foreground"
-              type="button"
-              onClick={onSearch}
-            >
-              <span aria-hidden="true">⌕</span> Search
-            </button>
-          ) : (
-            <Link
-              aria-label="Search stores and drinks"
-              className="text-xs font-medium text-muted-foreground hover:text-foreground"
-              to="/search"
-            >
-              <span aria-hidden="true">⌕</span> Search
-            </Link>
-          )}
-          <ThemeControl />
           <Link
-            className="rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground"
+            aria-label="Search WeMilktea"
+            className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            to="/search"
+          >
+            <span aria-hidden="true">⌕</span> Search
+          </Link>
+          <ThemeControl />
+          <NavLink
+            className={({ isActive }) =>
+              `rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground ${isActive ? "ring-2 ring-ring ring-offset-2 ring-offset-background" : ""}`
+            }
             to="/picker"
           >
             Pick for me
-          </Link>
+          </NavLink>
         </nav>
         <div className="flex items-center gap-3 md:hidden">
-          {onSearch ? (
-            <button
-              aria-label="Search stores and drinks"
-              className="grid size-11 place-items-center rounded-md text-xl text-primary"
-              type="button"
-              onClick={onSearch}
-            >
-              <span aria-hidden="true">⌕</span>
-            </button>
-          ) : (
-            <Link
-              aria-label="Search stores and drinks"
-              className="grid size-11 place-items-center rounded-md text-xl text-primary"
-              to="/search"
-            >
-              <span aria-hidden="true">⌕</span>
-            </Link>
-          )}
+          <Link
+            aria-label="Search WeMilktea"
+            className="grid size-11 place-items-center rounded-md text-xl text-primary"
+            to="/search"
+            onClick={() => setMenuOpen(false)}
+          >
+            <span aria-hidden="true">⌕</span>
+          </Link>
           <ThemeControl />
           <button
             ref={menuButtonRef}
@@ -148,22 +129,26 @@ export function PublicHeader({ onSearch }: { onSearch?: () => void }) {
         >
           <div className="mx-auto flex max-w-[1280px] flex-col gap-1">
             {links.map(([label, href]) => (
-              <Link
-                className="rounded-md px-3 py-3 text-sm font-medium hover:bg-accent"
+              <NavLink
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent ${isActive ? "bg-accent font-semibold" : ""}`
+                }
                 key={href}
                 to={href}
                 onClick={() => setMenuOpen(false)}
               >
                 {label}
-              </Link>
+              </NavLink>
             ))}
-            <Link
-              className="rounded-md bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
+            <NavLink
+              className={({ isActive }) =>
+                `rounded-md bg-primary px-3 py-3 text-sm font-medium text-primary-foreground ${isActive ? "ring-2 ring-ring ring-offset-2 ring-offset-background" : ""}`
+              }
               to="/picker"
               onClick={() => setMenuOpen(false)}
             >
               Pick for me
-            </Link>
+            </NavLink>
           </div>
         </nav>
       ) : null}

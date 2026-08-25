@@ -445,7 +445,6 @@ function StoresPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [suggestStoreOpen, setSuggestStoreOpen] = useState(false);
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
@@ -709,7 +708,6 @@ function StoresPage() {
     );
   };
 
-  const focusSearch = () => searchRef.current?.focus();
   const clearFilters = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("area");
@@ -735,7 +733,7 @@ function StoresPage() {
         }
         title="Milk Tea Stores in Auckland | WeMilktea"
       />
-      <PublicHeader onSearch={focusSearch} />
+      <PublicHeader />
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">
           STORES · AUCKLAND
@@ -751,7 +749,6 @@ function StoresPage() {
               ⌕
             </span>
             <input
-              ref={searchRef}
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-10 text-base text-foreground placeholder:text-muted-foreground"
               placeholder="Search for your next drink place"
               type="search"
