@@ -17,10 +17,16 @@ from the generated sitemap.
 
 ## Search fields
 
-Drink search reuses the published Drinks boundary and matches product name,
-brand, category, description, and discovery tags. Store search matches display
-name, brand, suburb, and address. The page loads the existing bounded public
-catalogue once and filters the normalized result in the browser.
+Unified Search intentionally matches visible entity names only: Drink search
+matches product name, and Store search matches store display name. Hidden
+metadata such as brand, category, description, discovery tags, suburb, and
+address does not affect unified Search results. The page loads the existing
+bounded public catalogue once and filters the normalized result in the browser.
+
+The `/drinks` and `/stores` page-local filters retain their richer catalogue
+search behavior. Moving unified Search filtering to Supabase/PostgreSQL later
+is a possible scale improvement, but any server-side implementation should
+preserve this visible-name contract.
 
 ## Legacy Explore route
 

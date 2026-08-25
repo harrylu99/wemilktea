@@ -1,5 +1,4 @@
 import {
-  filterPublicDrinks,
   loadPublicDrinks,
   type PublicDrink,
   type PublicDrinkCategory
@@ -24,7 +23,11 @@ export function filterPublicDiscoveryDrinks(
   drinks: PublicDrink[],
   query: string
 ) {
-  return filterPublicDrinks(drinks, { query, categorySlug: "" });
+  const normalizedQuery = query.trim().toLowerCase();
+  return drinks.filter((drink) => {
+    if (!normalizedQuery) return true;
+    return drink.name.toLowerCase().includes(normalizedQuery);
+  });
 }
 
 export function filterPublicDiscoveryStores(
@@ -34,9 +37,7 @@ export function filterPublicDiscoveryStores(
   const normalizedQuery = query.trim().toLowerCase();
   return stores.filter((store) => {
     if (!normalizedQuery) return true;
-    return `${store.displayName} ${store.brandName} ${store.suburb} ${store.address}`
-      .toLowerCase()
-      .includes(normalizedQuery);
+    return store.displayName.toLowerCase().includes(normalizedQuery);
   });
 }
 
