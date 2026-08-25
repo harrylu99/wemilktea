@@ -180,7 +180,7 @@ export function SearchPage() {
               aria-label="Search drinks and stores"
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-12 text-base text-foreground placeholder:text-muted-foreground"
               id="search-input"
-              placeholder="Search drinks and stores"
+              placeholder="Try “matcha”, “Gong cha”, or “Albany”"
               ref={searchRef}
               type="search"
               value={query}
@@ -200,9 +200,17 @@ export function SearchPage() {
         </div>
 
         {!hasQuery && status === "idle" ? (
-          <p className="mt-8 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            Search drinks and stores across Auckland.
-          </p>
+          <section
+            aria-labelledby="search-idle-heading"
+            className="mt-10 max-w-xl py-4"
+          >
+            <h2 className="text-2xl font-semibold" id="search-idle-heading">
+              What are you craving?
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Search by drink or store name.
+            </p>
+          </section>
         ) : null}
         {status === "loading" ? (
           <div className="mt-8">
@@ -267,9 +275,11 @@ export function SearchPage() {
             ) : null}
             {!matches.drinks.length && !matches.stores.length ? (
               <div className="mt-4 rounded-xl border border-border bg-card p-6">
-                <p className="text-base font-semibold">No matches found</p>
+                <h2 className="break-words text-base font-semibold">
+                  No luck with “{normalizedQuery}”
+                </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Try a different search.
+                  Try another drink or store name.
                 </p>
                 <button
                   className="mt-4 rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground"

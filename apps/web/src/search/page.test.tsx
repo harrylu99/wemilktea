@@ -151,9 +151,11 @@ test.serial(
     const view = renderSearch();
 
     expect(loadDiscovery).not.toHaveBeenCalled();
-    expect(
-      view.getByText("Search drinks and stores across Auckland.")
-    ).toBeTruthy();
+    expect(view.getByText("What are you craving?")).toBeTruthy();
+    expect(view.getByText("Search by drink or store name.")).toBeTruthy();
+    expect(view.getByRole("searchbox").getAttribute("placeholder")).toBe(
+      "Try “matcha”, “Gong cha”, or “Albany”"
+    );
     expect(view.queryByRole("status")).toBeNull();
     expect(view.queryByRole("alert")).toBeNull();
     expect(view.queryByText("Matcha Store")).toBeNull();
@@ -166,9 +168,7 @@ test.serial(
     const view = renderSearch("/search?q=%20%20");
 
     expect(loadDiscovery).not.toHaveBeenCalled();
-    expect(
-      view.getByText("Search drinks and stores across Auckland.")
-    ).toBeTruthy();
+    expect(view.getByText("What are you craving?")).toBeTruthy();
     expect(view.queryByRole("status")).toBeNull();
   }
 );
@@ -220,9 +220,7 @@ test.serial(
     fireEvent.click(view.getByRole("button", { name: "Clear search" }));
 
     expect(view.getByTestId("location").textContent).toBe("/search");
-    expect(
-      view.getByText("Search drinks and stores across Auckland.")
-    ).toBeTruthy();
+    expect(view.getByText("What are you craving?")).toBeTruthy();
     expect(view.queryByText("Matcha Store")).toBeNull();
     expect(loadDiscovery).toHaveBeenCalledTimes(1);
 
@@ -241,9 +239,7 @@ test.serial(
     const errorView = renderSearch("/search?q=matcha");
 
     expect(await errorView.findByRole("alert")).toBeTruthy();
-    expect(
-      errorView.queryByText("Search drinks and stores across Auckland.")
-    ).toBeNull();
+    expect(errorView.queryByText("What are you craving?")).toBeNull();
 
     nextResult = successResult;
     fireEvent.click(errorView.getByRole("button", { name: "Try again" }));
@@ -285,9 +281,7 @@ test.serial("clearing during the initial load leaves Search idle", async () => {
     pendingResolve?.(successResult);
   });
 
-  expect(
-    view.getByText("Search drinks and stores across Auckland.")
-  ).toBeTruthy();
+  expect(view.getByText("What are you craving?")).toBeTruthy();
   expect(view.queryByText("Matcha Store")).toBeNull();
   expect(view.queryByRole("status")).toBeNull();
 });
@@ -308,6 +302,16 @@ test.serial(
     await act(async () => {
       pendingResolve?.(successResult);
     });
-    expect(await view.findByText("No matches found")).toBeTruthy();
+    expect(await view.findByText("No luck with “taro”")).toBeTruthy();
+    expect(view.getByText("Try another drink or store name.")).toBeTruthy();
   }
 );
+
+test.serial("shows query-aware no-results copy", async () => {
+  const view = renderSearch("/search?q=something-with-no-match");
+
+  expect(
+    await view.findByText("No luck with “something-with-no-match”")
+  ).toBeTruthy();
+  expect(view.getByText("Try another drink or store name.")).toBeTruthy();
+});

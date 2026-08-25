@@ -1,12 +1,5 @@
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { PublicHeader } from "../public-header";
 import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
@@ -148,11 +141,9 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
 }
 
 export function HomePage() {
-  const navigate = useNavigate();
   const loadRequestIdRef = useRef(0);
   const drinksScrollerRef = useRef<HTMLDivElement>(null);
   const categoriesScrollerRef = useRef<HTMLDivElement>(null);
-  const [search, setSearch] = useState("");
   const [content, setContent] = useState<{
     drinks: PublicDrink[];
     stores: PublicStore[];
@@ -216,12 +207,6 @@ export function HomePage() {
     status === "ready" && categories.length > 0
   );
 
-  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const value = search.trim();
-    navigate(value ? `/search?q=${encodeURIComponent(value)}` : "/search");
-  };
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Seo
@@ -251,27 +236,6 @@ export function HomePage() {
           </div>
           <HeroVisual drink={heroDrink} isLoading={status === "loading"} />
         </section>
-
-        <form className="mt-5" role="search" onSubmit={submitSearch}>
-          <label className="relative block" htmlFor="home-search">
-            <span className="sr-only">Search stores or drinks</span>
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-semibold"
-            >
-              ⌕
-            </span>
-            <input
-              aria-label="Search stores or drinks"
-              className="h-[52px] w-full rounded-xl border border-border bg-card px-12 text-base text-foreground placeholder:text-muted-foreground"
-              id="home-search"
-              placeholder="Search stores or drinks"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-        </form>
 
         <Link
           className="mt-5 flex min-h-[190px] flex-col justify-between rounded-xl bg-accent p-5 md:hidden"
