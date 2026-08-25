@@ -127,7 +127,6 @@ function CategoryChip({
 
 export function DrinksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const searchRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const [drinks, setDrinks] = useState<PublicDrink[]>([]);
@@ -231,7 +230,7 @@ export function DrinksPage() {
         }
         title="Milk Tea Drinks in Auckland | WeMilktea"
       />
-      <PublicHeader onSearch={() => searchRef.current?.focus()} />
+      <PublicHeader />
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-8 pt-5 sm:px-8">
         <p className="text-xs font-medium leading-4 text-primary">DRINKS</p>
         <h1 className="mt-4 text-[32px] font-semibold leading-10">
@@ -252,7 +251,6 @@ export function DrinksPage() {
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-12 text-base text-foreground placeholder:text-muted-foreground"
               id="drink-search"
               placeholder="Search for whatever you are keen on today"
-              ref={searchRef}
               type="search"
               value={query}
               onChange={(event) =>
