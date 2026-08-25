@@ -217,11 +217,13 @@ test("keyboard journey reaches a drink and its store", async ({ page }) => {
   await waitForPublicPage(page);
 
   const drinkLink = page.getByRole("link", {
-    name: /View Brown Sugar Milk Tea by Gong cha/i
+    name: /View Brown Sugar Pearl Milk Tea by Gong cha/i
   });
   await drinkLink.focus();
   await drinkLink.press("Enter");
-  await expect(page).toHaveURL(/\/drinks\/gong-cha\/brown-sugar-milk-tea$/);
+  await expect(page).toHaveURL(
+    /\/drinks\/gong-cha\/brown-sugar-pearl-milk-tea$/
+  );
   await waitForPublicPage(page);
 
   const findDrink = page
@@ -238,7 +240,7 @@ test("keyboard journey reaches a drink and its store", async ({ page }) => {
   });
   await storeLink.focus();
   await storeLink.press("Enter");
-  await expect(page).toHaveURL(/\/stores\/gong-cha-broadway-newmarket$/);
+  await expect(page).toHaveURL(/\/stores\/gong-cha-newmarket$/);
   await waitForPublicPage(page);
 });
 
