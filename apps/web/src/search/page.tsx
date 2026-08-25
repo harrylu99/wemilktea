@@ -11,6 +11,8 @@ import {
   loadPublicDiscoveryData
 } from "../discovery/data";
 
+type SearchStatus = "idle" | "loading" | "ready" | "error";
+
 function StoreResultCard({
   store,
   index
@@ -88,27 +90,44 @@ export function SearchPage() {
     stores: PublicStore[];
     categories: PublicDrinkCategory[];
   } | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading"
-  );
-
+  const [status, setStatus] = useState<SearchStatus>("idle");
   const query = searchParams.get("q") ?? "";
-  const hasQuery = Boolean(query.trim());
+  const normalizedQuery = query.trim();
+  const normalizedQueryRef = useRef(normalizedQuery);
+  const loadInFlightRef = useRef(false);
+  normalizedQueryRef.current = normalizedQuery;
+  const hasQuery = Boolean(normalizedQuery);
 
   const load = useCallback(async () => {
-    setStatus("loading");
-    const result = await loadPublicDiscoveryData();
-    if (result.error || !result.data) {
-      setStatus("error");
+    if (!normalizedQueryRef.current || data || loadInFlightRef.current) {
       return;
     }
+
+    loadInFlightRef.current = true;
+    setStatus("loading");
+    const result = await loadPublicDiscoveryData();
+    loadInFlightRef.current = false;
+
+    if (result.error || !result.data) {
+      setStatus(normalizedQueryRef.current ? "error" : "idle");
+      return;
+    }
+
     setData(result.data);
-    setStatus("ready");
-  }, []);
+    setStatus(normalizedQueryRef.current ? "ready" : "idle");
+  }, [data]);
 
   useEffect(() => {
+    if (!normalizedQuery) {
+      setStatus("idle");
+      return;
+    }
+    if (data) {
+      setStatus("ready");
+      return;
+    }
     void load();
-  }, [load]);
+  }, [data, load, normalizedQuery]);
 
   const matches = useMemo(
     () =>
@@ -176,7 +195,7 @@ export function SearchPage() {
           </label>
         </div>
 
-        {!hasQuery && status === "ready" ? (
+        {!hasQuery && status === "idle" ? (
           <p className="mt-8 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
             Search drinks and stores across Auckland.
           </p>
