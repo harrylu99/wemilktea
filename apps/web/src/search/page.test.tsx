@@ -291,3 +291,23 @@ test.serial("clearing during the initial load leaves Search idle", async () => {
   expect(view.queryByText("Matcha Store")).toBeNull();
   expect(view.queryByRole("status")).toBeNull();
 });
+
+test.serial(
+  "re-entering a keyword during the initial load keeps loading feedback",
+  async () => {
+    deferred = true;
+    const view = renderSearch("/search?q=matcha");
+    expect(await view.findByRole("status")).toBeTruthy();
+
+    fireEvent.click(view.getByRole("button", { name: "Clear search" }));
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "taro" }
+    });
+
+    expect(await view.findByRole("status")).toBeTruthy();
+    await act(async () => {
+      pendingResolve?.(successResult);
+    });
+    expect(await view.findByText("No matches found")).toBeTruthy();
+  }
+);

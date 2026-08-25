@@ -126,6 +126,10 @@ export function SearchPage() {
       setStatus("ready");
       return;
     }
+    if (loadInFlightRef.current) {
+      setStatus("loading");
+      return;
+    }
     void load();
   }, [data, load, normalizedQuery]);
 
