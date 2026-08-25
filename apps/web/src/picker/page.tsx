@@ -13,6 +13,13 @@ import {
   type PickerCandidate
 } from "./data";
 
+const pickerLoadingMessages = [
+  "Consulting the pearls...",
+  "Reading your milk tea stars..."
+] as const;
+const pickerLoadingStepMs = 1000;
+const pickerReadyNoticeMs = 1600;
+
 function CravingOption({
   option,
   selected,
@@ -64,6 +71,23 @@ function PickerStage({ drawing }: { drawing: boolean }) {
   );
 }
 
+function PickerLoadingState({ message }: { message: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="picker-loading-state mt-5 rounded-xl border border-border bg-card px-4 py-3"
+    >
+      <span className="picker-loading-sparkle">✦</span>
+      <span className="picker-loading-copy">{message}</span>
+      <span className="picker-loading-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+    </div>
+  );
+}
+
 export function PickerPage() {
   const [selectedCraving, setSelectedCraving] = useState<CravingKey>("matcha");
   const [candidates, setCandidates] = useState<PickerCandidate[]>([]);
@@ -72,9 +96,18 @@ export function PickerPage() {
   );
   const [isDrawing, setIsDrawing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [showReadyNotice, setShowReadyNotice] = useState(false);
   const drawingTimer = useRef<number | null>(null);
+  const readyNoticeTimer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
+    if (readyNoticeTimer.current !== null) {
+      window.clearTimeout(readyNoticeTimer.current);
+      readyNoticeTimer.current = null;
+    }
+    setLoadingMessageIndex(0);
+    setShowReadyNotice(false);
     setStatus("loading");
     setMessage(null);
     const result = await loadPublicPickerCandidates();
@@ -84,13 +117,29 @@ export function PickerPage() {
     }
     setCandidates(result.data);
     setStatus("ready");
+    setShowReadyNotice(true);
+    readyNoticeTimer.current = window.setTimeout(() => {
+      setShowReadyNotice(false);
+      readyNoticeTimer.current = null;
+    }, pickerReadyNoticeMs);
   }, []);
+
+  useEffect(() => {
+    if (status !== "loading") return;
+    const timer = window.setTimeout(() => {
+      setLoadingMessageIndex(1);
+    }, pickerLoadingStepMs);
+    return () => window.clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     void load();
     return () => {
       if (drawingTimer.current !== null) {
         window.clearTimeout(drawingTimer.current);
+      }
+      if (readyNoticeTimer.current !== null) {
+        window.clearTimeout(readyNoticeTimer.current);
       }
     };
   }, [load]);
@@ -165,6 +214,7 @@ export function PickerPage() {
                     onChange={() => {
                       setSelectedCraving(option.key);
                       setMessage(null);
+                      setShowReadyNotice(false);
                     }}
                   />
                 ))}
@@ -172,9 +222,9 @@ export function PickerPage() {
             </fieldset>
 
             {status === "loading" ? (
-              <p className="mt-5 text-sm text-muted-foreground" role="status">
-                Preparing today&apos;s signs…
-              </p>
+              <PickerLoadingState
+                message={pickerLoadingMessages[loadingMessageIndex]}
+              />
             ) : null}
             {status === "error" ? (
               <div
@@ -222,10 +272,15 @@ export function PickerPage() {
             <p
               className="mt-3 text-center text-xs leading-5 text-muted-foreground"
               aria-live="polite"
+              role="status"
             >
-              {isDrawing
-                ? "Your sign is choosing one drink and one available store."
-                : `Selected craving: ${selectedLabel}`}
+              {status === "loading"
+                ? "Loading your milk tea sign."
+                : showReadyNotice
+                  ? "Your sign is ready ✦"
+                  : isDrawing
+                    ? "Your sign is choosing one drink and one available store."
+                    : `Selected craving: ${selectedLabel}`}
             </p>
           </section>
         </div>
