@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  homeHeroBrandCopy,
   selectHomeCategories,
   selectHomeDrinks,
   selectHomeHeroDrink,
@@ -41,6 +42,13 @@ const store = (displayName: string, id: string): PublicStore => ({
   longitude: 174.76,
   imageUrl: null,
   imageAltText: null
+});
+
+test("builds safe Home hero brand copy", () => {
+  expect(homeHeroBrandCopy("Gong cha")).toBe("Find it at Gong cha");
+  expect(homeHeroBrandCopy("  Gong cha  ")).toBe("Find it at Gong cha");
+  expect(homeHeroBrandCopy(null)).toBeNull();
+  expect(homeHeroBrandCopy(" ")).toBeNull();
 });
 
 test("returns an empty drink preview for an empty list", () => {

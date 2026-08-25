@@ -5,13 +5,18 @@ import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import { publicSiteDescription } from "../seo-utils";
 import { DrinkCard } from "../drinks/page";
-import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
+import {
+  drinkDetailPath,
+  type PublicDrink,
+  type PublicDrinkCategory
+} from "../drinks/data";
 import type { PublicStore } from "../stores/data";
 import { loadPublicDiscoveryData } from "../discovery/data";
 import { HorizontalScrollControls } from "../horizontal-scroll-controls";
 import { useHorizontalScrollControls } from "../horizontal-scroll";
 import {
   selectHomeCategories,
+  homeHeroBrandCopy,
   selectHomeDrinks,
   selectHomeHeroDrink,
   selectHomeStores
@@ -140,6 +145,39 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
   );
 }
 
+export function HomeHeroCopy({ drink }: { drink: PublicDrink | null }) {
+  const brandCopy = homeHeroBrandCopy(drink?.brandName);
+
+  return (
+    <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
+      <p className="text-xs font-medium tracking-wide text-primary">
+        AUCKLAND MILK TEA
+      </p>
+      <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
+        Have you ever tried this one?
+      </h1>
+      {drink ? (
+        <div className="mt-5 max-w-[500px]">
+          <h2 className="break-words text-xl font-semibold leading-7">
+            {drink.name}
+          </h2>
+          {brandCopy ? (
+            <p className="mt-1 break-words text-sm text-muted-foreground">
+              {brandCopy}
+            </p>
+          ) : null}
+          <Link
+            className="mt-4 inline-flex min-h-11 w-fit items-center rounded-xl bg-primary px-5 text-xs font-medium text-primary-foreground"
+            to={drinkDetailPath(drink)}
+          >
+            View drink <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function HomePage() {
   const loadRequestIdRef = useRef(0);
   const drinksScrollerRef = useRef<HTMLDivElement>(null);
@@ -206,7 +244,6 @@ export function HomePage() {
     categoriesScrollerRef,
     status === "ready" && categories.length > 0
   );
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Seo
@@ -217,23 +254,7 @@ export function HomePage() {
       <PublicHeader />
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <section className="grid items-center gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
-          <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
-            <p className="text-xs font-medium tracking-wide text-primary">
-              AUCKLAND MILK TEA
-            </p>
-            <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
-              What are we drinking today?
-            </h1>
-            <p className="mt-4 max-w-[500px] text-base leading-6 text-muted-foreground">
-              Find a new favourite, pick a store, or let fate choose.
-            </p>
-            <Link
-              className="mt-6 hidden min-h-11 w-fit items-center rounded-xl bg-primary px-6 text-xs font-medium text-primary-foreground md:inline-flex"
-              to="/picker"
-            >
-              Pick for me
-            </Link>
-          </div>
+          <HomeHeroCopy drink={heroDrink} />
           <HeroVisual drink={heroDrink} isLoading={status === "loading"} />
         </section>
 
@@ -243,17 +264,17 @@ export function HomePage() {
         >
           <div>
             <p className="text-xs font-medium tracking-wide text-primary">
-              DAILY MILK TEA PICKER
+              TODAY’S MILK TEA SIGN
             </p>
             <h2 className="mt-2 text-xl font-semibold leading-7">
-              Can&apos;t decide? Let the sign choose.
+              What’s your milk tea sign today?
             </h2>
             <p className="mt-2 text-sm leading-5 text-muted-foreground">
-              A tiny ritual for a very important drink.
+              A totally scientific way to pick your next milk tea.
             </p>
           </div>
           <span className="mt-4 inline-flex min-h-11 w-fit items-center rounded-xl bg-primary px-5 text-xs font-medium text-primary-foreground">
-            Pick for me
+            Read my sign
           </span>
         </Link>
 
