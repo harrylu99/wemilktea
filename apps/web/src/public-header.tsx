@@ -81,13 +81,15 @@ export function PublicHeader() {
               {label}
             </NavLink>
           ))}
-          <Link
+          <NavLink
             aria-label="Search WeMilktea"
-            className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            className={({ isActive }) =>
+              `text-xs font-medium ${isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`
+            }
             to="/search"
           >
             <span aria-hidden="true">⌕</span> Search
-          </Link>
+          </NavLink>
           <ThemeControl />
           <NavLink
             className={({ isActive }) =>
@@ -99,14 +101,16 @@ export function PublicHeader() {
           </NavLink>
         </nav>
         <div className="flex items-center gap-3 md:hidden">
-          <Link
+          <NavLink
             aria-label="Search WeMilktea"
-            className="grid size-11 place-items-center rounded-md text-xl text-primary"
+            className={({ isActive }) =>
+              `grid size-11 place-items-center rounded-md text-xl ${isActive ? "text-foreground" : "text-primary"}`
+            }
             to="/search"
             onClick={() => setMenuOpen(false)}
           >
             <span aria-hidden="true">⌕</span>
-          </Link>
+          </NavLink>
           <ThemeControl />
           <button
             ref={menuButtonRef}

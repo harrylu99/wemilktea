@@ -17,9 +17,21 @@ function renderHeader(pathname: string) {
 }
 
 function activeLinks(markup: string) {
-  return [...markup.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)]
+  return [...markup.matchAll(/<a\b([^>]*)>(.*?)<\/a>/gs)]
     .filter(([, attributes]) => attributes?.includes('aria-current="page"'))
-    .map(([, attributes, text]) => ({ attributes, text }));
+    .map(([, attributes, text]) => ({
+      attributes,
+      text: text
+        ?.replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+    }));
+}
+
+function topLevelActiveLinks(markup: string) {
+  return activeLinks(markup).filter((link) =>
+    ["Stores", "Drinks", "Pick for me"].includes(link.text ?? "")
+  );
 }
 
 test("marks Stores active for the catalogue and nested store routes", () => {
@@ -66,8 +78,23 @@ test("marks Pick for me active for the picker and result routes", () => {
 
 test("does not mark a top-level destination active on Home or Search", () => {
   for (const pathname of ["/", "/search"]) {
-    expect(activeLinks(renderHeader(pathname))).toHaveLength(0);
+    expect(topLevelActiveLinks(renderHeader(pathname))).toHaveLength(0);
   }
+});
+
+test("marks global Search current without activating another destination", () => {
+  const active = activeLinks(renderHeader("/search?q=matcha"));
+
+  expect(active).toHaveLength(2);
+  expect(
+    active.every((link) =>
+      link.attributes?.includes('aria-label="Search WeMilktea"')
+    )
+  ).toBe(true);
+  expect(
+    active.every((link) => link.attributes?.includes('href="/search"'))
+  ).toBe(true);
+  expect(topLevelActiveLinks(renderHeader("/search"))).toHaveLength(0);
 });
 
 test("renders global Search links instead of contextual search actions", () => {
