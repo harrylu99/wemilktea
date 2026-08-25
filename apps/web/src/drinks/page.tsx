@@ -19,6 +19,7 @@ import {
   setDrinksPage,
   totalPagesFor
 } from "./pagination";
+import { useDismissiblePopover } from "../use-dismissible-popover";
 
 function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -127,8 +128,11 @@ function CategoryChip({
 export function DrinksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
+  const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const [drinks, setDrinks] = useState<PublicDrink[]>([]);
   const [categories, setCategories] = useState<PublicDrinkCategory[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
@@ -190,6 +194,18 @@ export function DrinksPage() {
   };
 
   const clearFilters = () => setSearchParams({}, { replace: true });
+
+  const closeFilters = useCallback(() => {
+    setFiltersOpen(false);
+    filtersButtonRef.current?.focus();
+  }, []);
+
+  useDismissiblePopover({
+    onClose: closeFilters,
+    open: filtersOpen,
+    popoverRef: filtersPopoverRef,
+    triggerRef: filtersButtonRef
+  });
 
   const updatePage = (page: number) => {
     setSearchParams(setDrinksPage(searchParams, page));
@@ -256,28 +272,64 @@ export function DrinksPage() {
           </label>
         </div>
 
-        <div
-          aria-label="Drink categories"
-          className="mt-[18px] flex max-w-full gap-2 overflow-x-auto pb-1"
-          role="group"
-        >
-          <CategoryChip
-            category={{ name: "All drinks", slug: "" }}
-            selected={!categorySlug}
-            onClick={() => updateSearchParams({ category: "" })}
-          />
-          {categories.map((category) => (
-            <CategoryChip
-              category={category}
-              key={category.id}
-              selected={categorySlug === category.slug}
-              onClick={() =>
-                updateSearchParams({
-                  category: categorySlug === category.slug ? "" : category.slug
-                })
-              }
-            />
-          ))}
+        <div className="relative mt-[18px]">
+          <button
+            ref={filtersButtonRef}
+            aria-controls="drink-filters-popover"
+            aria-expanded={filtersOpen}
+            className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${categorySlug ? "bg-accent text-primary" : "bg-card"}`}
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            Filters{categorySlug ? " · active" : ""}
+          </button>
+          {filtersOpen ? (
+            <div
+              id="drink-filters-popover"
+              ref={filtersPopoverRef}
+              aria-label="Drink filters"
+              className="filter-popover"
+              role="group"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-popover-foreground">
+                  Filter drinks
+                </p>
+                <button
+                  aria-label="Close filters"
+                  className="grid size-10 cursor-pointer place-items-center rounded-md text-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                  type="button"
+                  onClick={closeFilters}
+                >
+                  ×
+                </button>
+              </div>
+              <div
+                aria-label="Drink categories"
+                className="flex max-w-full flex-wrap gap-2 pb-1"
+                role="group"
+              >
+                <CategoryChip
+                  category={{ name: "All drinks", slug: "" }}
+                  selected={!categorySlug}
+                  onClick={() => updateSearchParams({ category: "" })}
+                />
+                {categories.map((category) => (
+                  <CategoryChip
+                    category={category}
+                    key={category.id}
+                    selected={categorySlug === category.slug}
+                    onClick={() =>
+                      updateSearchParams({
+                        category:
+                          categorySlug === category.slug ? "" : category.slug
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <section aria-labelledby="drinks-results-heading" className="mt-5">

@@ -1,7 +1,9 @@
 import {
   type MouseEvent,
+  type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -11,6 +13,8 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
+  useNavigationType,
   useSearchParams
 } from "react-router-dom";
 import {
@@ -39,11 +43,78 @@ import { HomePage } from "./home/page";
 import { PickerPage } from "./picker/page";
 import { PickerResultPage } from "./picker/result-page";
 import { SearchPage } from "./search/page";
+import {
+  getMobilePreviewId,
+  shouldPreserveListOnDesktopToMobile,
+  shouldPreserveMapOnDesktopToMobile,
+  shouldRevealSelectedStoreOnListTransition
+} from "./stores/map-interaction";
+import { shouldScrollToTop } from "./route-scroll";
+import { useDismissiblePopover } from "./use-dismissible-popover";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
     ? import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY.trim()
     : "";
+const hoverMediaQuery = "(hover: hover) and (pointer: fine)";
+const desktopMediaQuery = "(min-width: 768px)";
+
+function supportsStoreMapHover() {
+  return (
+    typeof window !== "undefined" && window.matchMedia(hoverMediaQuery).matches
+  );
+}
+
+function useIsDesktopLayout(
+  onChange?: (isDesktopLayout: boolean, wasDesktopLayout: boolean) => void
+) {
+  const initialIsDesktop =
+    typeof window !== "undefined" &&
+    window.matchMedia(desktopMediaQuery).matches;
+  const [isDesktop, setIsDesktop] = useState(initialIsDesktop);
+  const currentLayoutRef = useRef(initialIsDesktop);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(desktopMediaQuery);
+    const update = () => {
+      const nextLayout = mediaQuery.matches;
+      const previousLayout = currentLayoutRef.current;
+      if (nextLayout === previousLayout) return;
+
+      currentLayoutRef.current = nextLayout;
+      onChangeRef.current?.(nextLayout, previousLayout);
+      setIsDesktop(nextLayout);
+    };
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return isDesktop;
+}
+
+function RouteScrollManager() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const previousPathnameRef = useRef(location.pathname);
+
+  useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+    previousPathnameRef.current = location.pathname;
+
+    if (
+      !shouldScrollToTop(previousPathname, location.pathname, navigationType)
+    ) {
+      return;
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, navigationType]);
+
+  return null;
+}
 
 function StoreImage({ store, index }: { store: PublicStore; index: number }) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -82,7 +153,7 @@ function StoreCard({
   index: number;
   userLocation: Coordinates | null;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (source: "focus" | "hover") => void;
 }) {
   const distance = userLocation
     ? distanceKm(
@@ -99,8 +170,8 @@ function StoreCard({
       data-highlighted={selected || undefined}
       id={`store-card-${store.id}`}
       to={`/stores/${store.slug}`}
-      onFocus={onSelect}
-      onMouseEnter={onSelect}
+      onFocus={() => onSelect("focus")}
+      onMouseEnter={() => onSelect("hover")}
     >
       <StoreImage index={index} store={store} />
       <div className="min-w-0 flex-1">
@@ -117,29 +188,61 @@ function StoreCard({
   );
 }
 
+function StoreMapPreview({
+  store,
+  index
+}: {
+  store: PublicStore;
+  index: number;
+}) {
+  return (
+    <Link
+      aria-label={`View ${store.displayName} store details`}
+      aria-live="polite"
+      className="store-map-preview absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-card-foreground shadow-md md:hidden"
+      to={`/stores/${store.slug}`}
+    >
+      <StoreImage index={index} store={store} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold">
+          {store.displayName}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {store.suburb} · {store.brandName}
+        </span>
+      </span>
+      <span aria-hidden="true" className="text-xl text-muted-foreground">
+        ›
+      </span>
+    </Link>
+  );
+}
+
 function MapFallback({
   stores,
   selectedId,
   onSelect,
   onHover,
+  mobileMapActive,
   message
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onHover: (id: string) => void;
+  mobileMapActive: boolean;
   message?: string;
 }) {
   return (
     <section
-      className="map-fallback map-surface relative min-h-[180px] overflow-hidden rounded-xl border border-border"
+      className={`map-fallback map-surface relative overflow-hidden rounded-xl border border-border ${mobileMapActive ? "mobile-google-map-panel" : ""}`}
       aria-label="Map of Auckland stores"
     >
       <p className="absolute left-4 top-4 z-10 text-xs font-semibold text-foreground md:left-6 md:top-6 md:text-sm">
         MAP / STORE PINS
       </p>
       {message ? (
-        <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-xs text-muted-foreground md:text-sm">
+        <p className="pointer-events-none absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-xs text-muted-foreground md:text-sm">
           {message}
         </p>
       ) : null}
@@ -148,14 +251,16 @@ function MapFallback({
         const isSelected = selectedId === store.id;
         return (
           <button
-            aria-label={`Show ${store.displayName} on the list`}
+            aria-label={`Select ${store.displayName}`}
             aria-pressed={isSelected}
             className={`store-map-marker absolute -translate-x-1/2 -translate-y-1/2 ${isSelected ? "store-map-marker-selected" : ""}`}
             key={store.id}
             style={position}
             type="button"
             onClick={() => onSelect(store.id)}
-            onMouseEnter={() => onHover(store.id)}
+            onMouseEnter={() => {
+              if (supportsStoreMapHover()) onHover(store.id);
+            }}
           >
             <span aria-hidden="true" className="store-map-marker-cup">
               <span className="store-map-marker-lid" />
@@ -175,12 +280,20 @@ function GoogleMapPanel({
   stores,
   selectedId,
   onSelect,
-  onHover
+  onHover,
+  mobilePreviewStore,
+  mobilePreviewIndex,
+  mobileMapActive,
+  mapPanelRef
 }: {
   stores: PublicStore[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onHover: (id: string) => void;
+  mobilePreviewStore: PublicStore | null;
+  mobilePreviewIndex: number;
+  mobileMapActive: boolean;
+  mapPanelRef: RefObject<HTMLDivElement | null>;
 }) {
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -259,7 +372,9 @@ function GoogleMapPanel({
       });
       const listeners = [
         marker.addListener("click", () => onSelect(store.id)),
-        marker.addListener("mouseover", () => onHover(store.id))
+        marker.addListener("mouseover", () => {
+          if (supportsStoreMapHover()) onHover(store.id);
+        })
       ];
       return { id: store.id, marker, listeners };
     });
@@ -283,7 +398,7 @@ function GoogleMapPanel({
   }, [selectedId, state]);
 
   return (
-    <div className="relative order-1 md:order-2">
+    <div ref={mapPanelRef} className="relative order-1 md:order-2">
       {state === "unavailable" ? (
         <MapFallback
           message="Map unavailable right now. You can still browse the store list."
@@ -291,12 +406,13 @@ function GoogleMapPanel({
           onSelect={onSelect}
           selectedId={selectedId}
           stores={stores}
+          mobileMapActive={mobileMapActive}
         />
       ) : (
         <>
           <div
             ref={mapElementRef}
-            className="google-map-panel map-surface"
+            className={`google-map-panel map-surface ${mobileMapActive ? "mobile-google-map-panel" : ""}`}
             aria-hidden={state !== "ready"}
           />
           {state === "loading" ? (
@@ -306,6 +422,12 @@ function GoogleMapPanel({
           ) : null}
         </>
       )}
+      {mobilePreviewStore ? (
+        <StoreMapPreview
+          index={mobilePreviewIndex}
+          store={mobilePreviewStore}
+        />
+      ) : null}
     </div>
   );
 }
@@ -314,6 +436,8 @@ function StoresPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "map">("map");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -323,6 +447,46 @@ function StoresPage() {
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const filtersPopoverRef = useRef<HTMLDivElement>(null);
+  const storeListRef = useRef<HTMLElement>(null);
+  const mapPanelRef = useRef<HTMLDivElement>(null);
+  const pendingListRevealIdRef = useRef<string | null>(null);
+  const listRevealHoverLockRef = useRef<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
+  const handleDesktopLayoutChange = useCallback(
+    (isDesktopLayout: boolean, wasDesktopLayout: boolean) => {
+      const activeElement = document.activeElement;
+      const listHasFocus = Boolean(
+        activeElement && storeListRef.current?.contains(activeElement)
+      );
+      const mapHasFocus = Boolean(
+        activeElement && mapPanelRef.current?.contains(activeElement)
+      );
+      if (
+        shouldPreserveListOnDesktopToMobile(
+          wasDesktopLayout,
+          isDesktopLayout,
+          listHasFocus
+        )
+      ) {
+        setMobileView("list");
+      } else if (
+        shouldPreserveMapOnDesktopToMobile(
+          wasDesktopLayout,
+          isDesktopLayout,
+          mapHasFocus
+        )
+      ) {
+        setMobileView("map");
+      }
+      if (wasDesktopLayout && !isDesktopLayout) {
+        setShowMobilePreview(selectedIdRef.current !== null);
+      }
+    },
+    []
+  );
+  const isDesktopLayout = useIsDesktopLayout(handleDesktopLayoutChange);
 
   const query = searchParams.get("q") ?? "";
   const brandSlug = searchParams.get("brand") ?? "";
@@ -385,28 +549,133 @@ function StoresPage() {
     [stores]
   );
 
-  const handleMapHover = useCallback((id: string) => {
-    setSelectedId(id);
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(`store-card-${id}`)
-        ?.scrollIntoView({ block: "nearest" });
-    });
-  }, []);
+  const mobilePreviewId = getMobilePreviewId(
+    selectedId,
+    showMobilePreview,
+    isDesktopLayout
+  );
+  const mobilePreviewStore = mobilePreviewId
+    ? (visibleStores.find((store) => store.id === mobilePreviewId) ?? null)
+    : null;
+  const mobilePreviewIndex = mobilePreviewStore
+    ? visibleStores.indexOf(mobilePreviewStore)
+    : 0;
 
   useEffect(() => {
-    if (!filtersOpen) return;
+    if (selectedId && !visibleStores.some((store) => store.id === selectedId)) {
+      setSelectedId(null);
+      setShowMobilePreview(false);
+    }
+  }, [selectedId, visibleStores]);
 
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setFiltersOpen(false);
-      filtersButtonRef.current?.focus();
-    };
+  const handleMapHover = useCallback(
+    (id: string) => {
+      selectedIdRef.current = id;
+      setSelectedId(id);
+      if (!isDesktopLayout) {
+        setShowMobilePreview(true);
+        return;
+      }
+      setShowMobilePreview(false);
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [filtersOpen]);
+      const list = storeListRef.current;
+      const card = document.getElementById(`store-card-${id}`);
+      if (!list || !card) return;
+
+      const listRect = list.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      if (cardRect.top < listRect.top) {
+        list.scrollBy({ top: cardRect.top - listRect.top, behavior: "smooth" });
+      } else if (cardRect.bottom > listRect.bottom) {
+        list.scrollBy({
+          top: cardRect.bottom - listRect.bottom,
+          behavior: "smooth"
+        });
+      }
+    },
+    [isDesktopLayout]
+  );
+
+  const handleMapMarkerSelect = useCallback(
+    (id: string) => {
+      selectedIdRef.current = id;
+      setSelectedId(id);
+      setShowMobilePreview(!isDesktopLayout);
+    },
+    [isDesktopLayout]
+  );
+
+  const handleStoreSelect = useCallback(
+    (id: string, source: "focus" | "hover") => {
+      if (
+        source === "hover" &&
+        listRevealHoverLockRef.current &&
+        listRevealHoverLockRef.current !== id
+      ) {
+        return;
+      }
+      selectedIdRef.current = id;
+      setSelectedId(id);
+      setShowMobilePreview(!isDesktopLayout);
+    },
+    [isDesktopLayout]
+  );
+
+  const handleMobileViewChange = useCallback(
+    (nextView: "list" | "map") => {
+      const currentSelectedId = selectedIdRef.current;
+      if (
+        shouldRevealSelectedStoreOnListTransition(
+          mobileView,
+          nextView,
+          currentSelectedId,
+          visibleStores.map((store) => store.id)
+        )
+      ) {
+        pendingListRevealIdRef.current = currentSelectedId;
+      } else {
+        pendingListRevealIdRef.current = null;
+      }
+      if (nextView === "map" && mobileView === "list" && !isDesktopLayout) {
+        setSelectedId(currentSelectedId);
+        setShowMobilePreview(currentSelectedId !== null);
+      }
+      setMobileView(nextView);
+    },
+    [isDesktopLayout, mobileView, visibleStores]
+  );
+
+  useLayoutEffect(() => {
+    if (mobileView !== "list") return;
+
+    const pendingId = pendingListRevealIdRef.current;
+    pendingListRevealIdRef.current = null;
+    if (!pendingId) return;
+
+    const card = document.getElementById(`store-card-${pendingId}`);
+    if (!card) return;
+
+    listRevealHoverLockRef.current = pendingId;
+    card.scrollIntoView({ block: "nearest", behavior: "auto" });
+    const frameId = window.requestAnimationFrame(() => {
+      if (listRevealHoverLockRef.current === pendingId) {
+        listRevealHoverLockRef.current = null;
+      }
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [mobileView]);
+
+  const closeFilters = useCallback(() => {
+    setFiltersOpen(false);
+    filtersButtonRef.current?.focus();
+  }, []);
+
+  useDismissiblePopover({
+    onClose: closeFilters,
+    open: filtersOpen,
+    popoverRef: filtersPopoverRef,
+    triggerRef: filtersButtonRef
+  });
 
   const updateSearchParam = (name: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -530,9 +799,23 @@ function StoresPage() {
               <div
                 id="store-filters-popover"
                 className="filter-popover"
+                ref={filtersPopoverRef}
                 role="group"
                 aria-label="Store filters"
               >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-popover-foreground">
+                    Filter stores
+                  </p>
+                  <button
+                    aria-label="Close filters"
+                    className="grid size-10 cursor-pointer place-items-center rounded-md text-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                    type="button"
+                    onClick={closeFilters}
+                  >
+                    ×
+                  </button>
+                </div>
                 <label htmlFor="store-area">Area</label>
                 <select
                   id="store-area"
@@ -591,6 +874,35 @@ function StoresPage() {
             {errorMessage}
           </p>
         ) : null}
+        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
+            <p className="text-sm font-semibold text-foreground">
+              {visibleStores.length} stores
+            </p>
+            <div
+              className="flex rounded-lg border border-border bg-card p-1"
+              aria-label="Store result view"
+              role="group"
+            >
+              <button
+                aria-pressed={mobileView === "list"}
+                className={`min-h-10 min-w-16 cursor-pointer rounded-md px-3 text-xs font-semibold ${mobileView === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                type="button"
+                onClick={() => handleMobileViewChange("list")}
+              >
+                List
+              </button>
+              <button
+                aria-pressed={mobileView === "map"}
+                className={`min-h-10 min-w-16 cursor-pointer rounded-md px-3 text-xs font-semibold ${mobileView === "map" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                type="button"
+                onClick={() => handleMobileViewChange("map")}
+              >
+                Map
+              </button>
+            </div>
+          </div>
+        ) : null}
         {!isLoading && !errorMessage && visibleStores.length === 0 ? (
           <section className="mt-8 rounded-xl border border-border bg-card p-6">
             <h2 className="text-xl font-semibold">No stores found</h2>
@@ -612,36 +924,45 @@ function StoresPage() {
 
         {!isLoading && !errorMessage && visibleStores.length > 0 ? (
           <div className="mt-4 grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
-            <GoogleMapPanel
-              stores={visibleStores}
-              selectedId={selectedId}
-              onHover={handleMapHover}
-              onSelect={setSelectedId}
-            />
-            <section
-              className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
-              aria-labelledby="nearby-stores-heading"
-            >
-              <h2
-                className="text-xl font-semibold leading-7"
-                id="nearby-stores-heading"
+            {isDesktopLayout || mobileView === "map" ? (
+              <GoogleMapPanel
+                mobileMapActive={!isDesktopLayout}
+                mobilePreviewIndex={mobilePreviewIndex}
+                mobilePreviewStore={mobilePreviewStore}
+                stores={visibleStores}
+                selectedId={selectedId}
+                onHover={handleMapHover}
+                onSelect={handleMapMarkerSelect}
+                mapPanelRef={mapPanelRef}
+              />
+            ) : null}
+            {isDesktopLayout || mobileView === "list" ? (
+              <section
+                ref={storeListRef}
+                className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
+                aria-labelledby="nearby-stores-heading"
               >
-                Nearby stores
-                <span className="sr-only">
-                  , {visibleStores.length} results
-                </span>
-              </h2>
-              {visibleStores.map((store, index) => (
-                <StoreCard
-                  index={index}
-                  key={store.id}
-                  selected={selectedId === store.id}
-                  store={store}
-                  userLocation={userLocation}
-                  onSelect={() => setSelectedId(store.id)}
-                />
-              ))}
-            </section>
+                <h2
+                  className="text-xl font-semibold leading-7"
+                  id="nearby-stores-heading"
+                >
+                  Nearby stores
+                  <span className="sr-only">
+                    , {visibleStores.length} results
+                  </span>
+                </h2>
+                {visibleStores.map((store, index) => (
+                  <StoreCard
+                    index={index}
+                    key={store.id}
+                    selected={selectedId === store.id}
+                    store={store}
+                    userLocation={userLocation}
+                    onSelect={(source) => handleStoreSelect(store.id, source)}
+                  />
+                ))}
+              </section>
+            ) : null}
           </div>
         ) : null}
         {!isLoading && !errorMessage && visibleStores.length > 0 ? (
@@ -697,31 +1018,34 @@ function LegacyExploreRedirect() {
 
 export function App() {
   return (
-    <Routes>
-      <Route element={<HomePage />} path="/" />
-      <Route element={<StoresPage />} path="/stores" />
-      <Route element={<StoreDetailPage />} path="/stores/:slug" />
-      <Route element={<SearchPage />} path="/search" />
-      <Route element={<LegacyExploreRedirect />} path="/explore" />
-      <Route element={<DrinksPage />} path="/drinks" />
-      <Route
-        element={<DrinkDetailPage />}
-        path="/drinks/:brandSlug/:productSlug"
-      />
-      <Route
-        element={<PickerResultPage />}
-        path="/picker/result/:brandSlug/:productSlug"
-      />
-      <Route element={<PickerPage />} path="/picker" />
-      <Route
-        element={
-          <PlaceholderPage
-            description="This page is not available yet."
-            title="WeMilktea"
-          />
-        }
-        path="*"
-      />
-    </Routes>
+    <>
+      <RouteScrollManager />
+      <Routes>
+        <Route element={<HomePage />} path="/" />
+        <Route element={<StoresPage />} path="/stores" />
+        <Route element={<StoreDetailPage />} path="/stores/:slug" />
+        <Route element={<SearchPage />} path="/search" />
+        <Route element={<LegacyExploreRedirect />} path="/explore" />
+        <Route element={<DrinksPage />} path="/drinks" />
+        <Route
+          element={<DrinkDetailPage />}
+          path="/drinks/:brandSlug/:productSlug"
+        />
+        <Route
+          element={<PickerResultPage />}
+          path="/picker/result/:brandSlug/:productSlug"
+        />
+        <Route element={<PickerPage />} path="/picker" />
+        <Route
+          element={
+            <PlaceholderPage
+              description="This page is not available yet."
+              title="WeMilktea"
+            />
+          }
+          path="*"
+        />
+      </Routes>
+    </>
   );
 }
