@@ -153,15 +153,18 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
 export function HomeHeroCopy({
   drink,
   isLoading = false,
-  isError = false
+  isError = false,
+  isEmpty = false
 }: {
   drink: PublicDrink | null;
   isLoading?: boolean;
   isError?: boolean;
+  isEmpty?: boolean;
 }) {
   const brandCopy = homeHeroBrandCopy(drink?.brandName);
   const showLoading = isLoading && !drink;
   const showError = isError && !drink;
+  const showEmpty = isEmpty && !drink;
 
   return (
     <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
@@ -173,7 +176,9 @@ export function HomeHeroCopy({
           ? "Couldn’t pick one right now."
           : showLoading
             ? "Finding something worth trying…"
-            : "Have you ever tried this one?"}
+            : showEmpty
+              ? "No featured drink just yet."
+              : "Have you ever tried this one?"}
       </h1>
       {showLoading ? (
         <div aria-hidden="true" className="mt-5 min-h-[7rem] max-w-[500px]">
@@ -197,6 +202,10 @@ export function HomeHeroCopy({
             View drink <span aria-hidden="true">→</span>
           </Link>
         </div>
+      ) : showEmpty ? (
+        <p className="mt-5 min-h-[7rem] max-w-[500px] text-base leading-6 text-muted-foreground">
+          Explore the drinks catalogue while more favourites are on the way.
+        </p>
       ) : null}
     </div>
   );
@@ -281,6 +290,7 @@ export function HomePage() {
           <HomeHeroCopy
             drink={heroDrink}
             isError={status === "error"}
+            isEmpty={status === "ready" && !heroDrink}
             isLoading={status === "loading"}
           />
           <HeroVisual drink={heroDrink} isLoading={status === "loading"} />

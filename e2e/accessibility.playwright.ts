@@ -227,7 +227,7 @@ test("keyboard journey reaches a drink and its store", async ({ page }) => {
   await waitForPublicPage(page);
 
   const findDrink = page
-    .getByRole("button", { name: "Where to get it" })
+    .getByRole("button", { name: "See where to get it" })
     .first();
   await findDrink.focus();
   await findDrink.press("Enter");

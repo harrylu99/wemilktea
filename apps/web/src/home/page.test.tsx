@@ -89,3 +89,18 @@ test("keeps Home Hero errors free of loading placeholders", () => {
   expect(markup).not.toContain("Finding something worth trying…");
   expect(markup).not.toContain("animate-pulse");
 });
+
+test("keeps an empty Home Hero explicit without an incomplete question", () => {
+  const markup = renderToStaticMarkup(
+    <MemoryRouter>
+      <HomeHeroCopy drink={null} isEmpty />
+    </MemoryRouter>
+  );
+
+  expect(markup).toContain("No featured drink just yet.");
+  expect(markup).toContain(
+    "Explore the drinks catalogue while more favourites are on the way."
+  );
+  expect(markup).not.toContain("Have you ever tried this one?");
+  expect(markup).not.toContain("animate-pulse");
+});
