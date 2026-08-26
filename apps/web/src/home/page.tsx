@@ -1,24 +1,22 @@
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { PublicHeader } from "../public-header";
 import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import { publicSiteDescription } from "../seo-utils";
 import { DrinkCard } from "../drinks/page";
-import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
+import {
+  drinkDetailPath,
+  type PublicDrink,
+  type PublicDrinkCategory
+} from "../drinks/data";
 import type { PublicStore } from "../stores/data";
 import { loadPublicDiscoveryData } from "../discovery/data";
 import { HorizontalScrollControls } from "../horizontal-scroll-controls";
 import { useHorizontalScrollControls } from "../horizontal-scroll";
 import {
   selectHomeCategories,
+  homeHeroBrandCopy,
   selectHomeDrinks,
   selectHomeHeroDrink,
   selectHomeStores
@@ -98,7 +96,12 @@ function HeroVisual({
     return (
       <div className={heroMediaClassName}>
         <img
-          alt={drink.imageAltText ?? `${drink.name} from ${drink.brandName}`}
+          alt={
+            drink.imageAltText ??
+            (drink.brandName
+              ? `${drink.name} from ${drink.brandName}`
+              : drink.name)
+          }
           className="absolute inset-0 h-full w-full object-cover"
           src={drink.imageUrl}
           onError={() => setImageError(true)}
@@ -147,12 +150,71 @@ function CategoryLink({ category }: { category: PublicDrinkCategory }) {
   );
 }
 
+export function HomeHeroCopy({
+  drink,
+  isLoading = false,
+  isError = false,
+  isEmpty = false
+}: {
+  drink: PublicDrink | null;
+  isLoading?: boolean;
+  isError?: boolean;
+  isEmpty?: boolean;
+}) {
+  const brandCopy = homeHeroBrandCopy(drink?.brandName);
+  const showLoading = isLoading && !drink;
+  const showError = isError && !drink;
+  const showEmpty = isEmpty && !drink;
+
+  return (
+    <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
+      <p className="text-xs font-medium tracking-wide text-primary">
+        AUCKLAND MILK TEA
+      </p>
+      <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
+        {showError
+          ? "Couldn’t pick one right now."
+          : showLoading
+            ? "Finding something worth trying…"
+            : showEmpty
+              ? "No featured drink just yet."
+              : "Have you ever tried this one?"}
+      </h1>
+      {showLoading ? (
+        <div aria-hidden="true" className="mt-5 min-h-[7rem] max-w-[500px]">
+          <div className="h-7 w-4/5 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-5 w-2/5 animate-pulse rounded bg-muted" />
+        </div>
+      ) : drink ? (
+        <div className="mt-5 min-h-[7rem] max-w-[500px]">
+          <h2 className="break-words text-xl font-semibold leading-7">
+            {drink.name}
+          </h2>
+          {brandCopy ? (
+            <p className="mt-1 break-words text-sm text-muted-foreground">
+              {brandCopy}
+            </p>
+          ) : null}
+          <Link
+            className="mt-4 inline-flex min-h-11 w-fit items-center rounded-xl bg-primary px-5 text-xs font-medium text-primary-foreground"
+            to={drinkDetailPath(drink)}
+          >
+            View drink <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      ) : showEmpty ? (
+        <p className="mt-5 min-h-[7rem] max-w-[500px] text-base leading-6 text-muted-foreground">
+          Explore the drinks catalogue while more favourites are on the way.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function HomePage() {
-  const navigate = useNavigate();
   const loadRequestIdRef = useRef(0);
   const drinksScrollerRef = useRef<HTMLDivElement>(null);
   const categoriesScrollerRef = useRef<HTMLDivElement>(null);
-  const [search, setSearch] = useState("");
   const [content, setContent] = useState<{
     drinks: PublicDrink[];
     stores: PublicStore[];
@@ -215,13 +277,6 @@ export function HomePage() {
     categoriesScrollerRef,
     status === "ready" && categories.length > 0
   );
-
-  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const value = search.trim();
-    navigate(value ? `/search?q=${encodeURIComponent(value)}` : "/search");
-  };
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Seo
@@ -232,46 +287,14 @@ export function HomePage() {
       <PublicHeader />
       <main className="flex-1 w-full mx-auto max-w-[1280px] px-5 pb-12 pt-5 sm:px-8 md:pt-8">
         <section className="grid items-center gap-5 rounded-2xl bg-accent p-5 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
-          <div className="flex flex-col justify-center rounded-xl bg-card p-6 md:p-8">
-            <p className="text-xs font-medium tracking-wide text-primary">
-              AUCKLAND MILK TEA
-            </p>
-            <h1 className="mt-4 max-w-[560px] text-[32px] font-semibold leading-10 md:text-[40px] md:leading-[48px]">
-              What are we drinking today?
-            </h1>
-            <p className="mt-4 max-w-[500px] text-base leading-6 text-muted-foreground">
-              Find a new favourite, pick a store, or let fate choose.
-            </p>
-            <Link
-              className="mt-6 hidden min-h-11 w-fit items-center rounded-xl bg-primary px-6 text-xs font-medium text-primary-foreground md:inline-flex"
-              to="/picker"
-            >
-              Pick for me
-            </Link>
-          </div>
+          <HomeHeroCopy
+            drink={heroDrink}
+            isError={status === "error"}
+            isEmpty={status === "ready" && !heroDrink}
+            isLoading={status === "loading"}
+          />
           <HeroVisual drink={heroDrink} isLoading={status === "loading"} />
         </section>
-
-        <form className="mt-5" role="search" onSubmit={submitSearch}>
-          <label className="relative block" htmlFor="home-search">
-            <span className="sr-only">Search stores or drinks</span>
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-semibold"
-            >
-              ⌕
-            </span>
-            <input
-              aria-label="Search stores or drinks"
-              className="h-[52px] w-full rounded-xl border border-border bg-card px-12 text-base text-foreground placeholder:text-muted-foreground"
-              id="home-search"
-              placeholder="Search stores or drinks"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-        </form>
 
         <Link
           className="mt-5 flex min-h-[190px] flex-col justify-between rounded-xl bg-accent p-5 md:hidden"
@@ -279,17 +302,17 @@ export function HomePage() {
         >
           <div>
             <p className="text-xs font-medium tracking-wide text-primary">
-              DAILY MILK TEA PICKER
+              TODAY’S MILK TEA SIGN
             </p>
             <h2 className="mt-2 text-xl font-semibold leading-7">
-              Can&apos;t decide? Let the sign choose.
+              What’s your milk tea sign today?
             </h2>
             <p className="mt-2 text-sm leading-5 text-muted-foreground">
-              A tiny ritual for a very important drink.
+              A totally scientific way to pick your next milk tea.
             </p>
           </div>
           <span className="mt-4 inline-flex min-h-11 w-fit items-center rounded-xl bg-primary px-5 text-xs font-medium text-primary-foreground">
-            Pick for me
+            Read my sign
           </span>
         </Link>
 
@@ -328,10 +351,10 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-drinks-heading"
                   >
-                    Have you tried these?
+                    Today’s picks
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Maybe today&apos;s the day.
+                    A few cups we’d happily order right now.
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -339,7 +362,7 @@ export function HomePage() {
                     className="text-sm font-semibold text-primary"
                     to="/drinks"
                   >
-                    View all
+                    View all drinks
                   </Link>
                   {drinksScroll.hasOverflow ? (
                     <HorizontalScrollControls
@@ -378,23 +401,23 @@ export function HomePage() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="text-xs font-medium tracking-wide text-primary">
-                    AUCKLAND STOPS
+                    AUCKLAND FAVOURITES
                   </p>
                   <h2
                     className="mt-2 text-2xl font-semibold"
                     id="home-stores-heading"
                   >
-                    Where to next?
+                    Which store has your heart?
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    A couple of Auckland spots worth a look.
+                    A few Auckland spots worth keeping on rotation.
                   </p>
                 </div>
                 <Link
                   className="text-sm font-semibold text-primary"
                   to="/stores"
                 >
-                  View all
+                  View all stores
                 </Link>
               </div>
               {homeStores.length > 0 ? (

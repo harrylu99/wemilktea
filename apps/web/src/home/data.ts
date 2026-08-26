@@ -4,6 +4,11 @@ import type { PublicStore } from "../stores/data";
 export const HOME_DRINK_LIMIT = 4;
 export const HOME_STORE_LIMIT = 2;
 
+export function homeHeroBrandCopy(brandName: string | null | undefined) {
+  const brand = brandName?.trim();
+  return brand ? `Find it at ${brand}` : null;
+}
+
 export function selectHomeHeroDrink(
   drinks: PublicDrink[],
   random: () => number = Math.random
