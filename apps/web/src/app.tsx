@@ -739,8 +739,11 @@ function StoresPage() {
           STORES · AUCKLAND
         </p>
         <h1 className="mt-4 max-w-[467px] text-2xl font-semibold leading-8 md:text-[28px] md:leading-9 lg:text-[32px] lg:leading-10">
-          Where are we getting milk tea?
+          Find your next go-to.
         </h1>
+        <p className="mt-2 max-w-[560px] text-sm text-muted-foreground">
+          Browse Auckland milk tea spots and see what’s nearby.
+        </p>
 
         <div className="mt-4">
           <label className="relative block">

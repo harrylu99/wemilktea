@@ -341,10 +341,10 @@ export function HomePage() {
                     className="mt-2 text-2xl font-semibold"
                     id="home-drinks-heading"
                   >
-                    Have you tried these?
+                    Today’s picks
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Maybe today&apos;s the day.
+                    A few cups we’d happily order right now.
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -352,7 +352,7 @@ export function HomePage() {
                     className="text-sm font-semibold text-primary"
                     to="/drinks"
                   >
-                    View all
+                    View all drinks
                   </Link>
                   {drinksScroll.hasOverflow ? (
                     <HorizontalScrollControls
@@ -391,23 +391,23 @@ export function HomePage() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="text-xs font-medium tracking-wide text-primary">
-                    AUCKLAND STOPS
+                    AUCKLAND FAVOURITES
                   </p>
                   <h2
                     className="mt-2 text-2xl font-semibold"
                     id="home-stores-heading"
                   >
-                    Where to next?
+                    Which store has your heart?
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    A couple of Auckland spots worth a look.
+                    A few Auckland spots worth keeping on rotation.
                   </p>
                 </div>
                 <Link
                   className="text-sm font-semibold text-primary"
                   to="/stores"
                 >
-                  View all
+                  View all stores
                 </Link>
               </div>
               {homeStores.length > 0 ? (

@@ -271,7 +271,7 @@ export function DrinkDetailPage() {
                   disabled={drink.availableStores.length === 0}
                   onClick={findDrink}
                 >
-                  Where to get it
+                  See where to get it <span aria-hidden="true">↓</span>
                 </button>
               </section>
             </div>
@@ -314,7 +314,7 @@ export function DrinkDetailPage() {
                     type="button"
                     onClick={findDrink}
                   >
-                    Where to get it
+                    See where to get it <span aria-hidden="true">↓</span>
                   </button>
                 </div>
               </div>
