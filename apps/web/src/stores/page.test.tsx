@@ -473,6 +473,34 @@ test.serial(
 );
 
 test.serial(
+  "ignores a Store response when the input changes during the debounce window",
+  async () => {
+    const view = renderStores();
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+
+    deferred = true;
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "first" }
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(1);
+
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "second" }
+    });
+    await act(async () => {
+      pendingResolves.shift()?.({ data: [refreshedStore], error: null });
+      await Promise.resolve();
+    });
+
+    expect(view.queryByText(refreshedStore.displayName)).toBeNull();
+    expect(view.getByText(store.displayName)).toBeTruthy();
+  }
+);
+
+test.serial(
   "ignores a stale refresh error after a newer request succeeds",
   async () => {
     const view = renderStores();

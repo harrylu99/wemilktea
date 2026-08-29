@@ -890,6 +890,7 @@ export function StoresPage() {
               type="search"
               value={searchInput}
               onChange={(event) => {
+                loadRequestIdRef.current += 1;
                 syncingQueryRef.current = null;
                 setSearchInput(event.target.value);
               }}
