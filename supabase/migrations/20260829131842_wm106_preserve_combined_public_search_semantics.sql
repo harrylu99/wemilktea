@@ -12,10 +12,10 @@ set search_path = ''
 as $$
 with params as (
   select
-    lower(trim(coalesce(p_query, ''))) as query_text,
+    lower(left(trim(coalesce(p_query, '')), 120)) as query_text,
     '%' || replace(
       replace(
-        replace(lower(trim(coalesce(p_query, ''))), chr(92), chr(92) || chr(92)),
+        replace(lower(left(trim(coalesce(p_query, '')), 120)), chr(92), chr(92) || chr(92)),
         '%',
         chr(92) || '%'
       ),
@@ -157,10 +157,10 @@ set search_path = ''
 as $$
 with params as (
   select
-    lower(trim(coalesce(p_query, ''))) as query_text,
+    lower(left(trim(coalesce(p_query, '')), 120)) as query_text,
     '%' || replace(
       replace(
-        replace(lower(trim(coalesce(p_query, ''))), chr(92), chr(92) || chr(92)),
+        replace(lower(left(trim(coalesce(p_query, '')), 120)), chr(92), chr(92) || chr(92)),
         '%',
         chr(92) || '%'
       ),

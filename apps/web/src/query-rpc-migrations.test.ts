@@ -53,3 +53,9 @@ test("the corrective RPC migration preserves its existing security and API contr
   expect(migration).toContain("public.search_public_stores(text, text, text)");
   expect(migration).toContain("grant execute on function");
 });
+
+test("bounds public RPC query text before building search patterns", () => {
+  const boundedQuery = "left(trim(coalesce(p_query, '')), 120)";
+
+  expect(migration.split(boundedQuery).length - 1).toBe(4);
+});
