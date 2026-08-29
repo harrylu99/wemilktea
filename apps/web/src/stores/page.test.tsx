@@ -348,7 +348,40 @@ test.serial(
 );
 
 test.serial(
-  "keeps the last Store result visible after a refresh error",
+  "hides stale Store results and selection after a refresh error",
+  async () => {
+    const view = renderStores();
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    fireEvent.focus(view.getByText(store.displayName));
+    expect(
+      view.container.querySelector(".store-map-marker-selected")
+    ).toBeTruthy();
+
+    deferred = true;
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "broken" }
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    await act(async () => {
+      pendingResolves.shift()?.({ data: null, error: "query_failed" });
+      await Promise.resolve();
+    });
+
+    expect(view.getByRole("alert")).toBeTruthy();
+    expect(view.queryByText(store.displayName)).toBeNull();
+    expect(view.queryByText("MAP / STORE PINS")).toBeNull();
+    expect(view.queryByText("No stores found")).toBeNull();
+    expect(
+      view.container.querySelector(".store-map-marker-selected")
+    ).toBeNull();
+    expect(view.queryByRole("status")).toBeNull();
+  }
+);
+
+test.serial(
+  "restores Store results after a failed refresh when a later request succeeds",
   async () => {
     const view = renderStores();
     expect(await view.findByText(store.displayName)).toBeTruthy();
@@ -366,9 +399,21 @@ test.serial(
     });
 
     expect(view.getByRole("alert")).toBeTruthy();
-    expect(view.getByText(store.displayName)).toBeTruthy();
+    expect(view.queryByText(store.displayName)).toBeNull();
+    expect(view.queryByText("1 stores")).toBeNull();
+
+    deferred = false;
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "recovered" }
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      await Promise.resolve();
+    });
+
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    expect(view.queryByRole("alert")).toBeNull();
     expect(view.getByText("MAP / STORE PINS")).toBeTruthy();
-    expect(view.queryByRole("status")).toBeNull();
   }
 );
 
@@ -424,5 +469,41 @@ test.serial(
     });
     expect(view.getByText(refreshedStore.displayName)).toBeTruthy();
     expect(view.queryByText(store.displayName)).toBeNull();
+  }
+);
+
+test.serial(
+  "ignores a stale refresh error after a newer request succeeds",
+  async () => {
+    const view = renderStores();
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+
+    deferred = true;
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "first" }
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "second" }
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(2);
+
+    await act(async () => {
+      pendingResolves[1]?.({ data: [refreshedStore], error: null });
+      await Promise.resolve();
+    });
+    expect(await view.findByText(refreshedStore.displayName)).toBeTruthy();
+
+    await act(async () => {
+      pendingResolves[0]?.({ data: null, error: "query_failed" });
+      await Promise.resolve();
+    });
+    expect(view.getByText(refreshedStore.displayName)).toBeTruthy();
+    expect(view.queryByRole("alert")).toBeNull();
   }
 );

@@ -628,6 +628,8 @@ export function StoresPage() {
       if (requestId !== loadRequestIdRef.current) return;
       if (result.error || !result.data) {
         setErrorMessage("Stores are unavailable right now. Please try again.");
+        setSelectedId(null);
+        setShowMobilePreview(false);
       } else {
         setStores(result.data);
         setHasLoadedStores(true);
@@ -672,7 +674,8 @@ export function StoresPage() {
   }, [nearMe, stores, userLocation]);
   const isInitialLoading = isLoading && !hasLoadedStores;
   const isRefreshing = isLoading && hasLoadedStores;
-  const hasStoreResults = hasLoadedStores && visibleStores.length > 0;
+  const hasStoreResults =
+    hasLoadedStores && !errorMessage && visibleStores.length > 0;
 
   const mobilePreviewId = getMobilePreviewId(
     selectedId,
@@ -1076,7 +1079,7 @@ export function StoresPage() {
             mobileView={mobileView}
           />
         ) : null}
-        {hasLoadedStores && visibleStores.length === 0 ? (
+        {hasLoadedStores && !errorMessage && visibleStores.length === 0 ? (
           <section className="mt-8 rounded-xl border border-border bg-card p-6">
             <h2 className="text-xl font-semibold">No stores found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
