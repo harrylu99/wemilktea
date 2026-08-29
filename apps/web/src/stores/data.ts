@@ -2,7 +2,6 @@ import { z } from "zod";
 import { publicImageUrl } from "@wemilktea/config";
 import { firstRelation } from "../lib/relations";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
-import { containsPattern } from "../lib/query";
 
 const uuidSchema = z.string().uuid();
 const imageAssetSchema = z.object({
@@ -63,9 +62,6 @@ export type PublicStoreFacets = {
 
 export type PublicStoreFacetsResult =
   { data: PublicStoreFacets; error: null } | { data: null; error: string };
-
-const publicStoresSelect =
-  "id, slug, display_name, suburb, address, coordinates, brands!inner(name, slug), location_images(image_assets(id, provenance, storage_key, external_url, alt_text))";
 
 const storeFacetRowSchema = z.object({
   suburb: z.string().min(1),
@@ -221,40 +217,6 @@ export function filterPublicStores(
     .map(({ store }) => store);
 }
 
-async function matchingStoreIds(
-  client: NonNullable<typeof supabase>,
-  query: string
-) {
-  const pattern = containsPattern(query);
-  const [nameResult, suburbResult, addressResult, brandResult] =
-    await Promise.all([
-      client.from("locations").select("id").ilike("display_name", pattern),
-      client.from("locations").select("id").ilike("suburb", pattern),
-      client.from("locations").select("id").ilike("address", pattern),
-      client
-        .from("locations")
-        .select("id, brands!inner(id)")
-        .ilike("brands.name", pattern)
-    ]);
-
-  if (
-    nameResult.error ||
-    suburbResult.error ||
-    addressResult.error ||
-    brandResult.error
-  ) {
-    return { ids: null, error: "query_failed" };
-  }
-
-  const ids = new Set<string>();
-  for (const result of [nameResult, suburbResult, addressResult, brandResult]) {
-    for (const row of result.data ?? []) {
-      if (typeof row.id === "string") ids.add(row.id);
-    }
-  }
-  return { ids, error: null };
-}
-
 export async function loadPublicStores(
   options: PublicStoresQuery,
   client = supabase
@@ -266,23 +228,11 @@ export async function loadPublicStores(
     };
   }
 
-  let matchingIds: Set<string> | null = null;
-  if (options.query.trim()) {
-    const matches = await matchingStoreIds(client, options.query.trim());
-    if (matches.error) return { data: null, error: matches.error };
-    matchingIds = matches.ids;
-    if (!matchingIds?.size) return { data: [], error: null };
-  }
-
-  let query = client
-    .from("locations")
-    .select(publicStoresSelect)
-    .order("display_name");
-  if (matchingIds) query = query.in("id", [...matchingIds]);
-  if (options.brandSlug) query = query.eq("brands.slug", options.brandSlug);
-  if (options.suburb) query = query.eq("suburb", options.suburb);
-
-  const { data, error } = await query;
+  const { data, error } = await client.rpc("search_public_stores", {
+    p_brand_slug: options.brandSlug,
+    p_query: options.query,
+    p_suburb: options.suburb
+  });
   if (error) return { data: null, error: "query_failed" };
 
   const rows = publicStoreQueryRowSchema.array().safeParse(data);

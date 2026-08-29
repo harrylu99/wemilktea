@@ -189,6 +189,71 @@ function StoreCard({
   );
 }
 
+function StoreCardSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="store-skeleton-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px]"
+    >
+      <div className="store-skeleton-block size-[62px] shrink-0 rounded-lg md:size-[74px]" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="store-skeleton-line h-4 w-3/4 rounded" />
+        <div className="store-skeleton-line h-3 w-1/2 rounded" />
+        <div className="store-skeleton-line h-3 w-2/3 rounded" />
+      </div>
+    </div>
+  );
+}
+
+function StoreListSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
+    >
+      <div className="store-skeleton-line mb-1 h-7 w-1/2 rounded" />
+      {Array.from({ length: 4 }, (_, index) => (
+        <StoreCardSkeleton key={index} />
+      ))}
+    </div>
+  );
+}
+
+function StoreMapSkeleton({ mobileMapActive }: { mobileMapActive: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`store-map-skeleton map-surface ${mobileMapActive ? "mobile-google-map-panel" : ""}`}
+    />
+  );
+}
+
+function StoresInitialSkeleton({
+  isDesktopLayout,
+  mobileView
+}: {
+  isDesktopLayout: boolean;
+  mobileView: "list" | "map";
+}) {
+  return (
+    <div className="mt-4" aria-busy="true">
+      <span className="sr-only" role="status">
+        Loading store results
+      </span>
+      <div className="grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
+        {isDesktopLayout || mobileView === "map" ? (
+          <div className="relative order-1 md:order-2">
+            <StoreMapSkeleton mobileMapActive={!isDesktopLayout} />
+          </div>
+        ) : null}
+        {isDesktopLayout || mobileView === "list" ? (
+          <StoreListSkeleton />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function StoreMapPreview({
   store,
   index
@@ -433,7 +498,7 @@ function GoogleMapPanel({
   );
 }
 
-function StoresPage() {
+export function StoresPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -444,6 +509,7 @@ function StoresPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedStores, setHasLoadedStores] = useState(false);
   const [suggestStoreOpen, setSuggestStoreOpen] = useState(false);
   const [filterBrands, setFilterBrands] = useState<Array<[string, string]>>([]);
   const [filterAreas, setFilterAreas] = useState<string[]>([]);
@@ -541,6 +607,7 @@ function StoresPage() {
         setErrorMessage("Stores are unavailable right now. Please try again.");
       } else {
         setStores(result.data);
+        setHasLoadedStores(true);
       }
       setIsLoading(false);
     });
@@ -571,6 +638,9 @@ function StoresPage() {
       .sort((a, b) => a.distance - b.distance)
       .map(({ store }) => store);
   }, [nearMe, stores, userLocation]);
+  const isInitialLoading = isLoading && !hasLoadedStores;
+  const isRefreshing = isLoading && hasLoadedStores;
+  const hasStoreResults = hasLoadedStores && visibleStores.length > 0;
 
   const mobilePreviewId = getMobilePreviewId(
     selectedId,
@@ -783,6 +853,14 @@ function StoresPage() {
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
             />
+            {isRefreshing ? (
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none absolute top-1/2 grid size-5 -translate-y-1/2 place-items-center ${searchInput ? "right-12" : "right-3"}`}
+              >
+                <span className="store-refresh-spinner" />
+              </span>
+            ) : null}
             {searchInput ? (
               <button
                 aria-label="Clear store search"
@@ -894,19 +972,25 @@ function StoresPage() {
           ) : null}
         </div>
 
-        {isLoading ? (
-          <p className="mt-8 text-sm text-muted-foreground">Loading stores…</p>
-        ) : null}
         {errorMessage ? (
           <p className="mt-8 text-sm text-destructive" role="alert">
             {errorMessage}
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
-          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
-            <p className="text-sm font-semibold text-foreground">
-              {visibleStores.length} stores
-            </p>
+        {isRefreshing ? (
+          <span className="sr-only" role="status">
+            Updating store results
+          </span>
+        ) : null}
+        {hasStoreResults || isInitialLoading ? (
+          <div
+            className={`mt-4 flex items-center gap-3 md:hidden ${hasStoreResults ? "justify-between" : "justify-end"}`}
+          >
+            {hasStoreResults ? (
+              <p className="text-sm font-semibold text-foreground">
+                {visibleStores.length} stores
+              </p>
+            ) : null}
             <div
               className="flex rounded-lg border border-border bg-card p-1"
               aria-label="Store result view"
@@ -931,7 +1015,13 @@ function StoresPage() {
             </div>
           </div>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length === 0 ? (
+        {isInitialLoading ? (
+          <StoresInitialSkeleton
+            isDesktopLayout={isDesktopLayout}
+            mobileView={mobileView}
+          />
+        ) : null}
+        {hasLoadedStores && visibleStores.length === 0 ? (
           <section className="mt-8 rounded-xl border border-border bg-card p-6">
             <h2 className="text-xl font-semibold">No stores found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -950,7 +1040,7 @@ function StoresPage() {
           </section>
         ) : null}
 
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+        {hasStoreResults ? (
           <div className="mt-4 grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
             {isDesktopLayout || mobileView === "map" ? (
               <GoogleMapPanel
@@ -993,7 +1083,7 @@ function StoresPage() {
             ) : null}
           </div>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+        {hasStoreResults ? (
           <div className="mt-6">
             <SuggestStoreCta onClick={openSuggestStore} />
           </div>

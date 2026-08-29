@@ -211,13 +211,7 @@ test("preserves pagination totals when a requested page has no rows", async () =
 
 test("Stores applies text filters on the server while returning all matching map rows", async () => {
   const { calls, client } = fakeClient({
-    locations: [
-      { data: [store], error: null },
-      { data: [], error: null },
-      { data: [], error: null },
-      { data: [], error: null },
-      { data: [store], error: null }
-    ]
+    "rpc:search_public_stores": [{ data: [store], error: null }]
   });
 
   const result = await loadPublicStores(
@@ -227,8 +221,10 @@ test("Stores applies text filters on the server while returning all matching map
 
   expect(result.error).toBeNull();
   expect(result.data).toHaveLength(1);
+  expect(calls).toHaveLength(1);
   const pageCall = calls.at(-1);
-  expect(pageCall?.operations).toContain("in:id:" + locationId);
-  expect(pageCall?.operations).toContain("eq:brands.slug:gong-cha");
-  expect(pageCall?.operations).toContain("eq:suburb:Albany");
+  expect(pageCall?.table).toBe("rpc:search_public_stores");
+  expect(pageCall?.operations).toContain("rpc:p_query:Albany");
+  expect(pageCall?.operations).toContain("rpc:p_brand_slug:gong-cha");
+  expect(pageCall?.operations).toContain("rpc:p_suburb:Albany");
 });
