@@ -4,6 +4,7 @@ import {
   type PublicSupabaseClient
 } from "./discovery/data";
 import { loadPublicDrinkCategories, loadPublicDrinksPage } from "./drinks/data";
+import { maxPageForOffset, POSTGRES_INTEGER_MAX } from "./drinks/pagination";
 import { loadPublicStores } from "./stores/data";
 
 type QueryResponse = {
@@ -207,6 +208,34 @@ test("preserves pagination totals when a requested page has no rows", async () =
   expect(result.error).toBeNull();
   expect(result.data).toEqual([]);
   expect(result.totalResults).toBe(25);
+});
+
+test("bounds an extreme Drinks page before building the RPC offset", async () => {
+  const { calls, client } = fakeClient({
+    "rpc:search_public_drinks": [
+      { data: { data: [], total_results: 0 }, error: null }
+    ]
+  });
+
+  const result = await loadPublicDrinksPage(
+    {
+      categorySlug: "",
+      page: maxPageForOffset() + 1,
+      pageSize: 20,
+      query: ""
+    },
+    client
+  );
+
+  expect(result.error).toBeNull();
+  const pageCall = calls.at(-1);
+  const offset = Number(
+    pageCall?.operations
+      .find((operation) => operation.startsWith("rpc:p_offset:"))
+      ?.slice("rpc:p_offset:".length)
+  );
+  expect(offset).toBe(POSTGRES_INTEGER_MAX - 7);
+  expect(offset).toBeLessThanOrEqual(POSTGRES_INTEGER_MAX);
 });
 
 test("Stores applies text filters on the server while returning all matching map rows", async () => {

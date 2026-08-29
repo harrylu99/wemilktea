@@ -513,11 +513,15 @@ export function StoresPage() {
   const [suggestStoreOpen, setSuggestStoreOpen] = useState(false);
   const [filterBrands, setFilterBrands] = useState<Array<[string, string]>>([]);
   const [filterAreas, setFilterAreas] = useState<string[]>([]);
+  const [facetsStatus, setFacetsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
   const mapPanelRef = useRef<HTMLDivElement>(null);
+  const facetsRequestIdRef = useRef(0);
   const pendingListRevealIdRef = useRef<string | null>(null);
   const listRevealHoverLockRef = useRef<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -632,14 +636,23 @@ export function StoresPage() {
     });
   }, [brandSlug, query, suburb]);
 
-  useEffect(() => {
-    void loadPublicStoreFacets().then((result) => {
-      if (!result.error && result.data) {
-        setFilterBrands(result.data.brands);
-        setFilterAreas(result.data.areas);
-      }
-    });
+  const loadFacets = useCallback(async () => {
+    const requestId = ++facetsRequestIdRef.current;
+    setFacetsStatus("loading");
+    const result = await loadPublicStoreFacets();
+    if (requestId !== facetsRequestIdRef.current) return;
+    if (result.error || !result.data) {
+      setFacetsStatus("error");
+      return;
+    }
+    setFilterBrands(result.data.brands);
+    setFilterAreas(result.data.areas);
+    setFacetsStatus("ready");
   }, []);
+
+  useEffect(() => {
+    void loadFacets();
+  }, [loadFacets]);
 
   const visibleStores = useMemo(() => {
     if (!nearMe || !userLocation) return stores;
@@ -947,6 +960,23 @@ export function StoresPage() {
                     ×
                   </button>
                 </div>
+                {facetsStatus === "error" ? (
+                  <div
+                    className="mt-3 rounded-lg border border-border bg-muted p-3"
+                    role="alert"
+                  >
+                    <p className="text-xs text-muted-foreground">
+                      Store filters are unavailable right now.
+                    </p>
+                    <button
+                      className="mt-2 cursor-pointer text-xs font-semibold text-primary"
+                      type="button"
+                      onClick={() => void loadFacets()}
+                    >
+                      Retry store filters
+                    </button>
+                  </div>
+                ) : null}
                 <label htmlFor="store-area">Area</label>
                 <select
                   id="store-area"

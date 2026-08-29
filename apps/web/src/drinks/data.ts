@@ -2,6 +2,7 @@ import { publicImageUrl } from "@wemilktea/config";
 import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import { firstRelation } from "../lib/relations";
+import { clampPageToOffset } from "./pagination";
 
 const uuidSchema = z.string().uuid();
 
@@ -229,10 +230,11 @@ export async function loadPublicDrinksPage(
     };
   }
 
+  const page = clampPageToOffset(options.page, options.pageSize);
   const { data, error } = await client.rpc("search_public_drinks", {
     p_category_slug: options.categorySlug,
     p_limit: options.pageSize,
-    p_offset: (options.page - 1) * options.pageSize,
+    p_offset: (page - 1) * options.pageSize,
     p_query: options.query
   });
   if (error) return { data: null, totalResults: 0, error: "query_failed" };

@@ -12,6 +12,7 @@ import {
   type PublicDrinkCategory
 } from "./data";
 import {
+  clampPageToOffset,
   clampPage,
   DRINKS_PAGE_SIZE,
   parsePageParam,
@@ -152,6 +153,7 @@ export function DrinksPage() {
   const categorySlug = searchParams.get("category") ?? "";
   const pageParam = searchParams.get("page");
   const requestedPage = parsePageParam(pageParam);
+  const loadPage = clampPageToOffset(requestedPage, DRINKS_PAGE_SIZE);
 
   useEffect(() => {
     if (lastWrittenQueryRef.current === queryParam) {
@@ -193,7 +195,7 @@ export function DrinksPage() {
     setStatus("loading");
     const result = await loadPublicDrinksPage({
       categorySlug,
-      page: requestedPage,
+      page: loadPage,
       pageSize: DRINKS_PAGE_SIZE,
       query
     });
@@ -205,7 +207,7 @@ export function DrinksPage() {
     setDrinks(result.data);
     setTotalResults(result.totalResults);
     setStatus("ready");
-  }, [categorySlug, query, requestedPage]);
+  }, [categorySlug, loadPage, query]);
 
   useEffect(() => {
     void load();

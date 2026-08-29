@@ -3,9 +3,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PublicPagination } from "../public-pagination";
 import {
+  clampPageToOffset,
   clampPage,
+  DRINKS_PAGE_SIZE,
+  maxPageForOffset,
   paginationItems,
   parsePageParam,
+  POSTGRES_INTEGER_MAX,
   resetDrinksPage,
   resultRange,
   setDrinksPage,
@@ -56,6 +60,17 @@ test("normalizes malformed and out-of-range page values", () => {
   expect(clampPage(99999, 43)).toBe(43);
   expect(clampPage(0, 43)).toBe(1);
   expect(clampPage(2, 0)).toBe(1);
+});
+
+test("keeps Drinks RPC offsets within PostgreSQL integer range", () => {
+  const maximumPage = maxPageForOffset();
+  expect((maximumPage - 1) * DRINKS_PAGE_SIZE).toBeLessThanOrEqual(
+    POSTGRES_INTEGER_MAX
+  );
+  expect(clampPageToOffset(maximumPage + 1)).toBe(maximumPage);
+  expect(clampPageToOffset(107374184)).toBe(107374183);
+  expect(clampPageToOffset(1)).toBe(1);
+  expect(clampPageToOffset(999)).toBe(999);
 });
 
 test("resets page changes without dropping active filters", () => {

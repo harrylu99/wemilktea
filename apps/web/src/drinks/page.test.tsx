@@ -115,6 +115,7 @@ mock.module("./data", () => ({
 }));
 
 const { DrinksPage } = await import("./page");
+const { maxPageForOffset } = await import("./pagination");
 
 function HistoryProbe() {
   const location = useLocation();
@@ -216,6 +217,21 @@ test.serial("retries a failed Drinks request without remounting", async () => {
   fireEvent.click(view.getByRole("button", { name: "Try again" }));
   expect(await view.findByText("Oolong Milk Tea")).toBeTruthy();
 });
+
+test.serial(
+  "loads an extreme direct page URL without an availability error",
+  async () => {
+    const view = renderDrinks({
+      initialEntries: ["/drinks?page=107374184"]
+    });
+
+    expect(await view.findByText("Oolong Milk Tea")).toBeTruthy();
+    expect(
+      view.queryByText("Drinks are unavailable right now. Please try again.")
+    ).toBeNull();
+    expect(drinkCalls[0]?.page).toBe(maxPageForOffset());
+  }
+);
 
 test.serial(
   "Back navigation synchronizes Drinks input without overwriting the URL",

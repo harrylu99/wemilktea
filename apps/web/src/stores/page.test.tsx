@@ -71,12 +71,22 @@ const refreshedStore = {
 };
 type StoreResult =
   { data: Array<typeof store>; error: null } | { data: null; error: string };
+type FacetsResult =
+  | { data: { brands: Array<[string, string]>; areas: string[] }; error: null }
+  | { data: null; error: string };
+
+const facetSuccess: FacetsResult = {
+  data: { brands: [["gong-cha", "Gong cha"]], areas: ["Albany"] },
+  error: null
+};
 
 let deferred = false;
 let nextResults: StoreResult[] = [];
+let nextFacetResults: FacetsResult[] = [];
 const pendingResolves: Array<(result: StoreResult) => void> = [];
 const storeCalls: Array<{ query: string; brandSlug: string; suburb: string }> =
   [];
+let facetCalls = 0;
 
 mock.module("../lib/supabase", () => ({
   supabase: {},
@@ -87,8 +97,10 @@ const realStoresData = await import("./data");
 mock.module("./data", () => ({
   ...realStoresData,
   distanceKm: () => 0,
-  loadPublicStoreFacets: () =>
-    Promise.resolve({ data: { brands: [], areas: [] }, error: null }),
+  loadPublicStoreFacets: () => {
+    facetCalls += 1;
+    return Promise.resolve(nextFacetResults.shift() ?? facetSuccess);
+  },
   loadPublicStores: (options: (typeof storeCalls)[number]) => {
     storeCalls.push(options);
     if (deferred) {
@@ -161,8 +173,10 @@ beforeEach(() => {
   desktopLayout = true;
   deferred = false;
   nextResults = [];
+  nextFacetResults = [];
   pendingResolves.length = 0;
   storeCalls.length = 0;
+  facetCalls = 0;
 });
 
 afterEach(() => {
@@ -218,6 +232,54 @@ test.serial(
     ).toHaveLength(4);
 
     await settleInitialLoad(view);
+  }
+);
+
+test.serial(
+  "keeps Store results usable and retries failed facets independently",
+  async () => {
+    nextFacetResults = [{ data: null, error: "query_failed" }, facetSuccess];
+    const view = renderStores();
+
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    expect(
+      view.queryByText("Stores are unavailable right now. Please try again.")
+    ).toBeNull();
+
+    fireEvent.click(view.getByRole("button", { name: "Filters" }));
+    expect(
+      await view.findByText("Store filters are unavailable right now.")
+    ).toBeTruthy();
+    fireEvent.click(view.getByRole("button", { name: "Retry store filters" }));
+
+    expect(await view.findByRole("option", { name: "Albany" })).toBeTruthy();
+    expect(
+      view.queryByText("Store filters are unavailable right now.")
+    ).toBeNull();
+    expect(facetCalls).toBe(2);
+    expect(storeCalls).toHaveLength(1);
+  }
+);
+
+test.serial(
+  "loads Store facets once and does not reload them with search or filters",
+  async () => {
+    const view = renderStores();
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    expect(facetCalls).toBe(1);
+
+    fireEvent.click(view.getByRole("button", { name: "Filters" }));
+    fireEvent.change(view.getByLabelText("Area"), {
+      target: { value: "Albany" }
+    });
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "gong" }
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+
+    expect(facetCalls).toBe(1);
   }
 );
 
