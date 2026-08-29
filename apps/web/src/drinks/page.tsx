@@ -248,6 +248,9 @@ export function DrinksPage() {
     if (updates.q !== undefined) {
       requestIdRef.current += 1;
       syncingQueryRef.current = null;
+      setDrinks([]);
+      setTotalResults(0);
+      setStatus("loading");
       setSearchInput(updates.q);
       if (!updates.q) {
         const next = new URLSearchParams(searchParams);
@@ -268,6 +271,9 @@ export function DrinksPage() {
 
   const clearFilters = () => {
     requestIdRef.current += 1;
+    setDrinks([]);
+    setTotalResults(0);
+    setStatus("loading");
     setSearchInput("");
     setSearchParams({}, { replace: true });
   };

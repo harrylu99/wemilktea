@@ -309,3 +309,15 @@ test.serial(
     expect(view.getByRole("status")).toBeTruthy();
   }
 );
+
+test.serial("hides previous Drink results when the input changes", async () => {
+  const view = renderDrinks();
+  expect(await view.findByText(sampleDrink.name)).toBeTruthy();
+
+  fireEvent.change(view.getByRole("searchbox"), {
+    target: { value: "second" }
+  });
+
+  expect(view.queryByText(sampleDrink.name)).toBeNull();
+  expect(view.getByRole("status")).toBeTruthy();
+});
