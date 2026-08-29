@@ -104,6 +104,8 @@ export function SearchPage() {
     }
     syncingQueryRef.current = queryParam;
     setInputValue(queryParam);
+    setData(null);
+    setStatus(queryParam.trim() ? "loading" : "idle");
   }, [queryParam]);
 
   useEffect(() => {
@@ -157,6 +159,8 @@ export function SearchPage() {
   const updateQuery = (value: string) => {
     syncingQueryRef.current = null;
     setInputValue(value);
+    setData(null);
+    setStatus(value.trim() ? "loading" : "idle");
   };
 
   const clearQuery = () => {

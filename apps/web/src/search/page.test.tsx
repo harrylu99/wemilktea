@@ -246,6 +246,36 @@ test.serial(
 );
 
 test.serial(
+  "hides previous results while a new keyword is debouncing and loading",
+  async () => {
+    const view = renderSearch("/search?q=matcha");
+
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+    deferred = true;
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "taro" }
+    });
+
+    expect(view.queryByText("Matcha Store")).toBeNull();
+    expect(view.getByRole("status").getAttribute("aria-label")).toBe(
+      "Loading search results"
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(1);
+    expect(view.queryByText("Matcha Store")).toBeNull();
+
+    await act(async () => {
+      pendingResolves.shift()?.(successResult);
+      await Promise.resolve();
+    });
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+  }
+);
+
+test.serial(
   "Back navigation synchronizes Search input without overwriting the URL",
   async () => {
     const view = renderSearch("/search", {
