@@ -3,13 +3,12 @@ import {
   loadPublicSearchResults,
   type PublicSupabaseClient
 } from "./discovery/data";
-import { loadPublicDrinksPage } from "./drinks/data";
+import { loadPublicDrinkCategories, loadPublicDrinksPage } from "./drinks/data";
 import { loadPublicStores } from "./stores/data";
 
 type QueryResponse = {
-  data: unknown[];
+  data: unknown;
   error: null | string;
-  count?: number;
 };
 
 type QueryCall = {
@@ -49,16 +48,8 @@ function fakeClient(responses: Record<string, QueryResponse[]>) {
           call.operations.push(`limit:${value}`);
           return builder;
         },
-        contains(column: string, value: string[]) {
-          call.operations.push(`contains:${column}:${value.join(",")}`);
-          return builder;
-        },
         in(column: string, value: string[]) {
           call.operations.push(`in:${column}:${value.join(",")}`);
-          return builder;
-        },
-        range(from: number, to: number) {
-          call.operations.push(`range:${from}:${to}`);
           return builder;
         },
         then(
@@ -69,6 +60,28 @@ function fakeClient(responses: Record<string, QueryResponse[]>) {
         }
       };
       return builder;
+    },
+    rpc(name: string, args: Record<string, unknown>) {
+      const call: QueryCall = {
+        table: `rpc:${name}`,
+        operations: Object.entries(args).map(
+          ([key, value]) => `rpc:${key}:${String(value)}`
+        ),
+        select: ""
+      };
+      calls.push(call);
+      const response = responses[`rpc:${name}`]?.shift() ?? {
+        data: [],
+        error: null
+      };
+      return {
+        then(
+          resolve: (value: QueryResponse) => unknown,
+          reject?: (reason: unknown) => unknown
+        ) {
+          return Promise.resolve(response).then(resolve, reject);
+        }
+      };
     }
   } as unknown as PublicSupabaseClient;
 
@@ -132,15 +145,24 @@ test("Drinks applies rich matching and server-side pagination", async () => {
         error: null
       }
     ],
-    products: [
-      { data: [product], error: null },
-      { data: [], error: null },
-      { data: [], error: null },
-      { data: [], error: null },
-      { data: [], error: null },
-      { data: [product], error: null, count: 1 }
+    "rpc:search_public_drinks": [
+      {
+        data: {
+          data: [
+            {
+              product,
+              available_store_count: 1
+            }
+          ],
+          total_results: 1
+        },
+        error: null
+      }
     ]
   });
+
+  const categories = await loadPublicDrinkCategories(client);
+  expect(categories.data?.[0]?.slug).toBe("milk-tea");
 
   const result = await loadPublicDrinksPage(
     {
@@ -156,11 +178,35 @@ test("Drinks applies rich matching and server-side pagination", async () => {
   expect(result.totalResults).toBe(1);
   expect(result.data?.[0]?.availableStoreCount).toBe(1);
   const pageCall = calls.at(-1);
-  expect(pageCall?.operations).toContain(
-    "eq:location_products.availability_status:available"
+  expect(pageCall?.table).toBe("rpc:search_public_drinks");
+  expect(pageCall?.operations).toContain("rpc:p_category_slug:milk-tea");
+  expect(pageCall?.operations).toContain("rpc:p_offset:24");
+  expect(pageCall?.operations).toContain("rpc:p_limit:24");
+});
+
+test("preserves pagination totals when a requested page has no rows", async () => {
+  const { client } = fakeClient({
+    "rpc:search_public_drinks": [
+      {
+        data: { data: [], total_results: 25 },
+        error: null
+      }
+    ]
+  });
+
+  const result = await loadPublicDrinksPage(
+    {
+      categorySlug: "",
+      page: 2,
+      pageSize: 24,
+      query: ""
+    },
+    client
   );
-  expect(pageCall?.operations).toContain("eq:categories.slug:milk-tea");
-  expect(pageCall?.operations).toContain("range:24:47");
+
+  expect(result.error).toBeNull();
+  expect(result.data).toEqual([]);
+  expect(result.totalResults).toBe(25);
 });
 
 test("Stores applies text filters on the server while returning all matching map rows", async () => {

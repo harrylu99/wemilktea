@@ -6,6 +6,7 @@ import { PublicPagination } from "../public-pagination";
 import { Seo } from "../seo";
 import {
   drinkDetailPath,
+  loadPublicDrinkCategories,
   loadPublicDrinksPage,
   type PublicDrink,
   type PublicDrinkCategory
@@ -182,12 +183,11 @@ export function DrinksPage() {
       query
     });
     if (requestId !== requestIdRef.current) return;
-    if (result.error || !result.data || !result.categories) {
+    if (result.error || !result.data) {
       setStatus("error");
       return;
     }
     setDrinks(result.data);
-    setCategories(result.categories);
     setTotalResults(result.totalResults);
     setStatus("ready");
   }, [categorySlug, query, requestedPage]);
@@ -195,6 +195,16 @@ export function DrinksPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadPublicDrinkCategories().then((result) => {
+      if (result.error || !result.data) {
+        setStatus("error");
+        return;
+      }
+      setCategories(result.data);
+    });
+  }, []);
 
   const totalPages = totalPagesFor(totalResults);
   const currentPage = clampPage(requestedPage, totalPages);

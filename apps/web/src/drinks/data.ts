@@ -2,7 +2,6 @@ import { publicImageUrl } from "@wemilktea/config";
 import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import { firstRelation } from "../lib/relations";
-import { containsPattern } from "../lib/query";
 
 const uuidSchema = z.string().uuid();
 
@@ -84,26 +83,26 @@ export type PublicDrinksPageQuery = {
 export type PublicDrinksPageResult =
   | {
       data: PublicDrink[];
-      categories: PublicDrinkCategory[];
       totalResults: number;
       error: null;
     }
   | {
       data: null;
-      categories: null;
       totalResults: 0;
       error: "query_failed" | "invalid_data" | string;
     };
 
-const publicDrinksSelect =
-  "id, name, slug, description, is_seasonal, discovery_tags, brands!inner(id, name, slug), categories!inner(id, name, slug), product_images(is_primary, image_assets(id, provenance, storage_key, external_url, alt_text)), location_products!location_products_product_id_fkey!inner(location_id)";
+export type PublicDrinkCategoriesResult =
+  { data: PublicDrinkCategory[]; error: null } | { data: null; error: string };
 
-const publicDrinkAvailabilityRowSchema = z.object({
-  location_id: uuidSchema
-});
-
-const publicDrinksPageRowSchema = publicProductQueryRowSchema.extend({
-  location_products: publicDrinkAvailabilityRowSchema.array().default([])
+const publicDrinksRpcResultSchema = z.object({
+  data: z
+    .object({
+      product: publicProductQueryRowSchema,
+      available_store_count: z.number().int().nonnegative()
+    })
+    .array(),
+  total_results: z.number().int().nonnegative()
 });
 
 const r2PublicBaseUrl =
@@ -196,54 +195,26 @@ export function drinkDetailPath(
   return `/drinks/${encodeURIComponent(drink.brandSlug)}/${encodeURIComponent(drink.slug)}`;
 }
 
-async function matchingProductIds(
-  client: NonNullable<typeof supabase>,
-  query: string
-) {
-  const pattern = containsPattern(query);
-  const [
-    nameResult,
-    descriptionResult,
-    brandResult,
-    categoryResult,
-    tagResult
-  ] = await Promise.all([
-    client.from("products").select("id").ilike("name", pattern),
-    client.from("products").select("id").ilike("description", pattern),
-    client
-      .from("products")
-      .select("id, brands!inner(id)")
-      .ilike("brands.name", pattern),
-    client
-      .from("products")
-      .select("id, categories!inner(id)")
-      .ilike("categories.name", pattern),
-    client.from("products").select("id").contains("discovery_tags", [query])
-  ]);
-
-  if (
-    nameResult.error ||
-    descriptionResult.error ||
-    brandResult.error ||
-    categoryResult.error ||
-    tagResult.error
-  ) {
-    return { ids: null, error: "query_failed" };
+export async function loadPublicDrinkCategories(
+  client = supabase
+): Promise<PublicDrinkCategoriesResult> {
+  if (!client) {
+    return {
+      data: null,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
   }
 
-  const ids = new Set<string>();
-  for (const result of [
-    nameResult,
-    descriptionResult,
-    brandResult,
-    categoryResult,
-    tagResult
-  ]) {
-    for (const row of result.data ?? []) {
-      if (typeof row.id === "string") ids.add(row.id);
-    }
-  }
-  return { ids, error: null };
+  const { data, error } = await client
+    .from("categories")
+    .select("id, name, slug")
+    .order("sort_order");
+  if (error) return { data: null, error: "query_failed" };
+
+  const categories = publicDrinkCategorySchema.array().safeParse(data);
+  return categories.success
+    ? { data: categories.data, error: null }
+    : { data: null, error: "invalid_data" };
 }
 
 export async function loadPublicDrinksPage(
@@ -253,109 +224,34 @@ export async function loadPublicDrinksPage(
   if (!client) {
     return {
       data: null,
-      categories: null,
       totalResults: 0,
       error: supabaseConfigurationError ?? "configuration_missing"
     };
   }
 
-  const categoriesResult = await client
-    .from("categories")
-    .select("id, name, slug")
-    .order("sort_order");
-  if (categoriesResult.error) {
-    return {
-      data: null,
-      categories: null,
-      totalResults: 0,
-      error: "query_failed"
-    };
-  }
+  const { data, error } = await client.rpc("search_public_drinks", {
+    p_category_slug: options.categorySlug,
+    p_limit: options.pageSize,
+    p_offset: (options.page - 1) * options.pageSize,
+    p_query: options.query
+  });
+  if (error) return { data: null, totalResults: 0, error: "query_failed" };
 
-  const categories = publicDrinkCategorySchema
-    .array()
-    .safeParse(categoriesResult.data);
-  if (!categories.success) {
-    return {
-      data: null,
-      categories: null,
-      totalResults: 0,
-      error: "invalid_data"
-    };
-  }
-
-  let matchingIds: Set<string> | null = null;
-  if (options.query.trim()) {
-    const matches = await matchingProductIds(
-      client,
-      options.query.trim().toLowerCase()
-    );
-    if (matches.error) {
-      return {
-        data: null,
-        categories: null,
-        totalResults: 0,
-        error: matches.error
-      };
-    }
-    matchingIds = matches.ids;
-    if (!matchingIds?.size) {
-      return {
-        data: [],
-        categories: categories.data,
-        totalResults: 0,
-        error: null
-      };
-    }
-  }
-
-  let query = client
-    .from("products")
-    .select(publicDrinksSelect, { count: "exact" })
-    .eq("location_products.availability_status", "available")
-    .order("name");
-  if (matchingIds) query = query.in("id", [...matchingIds]);
-  if (options.categorySlug) {
-    query = query.eq("categories.slug", options.categorySlug);
-  }
-
-  const { data, error, count } = await query.range(
-    (options.page - 1) * options.pageSize,
-    options.page * options.pageSize - 1
-  );
-  if (error) {
-    return {
-      data: null,
-      categories: null,
-      totalResults: 0,
-      error: "query_failed"
-    };
-  }
-
-  const rows = publicDrinksPageRowSchema.array().safeParse(data);
-  if (!rows.success) {
-    return {
-      data: null,
-      categories: null,
-      totalResults: 0,
-      error: "invalid_data"
-    };
+  const result = publicDrinksRpcResultSchema.safeParse(data);
+  if (!result.success) {
+    return { data: null, totalResults: 0, error: "invalid_data" };
   }
 
   return {
-    data: rows.data
+    data: result.data.data
       .map((row) =>
-        normalizePublicDrink(
-          row,
-          new Set(row.location_products.map((item) => item.location_id)).size
-        )
+        normalizePublicDrink(row.product, row.available_store_count)
       )
       .filter(
         (drink): drink is PublicDrink =>
           drink !== null && drink.availableStoreCount > 0
       ),
-    categories: categories.data,
-    totalResults: count ?? 0,
+    totalResults: result.data.total_results,
     error: null
   };
 }
