@@ -246,6 +246,7 @@ export function DrinksPage() {
 
   const updateSearchParams = (updates: { q?: string; category?: string }) => {
     if (updates.q !== undefined) {
+      requestIdRef.current += 1;
       syncingQueryRef.current = null;
       setSearchInput(updates.q);
       if (!updates.q) {
@@ -266,6 +267,7 @@ export function DrinksPage() {
   };
 
   const clearFilters = () => {
+    requestIdRef.current += 1;
     setSearchInput("");
     setSearchParams({}, { replace: true });
   };

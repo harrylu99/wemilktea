@@ -284,3 +284,28 @@ test.serial("ignores a stale Drinks response after a newer query", async () => {
   expect(view.getByText("Newer Drink")).toBeTruthy();
   expect(view.queryByText("Older Drink")).toBeNull();
 });
+
+test.serial(
+  "ignores a Drinks response when the input changes during the debounce window",
+  async () => {
+    deferredDrinks = true;
+    const olderDrink = { ...sampleDrink, name: "Older Drink" };
+    const view = renderDrinks({ initialEntries: ["/drinks?q=first"] });
+    expect(await view.findByRole("status")).toBeTruthy();
+
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "second" }
+    });
+    await act(async () => {
+      pendingDrinks.shift()?.({
+        data: [olderDrink],
+        totalResults: 1,
+        error: null
+      });
+      await Promise.resolve();
+    });
+
+    expect(view.queryByText("Older Drink")).toBeNull();
+    expect(view.getByRole("status")).toBeTruthy();
+  }
+);

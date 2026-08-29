@@ -909,6 +909,7 @@ export function StoresPage() {
                 className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-xl hover:bg-muted"
                 type="button"
                 onClick={() => {
+                  loadRequestIdRef.current += 1;
                   setSearchInput("");
                   updateSearchParam("q", "");
                 }}
