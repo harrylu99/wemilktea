@@ -45,6 +45,8 @@ const searchProductSelect =
 const searchStoreSelect =
   "id, slug, display_name, suburb, address, coordinates, location_images(image_assets(id, provenance, storage_key, external_url, alt_text)), brands!inner(name, slug)";
 
+export const PUBLIC_SEARCH_QUERY_MAX_LENGTH = 120;
+
 export type PublicSupabaseClient = NonNullable<typeof supabase>;
 
 export function filterPublicDiscoveryDrinks(
@@ -122,7 +124,7 @@ export async function loadPublicSearchResults(
   query: string,
   client = supabase
 ): Promise<PublicSearchQueryResult> {
-  const normalizedQuery = query.trim();
+  const normalizedQuery = query.trim().slice(0, PUBLIC_SEARCH_QUERY_MAX_LENGTH);
   if (!client) {
     return {
       data: null,

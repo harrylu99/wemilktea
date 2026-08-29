@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   loadPublicSearchResults,
+  PUBLIC_SEARCH_QUERY_MAX_LENGTH,
   type PublicSupabaseClient
 } from "./discovery/data";
 import { loadPublicDrinkCategories, loadPublicDrinksPage } from "./drinks/data";
@@ -136,6 +137,24 @@ test("global search uses bounded server queries and the explicit product relatio
   expect(calls[0]?.operations).toContain("limit:20");
   expect(calls[1]?.operations).toContain("ilike:display_name:%matcha%");
   expect(calls[1]?.operations).toContain("limit:20");
+});
+
+test("bounds global search query length before building PostgREST filters", async () => {
+  const { calls, client } = fakeClient({
+    products: [{ data: [], error: null }],
+    locations: [{ data: [], error: null }]
+  });
+  const query = "x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH + 20);
+
+  const result = await loadPublicSearchResults(query, client);
+
+  expect(result.error).toBeNull();
+  expect(calls[0]?.operations).toContain(
+    `ilike:name:%${"x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH)}%`
+  );
+  expect(calls[1]?.operations).toContain(
+    `ilike:display_name:%${"x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH)}%`
+  );
 });
 
 test("Drinks applies rich matching and server-side pagination", async () => {

@@ -6,7 +6,10 @@ import { Seo } from "../seo";
 import { DrinkCard } from "../drinks/page";
 import type { PublicDrink } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
-import { loadPublicSearchResults } from "../discovery/data";
+import {
+  loadPublicSearchResults,
+  PUBLIC_SEARCH_QUERY_MAX_LENGTH
+} from "../discovery/data";
 import { useDebouncedValue } from "../use-debounced-value";
 
 type SearchStatus = "idle" | "loading" | "ready" | "error";
@@ -94,7 +97,9 @@ export function SearchPage() {
   const queryParam = searchParams.get("q") ?? "";
   const [inputValue, setInputValue] = useState(queryParam);
   const debouncedQuery = useDebouncedValue(inputValue);
-  const normalizedQuery = (syncingQueryRef.current ?? debouncedQuery).trim();
+  const normalizedQuery = (syncingQueryRef.current ?? debouncedQuery)
+    .trim()
+    .slice(0, PUBLIC_SEARCH_QUERY_MAX_LENGTH);
   const hasQuery = Boolean(inputValue.trim());
 
   useEffect(() => {
@@ -223,6 +228,7 @@ export function SearchPage() {
               ref={searchRef}
               type="search"
               value={inputValue}
+              maxLength={PUBLIC_SEARCH_QUERY_MAX_LENGTH}
               onChange={(event) => updateQuery(event.target.value)}
             />
             {hasQuery ? (
