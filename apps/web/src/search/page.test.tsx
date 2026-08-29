@@ -276,6 +276,38 @@ test.serial(
 );
 
 test.serial(
+  "ignores the previous Search request when input changes during loading",
+  async () => {
+    deferred = true;
+    const view = renderSearch("/search?q=matcha");
+
+    expect(await view.findByRole("status")).toBeTruthy();
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "taro" }
+    });
+
+    await act(async () => {
+      pendingResolves.shift()?.(successResult);
+      await Promise.resolve();
+    });
+    expect(view.queryByText("Matcha Store")).toBeNull();
+    expect(view.getByRole("status").getAttribute("aria-label")).toBe(
+      "Loading search results"
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(1);
+    await act(async () => {
+      pendingResolves.shift()?.(successResult);
+      await Promise.resolve();
+    });
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+  }
+);
+
+test.serial(
   "Back navigation synchronizes Search input without overwriting the URL",
   async () => {
     const view = renderSearch("/search", {

@@ -103,6 +103,7 @@ export function SearchPage() {
       return;
     }
     syncingQueryRef.current = queryParam;
+    requestIdRef.current += 1;
     setInputValue(queryParam);
     setData(null);
     setStatus(queryParam.trim() ? "loading" : "idle");
@@ -157,6 +158,7 @@ export function SearchPage() {
   }, [normalizedQuery]);
 
   const updateQuery = (value: string) => {
+    requestIdRef.current += 1;
     syncingQueryRef.current = null;
     setInputValue(value);
     setData(null);
