@@ -90,10 +90,11 @@ export function SearchPage() {
   const [status, setStatus] = useState<SearchStatus>("idle");
   const requestIdRef = useRef(0);
   const lastWrittenQueryRef = useRef<string | null>(null);
+  const syncingQueryRef = useRef<string | null>(null);
   const queryParam = searchParams.get("q") ?? "";
   const [inputValue, setInputValue] = useState(queryParam);
   const debouncedQuery = useDebouncedValue(inputValue);
-  const normalizedQuery = debouncedQuery.trim();
+  const normalizedQuery = (syncingQueryRef.current ?? debouncedQuery).trim();
   const hasQuery = Boolean(inputValue.trim());
 
   useEffect(() => {
@@ -101,10 +102,20 @@ export function SearchPage() {
       lastWrittenQueryRef.current = null;
       return;
     }
+    syncingQueryRef.current = queryParam;
     setInputValue(queryParam);
   }, [queryParam]);
 
   useEffect(() => {
+    if (syncingQueryRef.current !== null) {
+      if (
+        inputValue === syncingQueryRef.current &&
+        debouncedQuery === syncingQueryRef.current
+      ) {
+        syncingQueryRef.current = null;
+      }
+      return;
+    }
     if (!inputValue.trim()) {
       if (!queryParam) return;
       const next = new URLSearchParams(searchParams);
@@ -143,10 +154,14 @@ export function SearchPage() {
     });
   }, [normalizedQuery]);
 
-  const updateQuery = (value: string) => setInputValue(value);
+  const updateQuery = (value: string) => {
+    syncingQueryRef.current = null;
+    setInputValue(value);
+  };
 
   const clearQuery = () => {
     requestIdRef.current += 1;
+    syncingQueryRef.current = null;
     setInputValue("");
     setData(null);
     setStatus("idle");

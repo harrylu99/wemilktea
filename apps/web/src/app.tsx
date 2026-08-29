@@ -558,22 +558,34 @@ export function StoresPage() {
 
   const queryParam = searchParams.get("q") ?? "";
   const [searchInput, setSearchInput] = useState(queryParam);
-  const query = useDebouncedValue(searchInput);
+  const debouncedQuery = useDebouncedValue(searchInput);
   const brandSlug = searchParams.get("brand") ?? "";
   const suburb = searchParams.get("area") ?? "";
   const nearMe = searchParams.get("near") === "1";
   const loadRequestIdRef = useRef(0);
   const lastWrittenQueryRef = useRef<string | null>(null);
+  const syncingQueryRef = useRef<string | null>(null);
+  const query = syncingQueryRef.current ?? debouncedQuery;
 
   useEffect(() => {
     if (lastWrittenQueryRef.current === queryParam) {
       lastWrittenQueryRef.current = null;
       return;
     }
+    syncingQueryRef.current = queryParam;
     setSearchInput(queryParam);
   }, [queryParam]);
 
   useEffect(() => {
+    if (syncingQueryRef.current !== null) {
+      if (
+        searchInput === syncingQueryRef.current &&
+        debouncedQuery === syncingQueryRef.current
+      ) {
+        syncingQueryRef.current = null;
+      }
+      return;
+    }
     if (!searchInput.trim()) {
       if (!queryParam) return;
       const next = new URLSearchParams(searchParams);
@@ -588,7 +600,14 @@ export function StoresPage() {
     else next.delete("q");
     lastWrittenQueryRef.current = query;
     setSearchParams(next, { replace: true });
-  }, [query, queryParam, searchInput, searchParams, setSearchParams]);
+  }, [
+    debouncedQuery,
+    query,
+    queryParam,
+    searchInput,
+    searchParams,
+    setSearchParams
+  ]);
 
   useEffect(() => {
     const client = supabase;
@@ -774,7 +793,10 @@ export function StoresPage() {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(name, value);
     else next.delete(name);
-    if (name === "q") lastWrittenQueryRef.current = value;
+    if (name === "q") {
+      syncingQueryRef.current = null;
+      lastWrittenQueryRef.current = value;
+    }
     setSearchParams(next, { replace: true });
   };
 
@@ -851,7 +873,10 @@ export function StoresPage() {
               placeholder="Search for your next drink place"
               type="search"
               value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
+              onChange={(event) => {
+                syncingQueryRef.current = null;
+                setSearchInput(event.target.value);
+              }}
             />
             {isRefreshing ? (
               <span

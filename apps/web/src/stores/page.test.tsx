@@ -110,16 +110,38 @@ mock.module("./suggest-store", () => ({
 
 const { act, cleanup, fireEvent, render } =
   await import("@testing-library/react");
-const { MemoryRouter } = await import("react-router-dom");
+const { MemoryRouter, useLocation, useNavigate } =
+  await import("react-router-dom");
 const { ThemeContext } = await import("../theme-context");
 const { StoresPage } = await import("../app");
 
-function renderStores() {
+function HistoryProbe() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <div data-testid="location">
+        {location.pathname}
+        {location.search}
+      </div>
+      <button type="button" onClick={() => navigate(-1)}>
+        Back
+      </button>
+    </>
+  );
+}
+
+function renderStores(
+  initialEntries = ["/stores"],
+  initialIndex = 0,
+  historyControls = false
+) {
   return render(
     <ThemeContext.Provider
       value={{ resolvedTheme: "light", setPreference: () => undefined }}
     >
-      <MemoryRouter initialEntries={["/stores"]}>
+      <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+        {historyControls ? <HistoryProbe /> : null}
         <StoresPage />
       </MemoryRouter>
     </ThemeContext.Provider>
@@ -285,6 +307,25 @@ test.serial(
     expect(view.getByText(store.displayName)).toBeTruthy();
     expect(view.getByText("MAP / STORE PINS")).toBeTruthy();
     expect(view.queryByRole("status")).toBeNull();
+  }
+);
+
+test.serial(
+  "Back navigation synchronizes Store input without overwriting the URL",
+  async () => {
+    const view = renderStores(["/stores?q=matcha", "/stores?q=gong"], 1, true);
+
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Back" }));
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+
+    expect(view.getByTestId("location").textContent).toBe("/stores?q=matcha");
+    expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe(
+      "matcha"
+    );
+    expect(storeCalls.at(-1)?.query).toBe("matcha");
   }
 );
 

@@ -139,11 +139,16 @@ export function DrinksPage() {
   const [totalResults, setTotalResults] = useState(0);
   const requestIdRef = useRef(0);
   const lastWrittenQueryRef = useRef<string | null>(null);
+  const syncingQueryRef = useRef<string | null>(null);
+  const categoryRequestIdRef = useRef(0);
+  const [categoryStatus, setCategoryStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
 
   const queryParam = searchParams.get("q") ?? "";
   const [searchInput, setSearchInput] = useState(queryParam);
   const debouncedQuery = useDebouncedValue(searchInput);
-  const query = debouncedQuery;
+  const query = syncingQueryRef.current ?? debouncedQuery;
   const categorySlug = searchParams.get("category") ?? "";
   const pageParam = searchParams.get("page");
   const requestedPage = parsePageParam(pageParam);
@@ -153,10 +158,20 @@ export function DrinksPage() {
       lastWrittenQueryRef.current = null;
       return;
     }
+    syncingQueryRef.current = queryParam;
     setSearchInput(queryParam);
   }, [queryParam]);
 
   useEffect(() => {
+    if (syncingQueryRef.current !== null) {
+      if (
+        searchInput === syncingQueryRef.current &&
+        debouncedQuery === syncingQueryRef.current
+      ) {
+        syncingQueryRef.current = null;
+      }
+      return;
+    }
     if (!searchInput.trim()) {
       if (!queryParam) return;
       const next = new URLSearchParams(searchParams);
@@ -196,15 +211,22 @@ export function DrinksPage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    void loadPublicDrinkCategories().then((result) => {
-      if (result.error || !result.data) {
-        setStatus("error");
-        return;
-      }
-      setCategories(result.data);
-    });
+  const loadCategories = useCallback(async () => {
+    const requestId = ++categoryRequestIdRef.current;
+    setCategoryStatus("loading");
+    const result = await loadPublicDrinkCategories();
+    if (requestId !== categoryRequestIdRef.current) return;
+    if (result.error || !result.data) {
+      setCategoryStatus("error");
+      return;
+    }
+    setCategories(result.data);
+    setCategoryStatus("ready");
   }, []);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
 
   const totalPages = totalPagesFor(totalResults);
   const currentPage = clampPage(requestedPage, totalPages);
@@ -222,6 +244,7 @@ export function DrinksPage() {
 
   const updateSearchParams = (updates: { q?: string; category?: string }) => {
     if (updates.q !== undefined) {
+      syncingQueryRef.current = null;
       setSearchInput(updates.q);
       if (!updates.q) {
         const next = new URLSearchParams(searchParams);
@@ -377,6 +400,20 @@ export function DrinksPage() {
                   />
                 ))}
               </div>
+            </div>
+          ) : null}
+          {categoryStatus === "error" ? (
+            <div className="mt-3 flex items-center gap-3" role="alert">
+              <p className="text-sm text-destructive">
+                Drink categories are unavailable right now.
+              </p>
+              <button
+                className="rounded-md border border-border bg-card px-3 py-2 text-xs font-medium"
+                type="button"
+                onClick={() => void loadCategories()}
+              >
+                Retry categories
+              </button>
             </div>
           ) : null}
         </div>

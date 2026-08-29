@@ -40,7 +40,13 @@ function installBrowserGlobals() {
 installBrowserGlobals();
 
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate
+} from "react-router-dom";
 import { ThemeContext } from "../theme-context";
 
 const { act, cleanup, fireEvent, render } =
@@ -97,13 +103,38 @@ function LocationProbe() {
   );
 }
 
-function renderSearch(initialEntry = "/search") {
+function HistoryProbe() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <LocationProbe />
+      <button type="button" onClick={() => navigate(-1)}>
+        Back
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        Forward
+      </button>
+    </>
+  );
+}
+
+function renderSearch(
+  initialEntry = "/search",
+  options: {
+    initialEntries?: string[];
+    initialIndex?: number;
+    historyControls?: boolean;
+  } = {}
+) {
   return render(
     <ThemeContext.Provider
       value={{ resolvedTheme: "light", setPreference: () => undefined }}
     >
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <LocationProbe />
+      <MemoryRouter
+        initialEntries={options.initialEntries ?? [initialEntry]}
+        initialIndex={options.initialIndex}
+      >
+        {options.historyControls ? <HistoryProbe /> : <LocationProbe />}
         <Routes>
           <Route element={<SearchPage />} path="/search" />
         </Routes>
@@ -211,6 +242,29 @@ test.serial(
 
     expect(loadSearch).toHaveBeenCalledTimes(2);
     expect(searchCalls.at(-1)).toBe("matcha latte");
+  }
+);
+
+test.serial(
+  "Back navigation synchronizes Search input without overwriting the URL",
+  async () => {
+    const view = renderSearch("/search", {
+      historyControls: true,
+      initialEntries: ["/search?q=matcha", "/search?q=taro"],
+      initialIndex: 1
+    });
+
+    expect(await view.findByText("No luck with “taro”")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Back" }));
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+
+    expect(view.getByTestId("location").textContent).toBe("/search?q=matcha");
+    expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe(
+      "matcha"
+    );
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
   }
 );
 
