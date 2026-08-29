@@ -63,6 +63,8 @@ export type PublicStoreFacets = {
 export type PublicStoreFacetsResult =
   { data: PublicStoreFacets; error: null } | { data: null; error: string };
 
+export const STORE_FACET_BATCH_SIZE = 1000;
+
 const storeFacetRowSchema = z.object({
   suburb: z.string().min(1),
   brands: z.union([
@@ -256,18 +258,24 @@ export async function loadPublicStoreFacets(
     };
   }
 
-  const { data, error } = await client
-    .from("locations")
-    .select("suburb, brands!inner(name, slug)")
-    .order("suburb");
-  if (error) return { data: null, error: "query_failed" };
+  const rows: z.infer<typeof storeFacetRowSchema>[] = [];
+  for (let offset = 0; ; offset += STORE_FACET_BATCH_SIZE) {
+    const { data, error } = await client
+      .from("locations")
+      .select("suburb, brands!inner(name, slug)")
+      .order("id")
+      .range(offset, offset + STORE_FACET_BATCH_SIZE - 1);
+    if (error) return { data: null, error: "query_failed" };
 
-  const rows = storeFacetRowSchema.array().safeParse(data);
-  if (!rows.success) return { data: null, error: "invalid_data" };
+    const batch = storeFacetRowSchema.array().safeParse(data);
+    if (!batch.success) return { data: null, error: "invalid_data" };
+    rows.push(...batch.data);
+    if (batch.data.length < STORE_FACET_BATCH_SIZE) break;
+  }
 
   const brands = new Map<string, string>();
   const areas = new Set<string>();
-  rows.data.forEach((row) => {
+  rows.forEach((row) => {
     const brand = Array.isArray(row.brands) ? row.brands[0] : row.brands;
     if (brand) brands.set(brand.slug, brand.name);
     areas.add(row.suburb);

@@ -1,10 +1,48 @@
 import { expect, test } from "bun:test";
 import {
   filterPublicStores,
+  loadPublicStoreFacets,
   markerPosition,
   normalizePublicStore,
+  STORE_FACET_BATCH_SIZE,
   type PublicStore
 } from "./data";
+import type { PublicSupabaseClient } from "../discovery/data";
+
+type FacetResponse = { data: unknown; error: null | string };
+
+function facetClient(responses: FacetResponse[]) {
+  const ranges: Array<{ from: number; to: number }> = [];
+  const orders: string[] = [];
+  let responseIndex = 0;
+  const client = {
+    from(table: string) {
+      if (table !== "locations") throw new Error(`Unexpected table: ${table}`);
+      const builder = {
+        select() {
+          return builder;
+        },
+        order(column: string) {
+          orders.push(column);
+          return builder;
+        },
+        range(from: number, to: number) {
+          ranges.push({ from, to });
+          return Promise.resolve(
+            responses[responseIndex++] ?? { data: [], error: null }
+          );
+        }
+      };
+      return builder;
+    }
+  } as unknown as PublicSupabaseClient;
+
+  return { client, orders, ranges };
+}
+
+function facetRow(suburb: string, name: string, slug: string) {
+  return { suburb, brands: { name, slug } };
+}
 
 const stores: PublicStore[] = [
   {
@@ -34,6 +72,93 @@ const stores: PublicStore[] = [
     imageAltText: null
   }
 ];
+
+test("loads Store facets in one deterministic range below the batch size", async () => {
+  const { client, orders, ranges } = facetClient([
+    {
+      data: [
+        facetRow("Albany", "Gong cha", "gong-cha"),
+        facetRow("Auckland CBD", "Chatime", "chatime")
+      ],
+      error: null
+    }
+  ]);
+
+  const result = await loadPublicStoreFacets(client);
+
+  expect(result).toEqual({
+    data: {
+      areas: ["Albany", "Auckland CBD"],
+      brands: [
+        ["chatime", "Chatime"],
+        ["gong-cha", "Gong cha"]
+      ]
+    },
+    error: null
+  });
+  expect(ranges).toEqual([{ from: 0, to: STORE_FACET_BATCH_SIZE - 1 }]);
+  expect(orders).toEqual(["id"]);
+});
+
+test("includes later Store facet batches and deduplicates across ranges", async () => {
+  const firstBatch = Array.from(
+    { length: STORE_FACET_BATCH_SIZE },
+    (_, index) =>
+      facetRow(`Area ${String(index).padStart(4, "0")}`, "Common", "common")
+  );
+  firstBatch[0] = facetRow("Common Area", "Common", "common");
+  firstBatch[STORE_FACET_BATCH_SIZE - 1] = facetRow(
+    "Common Area",
+    "Common",
+    "common"
+  );
+
+  const { client, orders, ranges } = facetClient([
+    { data: firstBatch, error: null },
+    {
+      data: [
+        facetRow("Late Area", "Late Brand", "late-brand"),
+        facetRow("Common Area", "Common", "common")
+      ],
+      error: null
+    }
+  ]);
+
+  const result = await loadPublicStoreFacets(client);
+
+  expect(result.error).toBeNull();
+  expect(result.data?.areas).toContain("Late Area");
+  expect(result.data?.brands).toContainEqual(["late-brand", "Late Brand"]);
+  expect(
+    result.data?.areas.filter((area) => area === "Common Area")
+  ).toHaveLength(1);
+  expect(
+    result.data?.brands.filter(([slug]) => slug === "common")
+  ).toHaveLength(1);
+  expect(ranges).toEqual([
+    { from: 0, to: STORE_FACET_BATCH_SIZE - 1 },
+    { from: STORE_FACET_BATCH_SIZE, to: STORE_FACET_BATCH_SIZE * 2 - 1 }
+  ]);
+  expect(orders).toEqual(["id", "id"]);
+});
+
+test("does not return partial Store facets when a later batch fails", async () => {
+  const firstBatch = Array.from({ length: STORE_FACET_BATCH_SIZE }, () =>
+    facetRow("Albany", "Gong cha", "gong-cha")
+  );
+  const { client, ranges } = facetClient([
+    { data: firstBatch, error: null },
+    { data: null, error: "timeout" }
+  ]);
+
+  const result = await loadPublicStoreFacets(client);
+
+  expect(result).toEqual({ data: null, error: "query_failed" });
+  expect(ranges).toEqual([
+    { from: 0, to: STORE_FACET_BATCH_SIZE - 1 },
+    { from: STORE_FACET_BATCH_SIZE, to: STORE_FACET_BATCH_SIZE * 2 - 1 }
+  ]);
+});
 
 test("normalizes canonical PostGIS point data", () => {
   expect(
