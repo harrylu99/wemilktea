@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
 import { PublicFooter } from "../public-footer";
@@ -6,8 +6,7 @@ import { PublicPagination } from "../public-pagination";
 import { Seo } from "../seo";
 import {
   drinkDetailPath,
-  filterPublicDrinks,
-  loadPublicDrinks,
+  loadPublicDrinksPage,
   type PublicDrink,
   type PublicDrinkCategory
 } from "./data";
@@ -20,6 +19,7 @@ import {
   totalPagesFor
 } from "./pagination";
 import { useDismissiblePopover } from "../use-dismissible-popover";
+import { useDebouncedValue } from "../use-debounced-value";
 
 function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -135,38 +135,69 @@ export function DrinksPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
+  const [totalResults, setTotalResults] = useState(0);
+  const requestIdRef = useRef(0);
+  const lastWrittenQueryRef = useRef<string | null>(null);
 
-  const query = searchParams.get("q") ?? "";
+  const queryParam = searchParams.get("q") ?? "";
+  const [searchInput, setSearchInput] = useState(queryParam);
+  const debouncedQuery = useDebouncedValue(searchInput);
+  const query = debouncedQuery;
   const categorySlug = searchParams.get("category") ?? "";
   const pageParam = searchParams.get("page");
+  const requestedPage = parsePageParam(pageParam);
+
+  useEffect(() => {
+    if (lastWrittenQueryRef.current === queryParam) {
+      lastWrittenQueryRef.current = null;
+      return;
+    }
+    setSearchInput(queryParam);
+  }, [queryParam]);
+
+  useEffect(() => {
+    if (!searchInput.trim()) {
+      if (!queryParam) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete("q");
+      lastWrittenQueryRef.current = "";
+      setSearchParams(resetDrinksPage(next), { replace: true });
+      return;
+    }
+    if (debouncedQuery === queryParam) return;
+    const next = new URLSearchParams(searchParams);
+    if (debouncedQuery.trim()) next.set("q", debouncedQuery);
+    else next.delete("q");
+    lastWrittenQueryRef.current = debouncedQuery;
+    setSearchParams(resetDrinksPage(next), { replace: true });
+  }, [debouncedQuery, queryParam, searchInput, searchParams, setSearchParams]);
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setStatus("loading");
-    const result = await loadPublicDrinks();
+    const result = await loadPublicDrinksPage({
+      categorySlug,
+      page: requestedPage,
+      pageSize: DRINKS_PAGE_SIZE,
+      query
+    });
+    if (requestId !== requestIdRef.current) return;
     if (result.error || !result.data || !result.categories) {
       setStatus("error");
       return;
     }
     setDrinks(result.data);
     setCategories(result.categories);
+    setTotalResults(result.totalResults);
     setStatus("ready");
-  }, []);
+  }, [categorySlug, query, requestedPage]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const visibleDrinks = useMemo(
-    () => filterPublicDrinks(drinks, { query, categorySlug }),
-    [drinks, query, categorySlug]
-  );
-  const totalPages = totalPagesFor(visibleDrinks.length);
-  const currentPage = clampPage(parsePageParam(pageParam), totalPages);
-  const startIndex = (currentPage - 1) * DRINKS_PAGE_SIZE;
-  const paginatedDrinks = visibleDrinks.slice(
-    startIndex,
-    startIndex + DRINKS_PAGE_SIZE
-  );
+  const totalPages = totalPagesFor(totalResults);
+  const currentPage = clampPage(requestedPage, totalPages);
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -180,11 +211,18 @@ export function DrinksPage() {
   }, [currentPage, pageParam, searchParams, setSearchParams, status]);
 
   const updateSearchParams = (updates: { q?: string; category?: string }) => {
-    const next = new URLSearchParams(searchParams);
     if (updates.q !== undefined) {
-      if (updates.q) next.set("q", updates.q);
-      else next.delete("q");
+      setSearchInput(updates.q);
+      if (!updates.q) {
+        const next = new URLSearchParams(searchParams);
+        next.delete("q");
+        lastWrittenQueryRef.current = "";
+        setSearchParams(resetDrinksPage(next), { replace: true });
+      }
+      return;
     }
+
+    const next = new URLSearchParams(searchParams);
     if (updates.category !== undefined) {
       if (updates.category) next.set("category", updates.category);
       else next.delete("category");
@@ -192,7 +230,10 @@ export function DrinksPage() {
     setSearchParams(resetDrinksPage(next), { replace: true });
   };
 
-  const clearFilters = () => setSearchParams({}, { replace: true });
+  const clearFilters = () => {
+    setSearchInput("");
+    setSearchParams({}, { replace: true });
+  };
 
   const closeFilters = useCallback(() => {
     setFiltersOpen(false);
@@ -252,7 +293,7 @@ export function DrinksPage() {
               id="drink-search"
               placeholder="Search for whatever you are keen on today"
               type="search"
-              value={query}
+              value={searchInput}
               onChange={(event) =>
                 updateSearchParams({ q: event.target.value })
               }
@@ -362,7 +403,10 @@ export function DrinksPage() {
             </div>
           ) : null}
 
-          {status === "ready" && drinks.length === 0 ? (
+          {status === "ready" &&
+          totalResults === 0 &&
+          !query &&
+          !categorySlug ? (
             <div className="mt-[18px] rounded-xl border border-border bg-card p-6">
               <p className="text-sm text-muted-foreground">
                 No drinks to show yet. Check back soon.
@@ -371,8 +415,8 @@ export function DrinksPage() {
           ) : null}
 
           {status === "ready" &&
-          drinks.length > 0 &&
-          visibleDrinks.length === 0 ? (
+          totalResults === 0 &&
+          (query || categorySlug) ? (
             <div className="mt-[18px] rounded-xl border border-border bg-card p-6">
               <p className="text-base font-semibold">No drinks found</p>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -388,13 +432,13 @@ export function DrinksPage() {
             </div>
           ) : null}
 
-          {status === "ready" && visibleDrinks.length > 0 ? (
+          {status === "ready" && totalResults > 0 ? (
             <>
               <div className="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,224px)] lg:justify-between">
-                {paginatedDrinks.map((drink, index) => (
+                {drinks.map((drink, index) => (
                   <DrinkCard
                     drink={drink}
-                    index={startIndex + index}
+                    index={(currentPage - 1) * DRINKS_PAGE_SIZE + index}
                     key={drink.id}
                   />
                 ))}
@@ -404,7 +448,7 @@ export function DrinksPage() {
                 onPageChange={updatePage}
                 pageSize={DRINKS_PAGE_SIZE}
                 totalPages={totalPages}
-                totalResults={visibleDrinks.length}
+                totalResults={totalResults}
               />
             </>
           ) : null}

@@ -19,9 +19,9 @@ import {
 } from "react-router-dom";
 import {
   distanceKm,
-  filterPublicStores,
+  loadPublicStoreFacets,
+  loadPublicStores,
   markerPosition,
-  normalizePublicStore,
   type Coordinates,
   type PublicStore
 } from "./stores/data";
@@ -51,6 +51,7 @@ import {
 } from "./stores/map-interaction";
 import { shouldScrollToTop } from "./route-scroll";
 import { useDismissiblePopover } from "./use-dismissible-popover";
+import { useDebouncedValue } from "./use-debounced-value";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -444,6 +445,8 @@ function StoresPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [suggestStoreOpen, setSuggestStoreOpen] = useState(false);
+  const [filterBrands, setFilterBrands] = useState<Array<[string, string]>>([]);
+  const [filterAreas, setFilterAreas] = useState<string[]>([]);
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
@@ -487,10 +490,39 @@ function StoresPage() {
   );
   const isDesktopLayout = useIsDesktopLayout(handleDesktopLayoutChange);
 
-  const query = searchParams.get("q") ?? "";
+  const queryParam = searchParams.get("q") ?? "";
+  const [searchInput, setSearchInput] = useState(queryParam);
+  const query = useDebouncedValue(searchInput);
   const brandSlug = searchParams.get("brand") ?? "";
   const suburb = searchParams.get("area") ?? "";
   const nearMe = searchParams.get("near") === "1";
+  const loadRequestIdRef = useRef(0);
+  const lastWrittenQueryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastWrittenQueryRef.current === queryParam) {
+      lastWrittenQueryRef.current = null;
+      return;
+    }
+    setSearchInput(queryParam);
+  }, [queryParam]);
+
+  useEffect(() => {
+    if (!searchInput.trim()) {
+      if (!queryParam) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete("q");
+      lastWrittenQueryRef.current = "";
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    if (query === queryParam) return;
+    const next = new URLSearchParams(searchParams);
+    if (query.trim()) next.set("q", query);
+    else next.delete("q");
+    lastWrittenQueryRef.current = query;
+    setSearchParams(next, { replace: true });
+  }, [query, queryParam, searchInput, searchParams, setSearchParams]);
 
   useEffect(() => {
     const client = supabase;
@@ -500,53 +532,45 @@ function StoresPage() {
       return;
     }
 
-    const load = async () => {
-      const { data, error } = await client
-        .from("locations")
-        .select(
-          "id, slug, display_name, suburb, address, coordinates, brands!inner(name, slug), location_images(image_assets(id, provenance, storage_key, external_url, alt_text))"
-        )
-        .order("display_name");
-
-      if (error) {
+    const requestId = ++loadRequestIdRef.current;
+    setIsLoading(true);
+    setErrorMessage(null);
+    void loadPublicStores({ brandSlug, query, suburb }).then((result) => {
+      if (requestId !== loadRequestIdRef.current) return;
+      if (result.error || !result.data) {
         setErrorMessage("Stores are unavailable right now. Please try again.");
       } else {
-        const normalized = (data ?? [])
-          .map((row) => normalizePublicStore(row))
-          .filter((store): store is PublicStore => store !== null);
-        setStores(normalized);
-        setErrorMessage(null);
+        setStores(result.data);
       }
       setIsLoading(false);
-    };
+    });
+  }, [brandSlug, query, suburb]);
 
-    void load();
+  useEffect(() => {
+    void loadPublicStoreFacets().then((result) => {
+      if (!result.error && result.data) {
+        setFilterBrands(result.data.brands);
+        setFilterAreas(result.data.areas);
+      }
+    });
   }, []);
 
-  const visibleStores = useMemo(
-    () =>
-      filterPublicStores(stores, {
-        query,
-        brandSlug,
-        suburb,
-        nearMe,
-        userLocation
-      }),
-    [stores, query, brandSlug, suburb, nearMe, userLocation]
-  );
-  const brands = useMemo(
-    () =>
-      [
-        ...new Map(
-          stores.map((store) => [store.brandSlug, store.brandName])
-        ).entries()
-      ].sort(([, nameA], [, nameB]) => nameA.localeCompare(nameB)),
-    [stores]
-  );
-  const areas = useMemo(
-    () => [...new Set(stores.map((store) => store.suburb))].sort(),
-    [stores]
-  );
+  const visibleStores = useMemo(() => {
+    if (!nearMe || !userLocation) return stores;
+    return stores
+      .map((store) => ({
+        store,
+        distance: distanceKm(
+          userLocation.latitude,
+          userLocation.longitude,
+          store.latitude,
+          store.longitude
+        )
+      }))
+      .filter(({ distance }) => distance <= 40)
+      .sort((a, b) => a.distance - b.distance)
+      .map(({ store }) => store);
+  }, [nearMe, stores, userLocation]);
 
   const mobilePreviewId = getMobilePreviewId(
     selectedId,
@@ -680,6 +704,7 @@ function StoresPage() {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(name, value);
     else next.delete(name);
+    if (name === "q") lastWrittenQueryRef.current = value;
     setSearchParams(next, { replace: true });
   };
 
@@ -755,15 +780,18 @@ function StoresPage() {
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-10 text-base text-foreground placeholder:text-muted-foreground"
               placeholder="Search for your next drink place"
               type="search"
-              value={query}
-              onChange={(event) => updateSearchParam("q", event.target.value)}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
             />
-            {query ? (
+            {searchInput ? (
               <button
                 aria-label="Clear store search"
                 className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-xl hover:bg-muted"
                 type="button"
-                onClick={() => updateSearchParam("q", "")}
+                onClick={() => {
+                  setSearchInput("");
+                  updateSearchParam("q", "");
+                }}
               >
                 ×
               </button>
@@ -825,7 +853,7 @@ function StoresPage() {
                   }
                 >
                   <option value="">All areas</option>
-                  {areas.map((area) => (
+                  {filterAreas.map((area) => (
                     <option key={area} value={area}>
                       {area}
                     </option>
@@ -840,7 +868,7 @@ function StoresPage() {
                   }
                 >
                   <option value="">All brands</option>
-                  {brands.map(([slug, name]) => (
+                  {filterBrands.map(([slug, name]) => (
                     <option key={slug} value={slug}>
                       {name}
                     </option>

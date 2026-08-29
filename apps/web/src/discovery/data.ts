@@ -1,5 +1,7 @@
 import {
   loadPublicDrinks,
+  normalizePublicDrink,
+  publicProductQueryRowSchema,
   type PublicDrink,
   type PublicDrinkCategory
 } from "../drinks/data";
@@ -9,6 +11,8 @@ import {
   type PublicStore
 } from "../stores/data";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import { containsPattern } from "../lib/query";
+import { z } from "zod";
 
 export type DiscoveryData = {
   drinks: PublicDrink[];
@@ -18,6 +22,30 @@ export type DiscoveryData = {
 
 export type DiscoveryQueryResult =
   { data: DiscoveryData; error: null } | { data: null; error: string };
+
+export type PublicSearchResult = {
+  drinks: PublicDrink[];
+  stores: PublicStore[];
+};
+
+export type PublicSearchQueryResult =
+  { data: PublicSearchResult; error: null } | { data: null; error: string };
+
+const searchProductRowSchema = publicProductQueryRowSchema.extend({
+  location_products: z
+    .object({ location_id: z.string().uuid() })
+    .array()
+    .optional()
+    .default([])
+});
+
+const searchProductSelect =
+  "id, name, slug, description, is_seasonal, discovery_tags, brands!inner(id, name, slug), categories!inner(id, name, slug), product_images(is_primary, image_assets(id, provenance, storage_key, external_url, alt_text)), location_products!location_products_product_id_fkey!inner(location_id)";
+
+const searchStoreSelect =
+  "id, slug, display_name, suburb, address, coordinates, location_images(image_assets(id, provenance, storage_key, external_url, alt_text)), brands!inner(name, slug)";
+
+export type PublicSupabaseClient = NonNullable<typeof supabase>;
 
 export function filterPublicDiscoveryDrinks(
   drinks: PublicDrink[],
@@ -85,6 +113,68 @@ export async function loadPublicDiscoveryData(): Promise<DiscoveryQueryResult> {
       drinks: drinksResult.data,
       stores: sortPublicDiscoveryStores(stores),
       categories: drinksResult.categories
+    },
+    error: null
+  };
+}
+
+export async function loadPublicSearchResults(
+  query: string,
+  client = supabase
+): Promise<PublicSearchQueryResult> {
+  const normalizedQuery = query.trim();
+  if (!client) {
+    return {
+      data: null,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
+  }
+  if (!normalizedQuery) {
+    return { data: { drinks: [], stores: [] }, error: null };
+  }
+
+  const pattern = containsPattern(normalizedQuery);
+  const [productsResult, storesResult] = await Promise.all([
+    client
+      .from("products")
+      .select(searchProductSelect)
+      .ilike("name", pattern)
+      .eq("location_products.availability_status", "available")
+      .order("name")
+      .limit(20),
+    client
+      .from("locations")
+      .select(searchStoreSelect)
+      .ilike("display_name", pattern)
+      .order("display_name")
+      .limit(20)
+  ]);
+
+  if (productsResult.error || storesResult.error) {
+    return { data: null, error: "query_failed" };
+  }
+
+  const products = searchProductRowSchema
+    .array()
+    .safeParse(productsResult.data);
+  const stores = publicStoreQueryRowSchema.array().safeParse(storesResult.data);
+  if (!products.success || !stores.success) {
+    return { data: null, error: "invalid_data" };
+  }
+
+  return {
+    data: {
+      drinks: products.data
+        .map((row) =>
+          normalizePublicDrink(
+            row,
+            new Set(row.location_products.map((item) => item.location_id)).size
+          )
+        )
+        .filter((drink): drink is PublicDrink => drink !== null),
+      stores: stores.data
+        .map((row) => normalizePublicStore(row))
+        .filter((store): store is PublicStore => store !== null)
     },
     error: null
   };

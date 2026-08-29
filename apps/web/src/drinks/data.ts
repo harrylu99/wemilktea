@@ -2,6 +2,7 @@ import { publicImageUrl } from "@wemilktea/config";
 import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import { firstRelation } from "../lib/relations";
+import { containsPattern } from "../lib/query";
 
 const uuidSchema = z.string().uuid();
 
@@ -72,6 +73,38 @@ export type PublicDrinkQueryResult =
       categories: null;
       error: "query_failed" | "invalid_data" | string;
     };
+
+export type PublicDrinksPageQuery = {
+  query: string;
+  categorySlug: string;
+  page: number;
+  pageSize: number;
+};
+
+export type PublicDrinksPageResult =
+  | {
+      data: PublicDrink[];
+      categories: PublicDrinkCategory[];
+      totalResults: number;
+      error: null;
+    }
+  | {
+      data: null;
+      categories: null;
+      totalResults: 0;
+      error: "query_failed" | "invalid_data" | string;
+    };
+
+const publicDrinksSelect =
+  "id, name, slug, description, is_seasonal, discovery_tags, brands!inner(id, name, slug), categories!inner(id, name, slug), product_images(is_primary, image_assets(id, provenance, storage_key, external_url, alt_text)), location_products!location_products_product_id_fkey!inner(location_id)";
+
+const publicDrinkAvailabilityRowSchema = z.object({
+  location_id: uuidSchema
+});
+
+const publicDrinksPageRowSchema = publicProductQueryRowSchema.extend({
+  location_products: publicDrinkAvailabilityRowSchema.array().default([])
+});
 
 const r2PublicBaseUrl =
   typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
@@ -161,6 +194,170 @@ export function drinkDetailPath(
   drink: Pick<PublicDrink, "brandSlug" | "slug">
 ) {
   return `/drinks/${encodeURIComponent(drink.brandSlug)}/${encodeURIComponent(drink.slug)}`;
+}
+
+async function matchingProductIds(
+  client: NonNullable<typeof supabase>,
+  query: string
+) {
+  const pattern = containsPattern(query);
+  const [
+    nameResult,
+    descriptionResult,
+    brandResult,
+    categoryResult,
+    tagResult
+  ] = await Promise.all([
+    client.from("products").select("id").ilike("name", pattern),
+    client.from("products").select("id").ilike("description", pattern),
+    client
+      .from("products")
+      .select("id, brands!inner(id)")
+      .ilike("brands.name", pattern),
+    client
+      .from("products")
+      .select("id, categories!inner(id)")
+      .ilike("categories.name", pattern),
+    client.from("products").select("id").contains("discovery_tags", [query])
+  ]);
+
+  if (
+    nameResult.error ||
+    descriptionResult.error ||
+    brandResult.error ||
+    categoryResult.error ||
+    tagResult.error
+  ) {
+    return { ids: null, error: "query_failed" };
+  }
+
+  const ids = new Set<string>();
+  for (const result of [
+    nameResult,
+    descriptionResult,
+    brandResult,
+    categoryResult,
+    tagResult
+  ]) {
+    for (const row of result.data ?? []) {
+      if (typeof row.id === "string") ids.add(row.id);
+    }
+  }
+  return { ids, error: null };
+}
+
+export async function loadPublicDrinksPage(
+  options: PublicDrinksPageQuery,
+  client = supabase
+): Promise<PublicDrinksPageResult> {
+  if (!client) {
+    return {
+      data: null,
+      categories: null,
+      totalResults: 0,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
+  }
+
+  const categoriesResult = await client
+    .from("categories")
+    .select("id, name, slug")
+    .order("sort_order");
+  if (categoriesResult.error) {
+    return {
+      data: null,
+      categories: null,
+      totalResults: 0,
+      error: "query_failed"
+    };
+  }
+
+  const categories = publicDrinkCategorySchema
+    .array()
+    .safeParse(categoriesResult.data);
+  if (!categories.success) {
+    return {
+      data: null,
+      categories: null,
+      totalResults: 0,
+      error: "invalid_data"
+    };
+  }
+
+  let matchingIds: Set<string> | null = null;
+  if (options.query.trim()) {
+    const matches = await matchingProductIds(
+      client,
+      options.query.trim().toLowerCase()
+    );
+    if (matches.error) {
+      return {
+        data: null,
+        categories: null,
+        totalResults: 0,
+        error: matches.error
+      };
+    }
+    matchingIds = matches.ids;
+    if (!matchingIds?.size) {
+      return {
+        data: [],
+        categories: categories.data,
+        totalResults: 0,
+        error: null
+      };
+    }
+  }
+
+  let query = client
+    .from("products")
+    .select(publicDrinksSelect, { count: "exact" })
+    .eq("location_products.availability_status", "available")
+    .order("name");
+  if (matchingIds) query = query.in("id", [...matchingIds]);
+  if (options.categorySlug) {
+    query = query.eq("categories.slug", options.categorySlug);
+  }
+
+  const { data, error, count } = await query.range(
+    (options.page - 1) * options.pageSize,
+    options.page * options.pageSize - 1
+  );
+  if (error) {
+    return {
+      data: null,
+      categories: null,
+      totalResults: 0,
+      error: "query_failed"
+    };
+  }
+
+  const rows = publicDrinksPageRowSchema.array().safeParse(data);
+  if (!rows.success) {
+    return {
+      data: null,
+      categories: null,
+      totalResults: 0,
+      error: "invalid_data"
+    };
+  }
+
+  return {
+    data: rows.data
+      .map((row) =>
+        normalizePublicDrink(
+          row,
+          new Set(row.location_products.map((item) => item.location_id)).size
+        )
+      )
+      .filter(
+        (drink): drink is PublicDrink =>
+          drink !== null && drink.availableStoreCount > 0
+      ),
+    categories: categories.data,
+    totalResults: count ?? 0,
+    error: null
+  };
 }
 
 export async function loadPublicDrinks(): Promise<PublicDrinkQueryResult> {
