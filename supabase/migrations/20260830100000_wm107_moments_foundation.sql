@@ -136,7 +136,7 @@ begin
 
   update public.community_posts
   set status = p_status,
-      submitted_at = case when p_status = 'active' then now() else coalesce(submitted_at, now()) end,
+      submitted_at = case when p_status = 'active' and current_status <> 'active' then now() else coalesce(submitted_at, now()) end,
       moderated_at = now(),
       moderated_by = auth.uid(),
       moderation_reason = nullif(trim(p_reason), '')

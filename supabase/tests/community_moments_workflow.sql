@@ -10,7 +10,7 @@ declare
   cursor_post_id uuid;
   cursor_submitted_at timestamptz;
   image_id uuid := extensions.gen_random_uuid();
-  brand_id uuid;
+  selected_brand_id uuid;
   location_id uuid;
   product_id uuid;
   draft_status text;
@@ -19,20 +19,22 @@ declare
   liked boolean;
   must_try boolean;
 begin
-  select id into brand_id from public.brands where is_published order by id limit 1;
   select l.id into location_id
   from public.locations as l
   join public.brands as b on b.id = l.brand_id
   where l.publication_status = 'published' and b.is_published
   order by l.id limit 1;
+  select l.brand_id into selected_brand_id
+  from public.locations as l
+  where l.id = location_id;
   select p.id into product_id
   from public.products as p
   join public.brands as b on b.id = p.brand_id
   join public.categories as c on c.id = p.category_id
-  where p.is_published and b.is_published and c.is_published
+  where p.brand_id = selected_brand_id and p.is_published and b.is_published and c.is_published
   order by p.id limit 1;
 
-  if brand_id is null or location_id is null or product_id is null then
+  if selected_brand_id is null or location_id is null or product_id is null then
     raise exception 'published catalogue fixtures are missing';
   end if;
 
