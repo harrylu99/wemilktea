@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - .github/workflows/supabase-functions-deploy.yml
       - supabase/config.toml
       - supabase/functions/**
   workflow_dispatch:
