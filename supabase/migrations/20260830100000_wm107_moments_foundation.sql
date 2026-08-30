@@ -68,7 +68,7 @@ create table public.community_post_reports (
 );
 
 create index image_assets_owner_user_id_idx on public.image_assets (owner_user_id) where owner_user_id is not null;
-create index community_posts_feed_idx on public.community_posts (created_at desc, id desc) where status = 'active' and deleted_at is null and image_asset_id is not null;
+create index community_posts_feed_idx on public.community_posts (submitted_at desc, id desc) where status = 'active' and deleted_at is null and image_asset_id is not null;
 create index community_posts_owner_created_idx on public.community_posts (owner_user_id, created_at desc);
 create index community_posts_location_id_idx on public.community_posts (location_id);
 create index community_posts_product_id_idx on public.community_posts (product_id);
@@ -136,7 +136,7 @@ begin
 
   update public.community_posts
   set status = p_status,
-      submitted_at = coalesce(submitted_at, now()),
+      submitted_at = case when p_status = 'active' then now() else coalesce(submitted_at, now()) end,
       moderated_at = now(),
       moderated_by = auth.uid(),
       moderation_reason = nullif(trim(p_reason), '')
@@ -169,7 +169,7 @@ end;
 $$;
 
 create function public.list_public_community_posts(
-  p_before_created_at timestamptz default null,
+  p_before_submitted_at timestamptz default null,
   p_before_id uuid default null,
   p_limit integer default 20
 )
@@ -191,6 +191,7 @@ returns table (
   product_name text,
   product_slug text,
   created_at timestamptz,
+  submitted_at timestamptz,
   like_count bigint,
   liked_by_me boolean,
   must_try_by_me boolean
@@ -217,6 +218,7 @@ as $$
     p.name,
     p.slug,
     cp.created_at,
+    cp.submitted_at,
     (select count(*) from public.community_post_likes as all_likes where all_likes.post_id = cp.id),
     exists (
       select 1 from public.community_post_likes as my_like
@@ -240,8 +242,8 @@ as $$
   where cp.status = 'active'
     and cp.deleted_at is null
     and ia.storage_key is not null
-    and (p_before_created_at is null or p_before_id is null or (cp.created_at, cp.id) < (p_before_created_at, p_before_id))
-  order by cp.created_at desc, cp.id desc
+    and (p_before_submitted_at is null or p_before_id is null or (cp.submitted_at, cp.id) < (p_before_submitted_at, p_before_id))
+  order by cp.submitted_at desc, cp.id desc
   limit least(greatest(coalesce(p_limit, 20), 1), 50);
 $$;
 

@@ -6,6 +6,9 @@ declare
   owner_id uuid := extensions.gen_random_uuid();
   other_id uuid := extensions.gen_random_uuid();
   post_id uuid;
+  second_post_id uuid;
+  cursor_post_id uuid;
+  cursor_submitted_at timestamptz;
   image_id uuid := extensions.gen_random_uuid();
   brand_id uuid;
   location_id uuid;
@@ -99,7 +102,8 @@ begin
 
   select like_count, liked_by_me, must_try_by_me
   into like_count, liked, must_try
-  from public.list_public_community_posts();
+  from public.list_public_community_posts()
+  where id = post_id;
   if like_count <> 0 or liked or must_try then
     raise exception 'new public feed reaction state is incorrect';
   end if;
@@ -116,9 +120,44 @@ begin
 
   select like_count, liked_by_me, must_try_by_me
   into like_count, liked, must_try
-  from public.list_public_community_posts();
+  from public.list_public_community_posts()
+  where id = post_id;
   if like_count <> 1 or not liked or not must_try then
     raise exception 'owner reaction state is incorrect';
+  end if;
+
+  select public.create_community_post_draft(
+    'Free-text-compatible test post', null, 'New tea shop in Takapuna', null, 'Surprise drink', null
+  ) into second_post_id;
+  execute 'reset role';
+  update public.community_posts
+  set image_asset_id = image_id
+  where id = second_post_id;
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  if not public.activate_community_post(second_post_id) then
+    raise exception 'owner could not activate the free-text community post';
+  end if;
+
+  execute 'set local role anon';
+  select count(*) into public_count from public.list_public_community_posts();
+  if public_count <> 2 then
+    raise exception 'public feed did not return both active community posts';
+  end if;
+  select id, submitted_at
+  into cursor_post_id, cursor_submitted_at
+  from public.list_public_community_posts(null, null, 1);
+  select count(*) into public_count
+  from public.list_public_community_posts(cursor_submitted_at, cursor_post_id, 1);
+  if public_count <> 1 then
+    raise exception 'submission-time cursor did not return the next post';
+  end if;
+  if exists (
+    select 1
+    from public.list_public_community_posts(cursor_submitted_at, cursor_post_id, 1)
+    where id = cursor_post_id
+  ) then
+    raise exception 'submission-time cursor repeated the boundary post';
   end if;
 
   execute 'reset role';
