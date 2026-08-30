@@ -40,7 +40,13 @@ function installBrowserGlobals() {
 installBrowserGlobals();
 
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate
+} from "react-router-dom";
 import { ThemeContext } from "../theme-context";
 
 const { act, cleanup, fireEvent, render } =
@@ -61,34 +67,27 @@ const sampleStore = {
 };
 
 const successResult = {
-  data: { drinks: [], stores: [sampleStore], categories: [] },
+  data: { drinks: [], stores: [sampleStore] },
   error: null
 };
-type DiscoveryResult = typeof successResult | { data: null; error: string };
+type SearchResult = typeof successResult | { data: null; error: string };
 
-let nextResult: DiscoveryResult = successResult;
+let nextResult: SearchResult = successResult;
 let deferred = false;
-let pendingResolve: ((result: DiscoveryResult) => void) | undefined;
-let loadDiscovery = mock(() => Promise.resolve(nextResult));
+const pendingResolves: Array<(result: SearchResult) => void> = [];
+let loadSearch = mock((query: string) => {
+  void query;
+  return Promise.resolve(nextResult);
+});
 const searchCalls: string[] = [];
 
 mock.module("../discovery/data", () => ({
-  loadPublicDiscoveryData: () => {
-    if (!deferred) return loadDiscovery();
-    return new Promise<DiscoveryResult>((resolve) => {
-      pendingResolve = resolve;
-    });
-  },
-  searchPublicDiscovery: (
-    _drinks: unknown[],
-    stores: (typeof sampleStore)[],
-    query: string
-  ) => {
+  loadPublicSearchResults: (query: string) => {
     searchCalls.push(query);
-    return {
-      drinks: [],
-      stores: query.trim().toLowerCase().includes("matcha") ? stores : []
-    };
+    if (!deferred) return loadSearch(query);
+    return new Promise<SearchResult>((resolve) => {
+      pendingResolves.push(resolve);
+    });
   }
 }));
 
@@ -104,13 +103,38 @@ function LocationProbe() {
   );
 }
 
-function renderSearch(initialEntry = "/search") {
+function HistoryProbe() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <LocationProbe />
+      <button type="button" onClick={() => navigate(-1)}>
+        Back
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        Forward
+      </button>
+    </>
+  );
+}
+
+function renderSearch(
+  initialEntry = "/search",
+  options: {
+    initialEntries?: string[];
+    initialIndex?: number;
+    historyControls?: boolean;
+  } = {}
+) {
   return render(
     <ThemeContext.Provider
       value={{ resolvedTheme: "light", setPreference: () => undefined }}
     >
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <LocationProbe />
+      <MemoryRouter
+        initialEntries={options.initialEntries ?? [initialEntry]}
+        initialIndex={options.initialIndex}
+      >
+        {options.historyControls ? <HistoryProbe /> : <LocationProbe />}
         <Routes>
           <Route element={<SearchPage />} path="/search" />
         </Routes>
@@ -123,8 +147,16 @@ beforeEach(() => {
   installBrowserGlobals();
   nextResult = successResult;
   deferred = false;
-  pendingResolve = undefined;
-  loadDiscovery = mock(() => Promise.resolve(nextResult));
+  pendingResolves.length = 0;
+  loadSearch = mock((query: string) =>
+    Promise.resolve(
+      nextResult.error
+        ? nextResult
+        : query.includes("matcha")
+          ? successResult
+          : { data: { drinks: [], stores: [] }, error: null }
+    )
+  );
   searchCalls.length = 0;
 });
 
@@ -150,7 +182,7 @@ test.serial(
   async () => {
     const view = renderSearch();
 
-    expect(loadDiscovery).not.toHaveBeenCalled();
+    expect(loadSearch).not.toHaveBeenCalled();
     expect(view.getByText("What are you craving?")).toBeTruthy();
     expect(view.getByText("Search by drink or store name.")).toBeTruthy();
     expect(view.getByRole("searchbox").getAttribute("placeholder")).toBe(
@@ -167,7 +199,7 @@ test.serial(
   () => {
     const view = renderSearch("/search?q=%20%20");
 
-    expect(loadDiscovery).not.toHaveBeenCalled();
+    expect(loadSearch).not.toHaveBeenCalled();
     expect(view.getByText("What are you craving?")).toBeTruthy();
     expect(view.queryByRole("status")).toBeNull();
   }
@@ -179,7 +211,7 @@ test.serial(
     const view = renderSearch("/search?q=matcha");
 
     expect(await view.findByText("Matcha Store")).toBeTruthy();
-    expect(loadDiscovery).toHaveBeenCalledTimes(1);
+    expect(loadSearch).toHaveBeenCalledTimes(1);
     expect(searchCalls.at(-1)).toBe("matcha");
   }
 );
@@ -188,15 +220,15 @@ test.serial("the first typed keyword starts one discovery load", async () => {
   const view = renderSearch();
   const input = view.getByRole("searchbox");
 
-  expect(loadDiscovery).not.toHaveBeenCalled();
+  expect(loadSearch).not.toHaveBeenCalled();
   fireEvent.change(input, { target: { value: "matcha" } });
 
   expect(await view.findByText("Matcha Store")).toBeTruthy();
-  expect(loadDiscovery).toHaveBeenCalledTimes(1);
+  expect(loadSearch).toHaveBeenCalledTimes(1);
 });
 
 test.serial(
-  "subsequent keyword edits reuse the loaded discovery data",
+  "subsequent keyword edits are debounced and refetch results",
   async () => {
     const view = renderSearch("/search?q=matcha");
 
@@ -204,31 +236,123 @@ test.serial(
     fireEvent.change(view.getByRole("searchbox"), {
       target: { value: "matcha latte" }
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
 
-    expect(loadDiscovery).toHaveBeenCalledTimes(1);
+    expect(loadSearch).toHaveBeenCalledTimes(2);
     expect(searchCalls.at(-1)).toBe("matcha latte");
   }
 );
 
 test.serial(
-  "clear returns to idle and typing again does not refetch",
+  "hides previous results while a new keyword is debouncing and loading",
   async () => {
     const view = renderSearch("/search?q=matcha");
 
     expect(await view.findByText("Matcha Store")).toBeTruthy();
-    fireEvent.click(view.getByRole("button", { name: "Clear search" }));
+    deferred = true;
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "taro" }
+    });
+
+    expect(view.queryByText("Matcha Store")).toBeNull();
+    expect(view.getByRole("status").getAttribute("aria-label")).toBe(
+      "Loading search results"
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(1);
+    expect(view.queryByText("Matcha Store")).toBeNull();
+
+    await act(async () => {
+      pendingResolves.shift()?.(successResult);
+      await Promise.resolve();
+    });
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+  }
+);
+
+test.serial(
+  "ignores the previous Search request when input changes during loading",
+  async () => {
+    deferred = true;
+    const view = renderSearch("/search?q=matcha");
+
+    expect(await view.findByRole("status")).toBeTruthy();
+    fireEvent.change(view.getByRole("searchbox"), {
+      target: { value: "taro" }
+    });
+
+    await act(async () => {
+      pendingResolves.shift()?.(successResult);
+      await Promise.resolve();
+    });
+    expect(view.queryByText("Matcha Store")).toBeNull();
+    expect(view.getByRole("status").getAttribute("aria-label")).toBe(
+      "Loading search results"
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(1);
+    await act(async () => {
+      pendingResolves.shift()?.(successResult);
+      await Promise.resolve();
+    });
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+  }
+);
+
+test.serial(
+  "Back navigation synchronizes Search input without overwriting the URL",
+  async () => {
+    const view = renderSearch("/search", {
+      historyControls: true,
+      initialEntries: ["/search?q=matcha", "/search?q=taro"],
+      initialIndex: 1
+    });
+
+    expect(await view.findByText("No luck with “taro”")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Back" }));
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+
+    expect(view.getByTestId("location").textContent).toBe("/search?q=matcha");
+    expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe(
+      "matcha"
+    );
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+  }
+);
+
+test.serial(
+  "clear returns to idle and typing again refetches after debounce",
+  async () => {
+    const view = renderSearch("/search?q=matcha");
+
+    expect(await view.findByText("Matcha Store")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Clear search" }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     expect(view.getByTestId("location").textContent).toBe("/search");
     expect(view.getByText("What are you craving?")).toBeTruthy();
     expect(view.queryByText("Matcha Store")).toBeNull();
-    expect(loadDiscovery).toHaveBeenCalledTimes(1);
+    expect(loadSearch).toHaveBeenCalledTimes(1);
 
     fireEvent.change(view.getByRole("searchbox"), {
       target: { value: "taro" }
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(loadDiscovery).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(loadSearch).toHaveBeenCalledTimes(2);
   }
 );
 
@@ -244,7 +368,7 @@ test.serial(
     nextResult = successResult;
     fireEvent.click(errorView.getByRole("button", { name: "Try again" }));
     expect(await errorView.findByText("Matcha Store")).toBeTruthy();
-    expect(loadDiscovery).toHaveBeenCalledTimes(2);
+    expect(loadSearch).toHaveBeenCalledTimes(2);
 
     cleanup();
     const idleView = renderSearch();
@@ -253,7 +377,7 @@ test.serial(
 );
 
 test.serial(
-  "current query wins when it changes during the initial load",
+  "stale search responses cannot replace the current query",
   async () => {
     deferred = true;
     const view = renderSearch("/search?q=m");
@@ -263,11 +387,24 @@ test.serial(
       target: { value: "matcha" }
     });
     await act(async () => {
-      pendingResolve?.(successResult);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(pendingResolves).toHaveLength(2);
+    await act(async () => {
+      pendingResolves[1]?.(successResult);
+      await Promise.resolve();
     });
 
     expect(await view.findByText("Matcha Store")).toBeTruthy();
     expect(searchCalls.at(-1)).toBe("matcha");
+    await act(async () => {
+      pendingResolves[0]?.({
+        data: { drinks: [], stores: [] },
+        error: null
+      });
+      await Promise.resolve();
+    });
+    expect(view.getByText("Matcha Store")).toBeTruthy();
   }
 );
 
@@ -276,9 +413,13 @@ test.serial("clearing during the initial load leaves Search idle", async () => {
   const view = renderSearch("/search?q=matcha");
   expect(await view.findByRole("status")).toBeTruthy();
 
-  fireEvent.click(view.getByRole("button", { name: "Clear search" }));
   await act(async () => {
-    pendingResolve?.(successResult);
+    fireEvent.click(view.getByRole("button", { name: "Clear search" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    pendingResolves[0]?.(successResult);
+    await Promise.resolve();
   });
 
   expect(view.getByText("What are you craving?")).toBeTruthy();
@@ -300,7 +441,14 @@ test.serial(
 
     expect(await view.findByRole("status")).toBeTruthy();
     await act(async () => {
-      pendingResolve?.(successResult);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    await act(async () => {
+      pendingResolves[1]?.({
+        data: { drinks: [], stores: [] },
+        error: null
+      });
+      await Promise.resolve();
     });
     expect(await view.findByText("No luck with “taro”")).toBeTruthy();
     expect(view.getByText("Try another drink or store name.")).toBeTruthy();

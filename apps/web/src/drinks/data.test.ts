@@ -130,6 +130,17 @@ test("filters by name, brand, category and tags", () => {
   ).toHaveLength(0);
 });
 
+test("matches partial discovery tags", () => {
+  const drink = normalizePublicDrink(
+    product({ discovery_tags: ["green-tea"] }),
+    1
+  )!;
+
+  expect(
+    filterPublicDrinks([drink], { query: "green", categorySlug: "" })
+  ).toHaveLength(1);
+});
+
 test("uses an unambiguous brand-scoped future detail route", () => {
   expect(
     drinkDetailPath({

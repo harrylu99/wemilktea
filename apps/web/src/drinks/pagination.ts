@@ -1,4 +1,5 @@
 export const DRINKS_PAGE_SIZE = 20;
+export const POSTGRES_INTEGER_MAX = 2_147_483_647;
 
 export type PaginationItem = number | "ellipsis";
 
@@ -6,6 +7,14 @@ export function parsePageParam(value: string | null) {
   if (!value || !/^\d+$/.test(value)) return 1;
   const page = Number(value);
   return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+export function maxPageForOffset(pageSize = DRINKS_PAGE_SIZE) {
+  return Math.floor(POSTGRES_INTEGER_MAX / pageSize) + 1;
+}
+
+export function clampPageToOffset(page: number, pageSize = DRINKS_PAGE_SIZE) {
+  return Math.min(Math.max(page, 1), maxPageForOffset(pageSize));
 }
 
 export function totalPagesFor(

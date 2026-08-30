@@ -2,6 +2,7 @@ import { publicImageUrl } from "@wemilktea/config";
 import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import { firstRelation } from "../lib/relations";
+import { clampPageToOffset } from "./pagination";
 
 const uuidSchema = z.string().uuid();
 
@@ -72,6 +73,38 @@ export type PublicDrinkQueryResult =
       categories: null;
       error: "query_failed" | "invalid_data" | string;
     };
+
+export type PublicDrinksPageQuery = {
+  query: string;
+  categorySlug: string;
+  page: number;
+  pageSize: number;
+};
+
+export type PublicDrinksPageResult =
+  | {
+      data: PublicDrink[];
+      totalResults: number;
+      error: null;
+    }
+  | {
+      data: null;
+      totalResults: 0;
+      error: "query_failed" | "invalid_data" | string;
+    };
+
+export type PublicDrinkCategoriesResult =
+  { data: PublicDrinkCategory[]; error: null } | { data: null; error: string };
+
+const publicDrinksRpcResultSchema = z.object({
+  data: z
+    .object({
+      product: publicProductQueryRowSchema,
+      available_store_count: z.number().int().nonnegative()
+    })
+    .array(),
+  total_results: z.number().int().nonnegative()
+});
 
 const r2PublicBaseUrl =
   typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
@@ -161,6 +194,68 @@ export function drinkDetailPath(
   drink: Pick<PublicDrink, "brandSlug" | "slug">
 ) {
   return `/drinks/${encodeURIComponent(drink.brandSlug)}/${encodeURIComponent(drink.slug)}`;
+}
+
+export async function loadPublicDrinkCategories(
+  client = supabase
+): Promise<PublicDrinkCategoriesResult> {
+  if (!client) {
+    return {
+      data: null,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
+  }
+
+  const { data, error } = await client
+    .from("categories")
+    .select("id, name, slug")
+    .order("sort_order");
+  if (error) return { data: null, error: "query_failed" };
+
+  const categories = publicDrinkCategorySchema.array().safeParse(data);
+  return categories.success
+    ? { data: categories.data, error: null }
+    : { data: null, error: "invalid_data" };
+}
+
+export async function loadPublicDrinksPage(
+  options: PublicDrinksPageQuery,
+  client = supabase
+): Promise<PublicDrinksPageResult> {
+  if (!client) {
+    return {
+      data: null,
+      totalResults: 0,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
+  }
+
+  const page = clampPageToOffset(options.page, options.pageSize);
+  const { data, error } = await client.rpc("search_public_drinks", {
+    p_category_slug: options.categorySlug,
+    p_limit: options.pageSize,
+    p_offset: (page - 1) * options.pageSize,
+    p_query: options.query
+  });
+  if (error) return { data: null, totalResults: 0, error: "query_failed" };
+
+  const result = publicDrinksRpcResultSchema.safeParse(data);
+  if (!result.success) {
+    return { data: null, totalResults: 0, error: "invalid_data" };
+  }
+
+  return {
+    data: result.data.data
+      .map((row) =>
+        normalizePublicDrink(row.product, row.available_store_count)
+      )
+      .filter(
+        (drink): drink is PublicDrink =>
+          drink !== null && drink.availableStoreCount > 0
+      ),
+    totalResults: result.data.total_results,
+    error: null
+  };
 }
 
 export async function loadPublicDrinks(): Promise<PublicDrinkQueryResult> {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicImageUrl } from "@wemilktea/config";
 import { firstRelation } from "../lib/relations";
+import { supabase, supabaseConfigurationError } from "../lib/supabase";
 
 const uuidSchema = z.string().uuid();
 const imageAssetSchema = z.object({
@@ -44,6 +45,33 @@ export type PublicStore = {
   imageUrl: string | null;
   imageAltText: string | null;
 };
+
+export type PublicStoresQuery = {
+  query: string;
+  brandSlug: string;
+  suburb: string;
+};
+
+export type PublicStoresQueryResult =
+  { data: PublicStore[]; error: null } | { data: null; error: string };
+
+export type PublicStoreFacets = {
+  brands: Array<[string, string]>;
+  areas: string[];
+};
+
+export type PublicStoreFacetsResult =
+  { data: PublicStoreFacets; error: null } | { data: null; error: string };
+
+export const STORE_FACET_BATCH_SIZE = 1000;
+
+const storeFacetRowSchema = z.object({
+  suburb: z.string().min(1),
+  brands: z.union([
+    z.object({ name: z.string().min(1), slug: z.string().min(1) }),
+    z.object({ name: z.string().min(1), slug: z.string().min(1) }).array()
+  ])
+});
 
 const r2PublicBaseUrl =
   typeof import.meta.env.VITE_R2_PUBLIC_BASE_URL === "string"
@@ -189,6 +217,79 @@ export function filterPublicStores(
     .filter(({ distance }) => distance <= 40)
     .sort((a, b) => a.distance - b.distance)
     .map(({ store }) => store);
+}
+
+export async function loadPublicStores(
+  options: PublicStoresQuery,
+  client = supabase
+): Promise<PublicStoresQueryResult> {
+  if (!client) {
+    return {
+      data: null,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
+  }
+
+  const { data, error } = await client.rpc("search_public_stores", {
+    p_brand_slug: options.brandSlug,
+    p_query: options.query,
+    p_suburb: options.suburb
+  });
+  if (error) return { data: null, error: "query_failed" };
+
+  const rows = publicStoreQueryRowSchema.array().safeParse(data);
+  if (!rows.success) return { data: null, error: "invalid_data" };
+
+  return {
+    data: rows.data
+      .map((row) => normalizePublicStore(row))
+      .filter((store): store is PublicStore => store !== null),
+    error: null
+  };
+}
+
+export async function loadPublicStoreFacets(
+  client = supabase
+): Promise<PublicStoreFacetsResult> {
+  if (!client) {
+    return {
+      data: null,
+      error: supabaseConfigurationError ?? "configuration_missing"
+    };
+  }
+
+  const rows: z.infer<typeof storeFacetRowSchema>[] = [];
+  for (let offset = 0; ; offset += STORE_FACET_BATCH_SIZE) {
+    const { data, error } = await client
+      .from("locations")
+      .select("suburb, brands!inner(name, slug)")
+      .order("id")
+      .range(offset, offset + STORE_FACET_BATCH_SIZE - 1);
+    if (error) return { data: null, error: "query_failed" };
+
+    const batch = storeFacetRowSchema.array().safeParse(data);
+    if (!batch.success) return { data: null, error: "invalid_data" };
+    rows.push(...batch.data);
+    if (batch.data.length < STORE_FACET_BATCH_SIZE) break;
+  }
+
+  const brands = new Map<string, string>();
+  const areas = new Set<string>();
+  rows.forEach((row) => {
+    const brand = Array.isArray(row.brands) ? row.brands[0] : row.brands;
+    if (brand) brands.set(brand.slug, brand.name);
+    areas.add(row.suburb);
+  });
+
+  return {
+    data: {
+      areas: [...areas].sort(),
+      brands: [...brands.entries()].sort(([, nameA], [, nameB]) =>
+        nameA.localeCompare(nameB)
+      )
+    },
+    error: null
+  };
 }
 
 export function distanceKm(

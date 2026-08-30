@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicHeader } from "../public-header";
 import { PublicFooter } from "../public-footer";
 import { Seo } from "../seo";
 import { DrinkCard } from "../drinks/page";
-import type { PublicDrink, PublicDrinkCategory } from "../drinks/data";
+import type { PublicDrink } from "../drinks/data";
 import type { PublicStore } from "../stores/data";
 import {
-  searchPublicDiscovery,
-  loadPublicDiscoveryData
+  loadPublicSearchResults,
+  PUBLIC_SEARCH_QUERY_MAX_LENGTH
 } from "../discovery/data";
+import { useDebouncedValue } from "../use-debounced-value";
 
 type SearchStatus = "idle" | "loading" | "ready" | "error";
 
@@ -88,69 +89,112 @@ export function SearchPage() {
   const [data, setData] = useState<{
     drinks: PublicDrink[];
     stores: PublicStore[];
-    categories: PublicDrinkCategory[];
   } | null>(null);
   const [status, setStatus] = useState<SearchStatus>("idle");
-  const query = searchParams.get("q") ?? "";
-  const normalizedQuery = query.trim();
-  const normalizedQueryRef = useRef(normalizedQuery);
-  const loadInFlightRef = useRef(false);
-  normalizedQueryRef.current = normalizedQuery;
-  const hasQuery = Boolean(normalizedQuery);
+  const requestIdRef = useRef(0);
+  const lastWrittenQueryRef = useRef<string | null>(null);
+  const syncingQueryRef = useRef<string | null>(null);
+  const queryParam = searchParams.get("q") ?? "";
+  const [inputValue, setInputValue] = useState(queryParam);
+  const debouncedQuery = useDebouncedValue(inputValue);
+  const normalizedQuery = (syncingQueryRef.current ?? debouncedQuery)
+    .trim()
+    .slice(0, PUBLIC_SEARCH_QUERY_MAX_LENGTH);
+  const hasQuery = Boolean(inputValue.trim());
 
-  const load = useCallback(async () => {
-    if (!normalizedQueryRef.current || data || loadInFlightRef.current) {
+  useEffect(() => {
+    if (lastWrittenQueryRef.current === queryParam) {
+      lastWrittenQueryRef.current = null;
       return;
     }
+    syncingQueryRef.current = queryParam;
+    requestIdRef.current += 1;
+    setInputValue(queryParam);
+    setData(null);
+    setStatus(queryParam.trim() ? "loading" : "idle");
+  }, [queryParam]);
 
-    loadInFlightRef.current = true;
-    setStatus("loading");
-    const result = await loadPublicDiscoveryData();
-    loadInFlightRef.current = false;
-
-    if (result.error || !result.data) {
-      setStatus(normalizedQueryRef.current ? "error" : "idle");
+  useEffect(() => {
+    if (syncingQueryRef.current !== null) {
+      if (
+        inputValue === syncingQueryRef.current &&
+        debouncedQuery === syncingQueryRef.current
+      ) {
+        syncingQueryRef.current = null;
+      }
       return;
     }
+    if (!inputValue.trim()) {
+      if (!queryParam) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete("q");
+      lastWrittenQueryRef.current = "";
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    if (debouncedQuery === queryParam) return;
 
-    setData(result.data);
-    setStatus(normalizedQueryRef.current ? "ready" : "idle");
-  }, [data]);
+    const next = new URLSearchParams(searchParams);
+    if (debouncedQuery.trim()) next.set("q", debouncedQuery);
+    else next.delete("q");
+    lastWrittenQueryRef.current = debouncedQuery;
+    setSearchParams(next, { replace: true });
+  }, [debouncedQuery, inputValue, queryParam, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!normalizedQuery) {
+      requestIdRef.current += 1;
+      setData(null);
       setStatus("idle");
       return;
     }
-    if (data) {
-      setStatus("ready");
-      return;
-    }
-    if (loadInFlightRef.current) {
-      setStatus("loading");
-      return;
-    }
-    void load();
-  }, [data, load, normalizedQuery]);
 
-  const matches = useMemo(
-    () =>
-      data
-        ? searchPublicDiscovery(data.drinks, data.stores, query)
-        : { drinks: [], stores: [] },
-    [data, query]
-  );
+    const requestId = ++requestIdRef.current;
+    setStatus("loading");
+    void loadPublicSearchResults(normalizedQuery).then((result) => {
+      if (requestId !== requestIdRef.current) return;
+      if (result.error || !result.data) {
+        setStatus("error");
+        return;
+      }
+      setData(result.data);
+      setStatus("ready");
+    });
+  }, [normalizedQuery]);
 
   const updateQuery = (value: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (value.trim()) next.set("q", value);
-    else next.delete("q");
-    setSearchParams(next, { replace: true });
+    requestIdRef.current += 1;
+    syncingQueryRef.current = null;
+    setInputValue(value);
+    setData(null);
+    setStatus(value.trim() ? "loading" : "idle");
   };
 
   const clearQuery = () => {
-    updateQuery("");
+    requestIdRef.current += 1;
+    syncingQueryRef.current = null;
+    setInputValue("");
+    setData(null);
+    setStatus("idle");
+    const next = new URLSearchParams(searchParams);
+    next.delete("q");
+    lastWrittenQueryRef.current = "";
+    setSearchParams(next, { replace: true });
     searchRef.current?.focus();
+  };
+
+  const loadAgain = () => {
+    const requestId = ++requestIdRef.current;
+    setStatus("loading");
+    void loadPublicSearchResults(normalizedQuery).then((result) => {
+      if (requestId !== requestIdRef.current) return;
+      if (result.error || !result.data) {
+        setStatus("error");
+        return;
+      }
+      setData(result.data);
+      setStatus("ready");
+    });
   };
 
   return (
@@ -183,7 +227,8 @@ export function SearchPage() {
               placeholder="Try “matcha”, “Gong cha”, or “Albany”"
               ref={searchRef}
               type="search"
-              value={query}
+              value={inputValue}
+              maxLength={PUBLIC_SEARCH_QUERY_MAX_LENGTH}
               onChange={(event) => updateQuery(event.target.value)}
             />
             {hasQuery ? (
@@ -212,7 +257,7 @@ export function SearchPage() {
             </p>
           </section>
         ) : null}
-        {status === "loading" ? (
+        {status === "loading" && !data ? (
           <div className="mt-8">
             <SearchSkeleton />
           </div>
@@ -228,25 +273,31 @@ export function SearchPage() {
             <button
               className="mt-4 rounded-md bg-primary px-4 py-3 text-xs font-medium text-primary-foreground"
               type="button"
-              onClick={() => void load()}
+              onClick={loadAgain}
             >
               Try again
             </button>
           </section>
         ) : null}
 
-        {status === "ready" && hasQuery ? (
-          <section className="mt-8" aria-labelledby="search-results-heading">
+        {(status === "ready" || (status === "loading" && data)) &&
+        hasQuery &&
+        data ? (
+          <section
+            aria-busy={status === "loading"}
+            className="mt-8"
+            aria-labelledby="search-results-heading"
+          >
             <h2 className="text-xl font-semibold" id="search-results-heading">
               Search results
             </h2>
-            {matches.drinks.length > 0 ? (
+            {data.drinks.length > 0 ? (
               <div className="mt-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-primary">
                   Drinks
                 </h3>
                 <div className="mt-3 grid grid-cols-[repeat(auto-fill,224px)] gap-4">
-                  {matches.drinks.map((drink, index) => (
+                  {data.drinks.map((drink, index) => (
                     <DrinkCard
                       className="w-[224px] shrink-0"
                       drink={drink}
@@ -257,13 +308,13 @@ export function SearchPage() {
                 </div>
               </div>
             ) : null}
-            {matches.stores.length > 0 ? (
+            {data.stores.length > 0 ? (
               <div className="mt-8">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-primary">
                   Stores
                 </h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {matches.stores.map((store, index) => (
+                  {data.stores.map((store, index) => (
                     <StoreResultCard
                       index={index}
                       key={store.id}
@@ -273,7 +324,7 @@ export function SearchPage() {
                 </div>
               </div>
             ) : null}
-            {!matches.drinks.length && !matches.stores.length ? (
+            {!data.drinks.length && !data.stores.length ? (
               <div className="mt-4 rounded-xl border border-border bg-card p-6">
                 <h2 className="break-words text-base font-semibold">
                   No luck with “{normalizedQuery}”

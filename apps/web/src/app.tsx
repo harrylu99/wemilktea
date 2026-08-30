@@ -19,9 +19,9 @@ import {
 } from "react-router-dom";
 import {
   distanceKm,
-  filterPublicStores,
+  loadPublicStoreFacets,
+  loadPublicStores,
   markerPosition,
-  normalizePublicStore,
   type Coordinates,
   type PublicStore
 } from "./stores/data";
@@ -51,6 +51,7 @@ import {
 } from "./stores/map-interaction";
 import { shouldScrollToTop } from "./route-scroll";
 import { useDismissiblePopover } from "./use-dismissible-popover";
+import { useDebouncedValue } from "./use-debounced-value";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -185,6 +186,71 @@ function StoreCard({
         </p>
       </div>
     </Link>
+  );
+}
+
+function StoreCardSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="store-skeleton-card flex min-h-[82px] w-full items-center gap-3 rounded-xl border border-border bg-card p-2 md:min-h-[92px]"
+    >
+      <div className="store-skeleton-block size-[62px] shrink-0 rounded-lg md:size-[74px]" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="store-skeleton-line h-4 w-3/4 rounded" />
+        <div className="store-skeleton-line h-3 w-1/2 rounded" />
+        <div className="store-skeleton-line h-3 w-2/3 rounded" />
+      </div>
+    </div>
+  );
+}
+
+function StoreListSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="store-list-panel order-2 flex w-full flex-col gap-3 rounded-xl bg-card p-4 md:order-1 md:h-[648px] md:overflow-y-auto"
+    >
+      <div className="store-skeleton-line mb-1 h-7 w-1/2 rounded" />
+      {Array.from({ length: 4 }, (_, index) => (
+        <StoreCardSkeleton key={index} />
+      ))}
+    </div>
+  );
+}
+
+function StoreMapSkeleton({ mobileMapActive }: { mobileMapActive: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`store-map-skeleton map-surface ${mobileMapActive ? "mobile-google-map-panel" : ""}`}
+    />
+  );
+}
+
+function StoresInitialSkeleton({
+  isDesktopLayout,
+  mobileView
+}: {
+  isDesktopLayout: boolean;
+  mobileView: "list" | "map";
+}) {
+  return (
+    <div className="mt-4" aria-busy="true">
+      <span className="sr-only" role="status">
+        Loading store results
+      </span>
+      <div className="grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
+        {isDesktopLayout || mobileView === "map" ? (
+          <div className="relative order-1 md:order-2">
+            <StoreMapSkeleton mobileMapActive={!isDesktopLayout} />
+          </div>
+        ) : null}
+        {isDesktopLayout || mobileView === "list" ? (
+          <StoreListSkeleton />
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -432,7 +498,7 @@ function GoogleMapPanel({
   );
 }
 
-function StoresPage() {
+export function StoresPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<PublicStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -443,12 +509,19 @@ function StoresPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedStores, setHasLoadedStores] = useState(false);
   const [suggestStoreOpen, setSuggestStoreOpen] = useState(false);
+  const [filterBrands, setFilterBrands] = useState<Array<[string, string]>>([]);
+  const [filterAreas, setFilterAreas] = useState<string[]>([]);
+  const [facetsStatus, setFacetsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
   const suggestStoreTriggerRef = useRef<HTMLElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const storeListRef = useRef<HTMLElement>(null);
   const mapPanelRef = useRef<HTMLDivElement>(null);
+  const facetsRequestIdRef = useRef(0);
   const pendingListRevealIdRef = useRef<string | null>(null);
   const listRevealHoverLockRef = useRef<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -487,10 +560,58 @@ function StoresPage() {
   );
   const isDesktopLayout = useIsDesktopLayout(handleDesktopLayoutChange);
 
-  const query = searchParams.get("q") ?? "";
+  const queryParam = searchParams.get("q") ?? "";
+  const [searchInput, setSearchInput] = useState(queryParam);
+  const debouncedQuery = useDebouncedValue(searchInput);
   const brandSlug = searchParams.get("brand") ?? "";
   const suburb = searchParams.get("area") ?? "";
   const nearMe = searchParams.get("near") === "1";
+  const loadRequestIdRef = useRef(0);
+  const lastWrittenQueryRef = useRef<string | null>(null);
+  const syncingQueryRef = useRef<string | null>(null);
+  const query = syncingQueryRef.current ?? debouncedQuery;
+
+  useEffect(() => {
+    if (lastWrittenQueryRef.current === queryParam) {
+      lastWrittenQueryRef.current = null;
+      return;
+    }
+    syncingQueryRef.current = queryParam;
+    setSearchInput(queryParam);
+  }, [queryParam]);
+
+  useEffect(() => {
+    if (syncingQueryRef.current !== null) {
+      if (
+        searchInput === syncingQueryRef.current &&
+        debouncedQuery === syncingQueryRef.current
+      ) {
+        syncingQueryRef.current = null;
+      }
+      return;
+    }
+    if (!searchInput.trim()) {
+      if (!queryParam) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete("q");
+      lastWrittenQueryRef.current = "";
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    if (query === queryParam) return;
+    const next = new URLSearchParams(searchParams);
+    if (query.trim()) next.set("q", query);
+    else next.delete("q");
+    lastWrittenQueryRef.current = query;
+    setSearchParams(next, { replace: true });
+  }, [
+    debouncedQuery,
+    query,
+    queryParam,
+    searchInput,
+    searchParams,
+    setSearchParams
+  ]);
 
   useEffect(() => {
     const client = supabase;
@@ -500,53 +621,61 @@ function StoresPage() {
       return;
     }
 
-    const load = async () => {
-      const { data, error } = await client
-        .from("locations")
-        .select(
-          "id, slug, display_name, suburb, address, coordinates, brands!inner(name, slug), location_images(image_assets(id, provenance, storage_key, external_url, alt_text))"
-        )
-        .order("display_name");
-
-      if (error) {
+    const requestId = ++loadRequestIdRef.current;
+    setIsLoading(true);
+    setErrorMessage(null);
+    void loadPublicStores({ brandSlug, query, suburb }).then((result) => {
+      if (requestId !== loadRequestIdRef.current) return;
+      if (result.error || !result.data) {
         setErrorMessage("Stores are unavailable right now. Please try again.");
+        setSelectedId(null);
+        setShowMobilePreview(false);
       } else {
-        const normalized = (data ?? [])
-          .map((row) => normalizePublicStore(row))
-          .filter((store): store is PublicStore => store !== null);
-        setStores(normalized);
-        setErrorMessage(null);
+        setStores(result.data);
+        setHasLoadedStores(true);
       }
       setIsLoading(false);
-    };
+    });
+  }, [brandSlug, query, suburb]);
 
-    void load();
+  const loadFacets = useCallback(async () => {
+    const requestId = ++facetsRequestIdRef.current;
+    setFacetsStatus("loading");
+    const result = await loadPublicStoreFacets();
+    if (requestId !== facetsRequestIdRef.current) return;
+    if (result.error || !result.data) {
+      setFacetsStatus("error");
+      return;
+    }
+    setFilterBrands(result.data.brands);
+    setFilterAreas(result.data.areas);
+    setFacetsStatus("ready");
   }, []);
 
-  const visibleStores = useMemo(
-    () =>
-      filterPublicStores(stores, {
-        query,
-        brandSlug,
-        suburb,
-        nearMe,
-        userLocation
-      }),
-    [stores, query, brandSlug, suburb, nearMe, userLocation]
-  );
-  const brands = useMemo(
-    () =>
-      [
-        ...new Map(
-          stores.map((store) => [store.brandSlug, store.brandName])
-        ).entries()
-      ].sort(([, nameA], [, nameB]) => nameA.localeCompare(nameB)),
-    [stores]
-  );
-  const areas = useMemo(
-    () => [...new Set(stores.map((store) => store.suburb))].sort(),
-    [stores]
-  );
+  useEffect(() => {
+    void loadFacets();
+  }, [loadFacets]);
+
+  const visibleStores = useMemo(() => {
+    if (!nearMe || !userLocation) return stores;
+    return stores
+      .map((store) => ({
+        store,
+        distance: distanceKm(
+          userLocation.latitude,
+          userLocation.longitude,
+          store.latitude,
+          store.longitude
+        )
+      }))
+      .filter(({ distance }) => distance <= 40)
+      .sort((a, b) => a.distance - b.distance)
+      .map(({ store }) => store);
+  }, [nearMe, stores, userLocation]);
+  const isInitialLoading = isLoading && !hasLoadedStores;
+  const isRefreshing = isLoading && hasLoadedStores;
+  const hasStoreResults =
+    hasLoadedStores && !errorMessage && visibleStores.length > 0;
 
   const mobilePreviewId = getMobilePreviewId(
     selectedId,
@@ -680,6 +809,10 @@ function StoresPage() {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(name, value);
     else next.delete(name);
+    if (name === "q") {
+      syncingQueryRef.current = null;
+      lastWrittenQueryRef.current = value;
+    }
     setSearchParams(next, { replace: true });
   };
 
@@ -755,15 +888,31 @@ function StoresPage() {
               className="search-input-custom-clear h-[52px] w-full rounded-xl border border-border bg-card px-12 pr-10 text-base text-foreground placeholder:text-muted-foreground"
               placeholder="Search for your next drink place"
               type="search"
-              value={query}
-              onChange={(event) => updateSearchParam("q", event.target.value)}
+              value={searchInput}
+              onChange={(event) => {
+                loadRequestIdRef.current += 1;
+                syncingQueryRef.current = null;
+                setSearchInput(event.target.value);
+              }}
             />
-            {query ? (
+            {isRefreshing ? (
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none absolute top-1/2 grid size-5 -translate-y-1/2 place-items-center ${searchInput ? "right-12" : "right-3"}`}
+              >
+                <span className="store-refresh-spinner" />
+              </span>
+            ) : null}
+            {searchInput ? (
               <button
                 aria-label="Clear store search"
                 className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-xl hover:bg-muted"
                 type="button"
-                onClick={() => updateSearchParam("q", "")}
+                onClick={() => {
+                  loadRequestIdRef.current += 1;
+                  setSearchInput("");
+                  updateSearchParam("q", "");
+                }}
               >
                 ×
               </button>
@@ -816,6 +965,23 @@ function StoresPage() {
                     ×
                   </button>
                 </div>
+                {facetsStatus === "error" ? (
+                  <div
+                    className="mt-3 rounded-lg border border-border bg-muted p-3"
+                    role="alert"
+                  >
+                    <p className="text-xs text-muted-foreground">
+                      Store filters are unavailable right now.
+                    </p>
+                    <button
+                      className="mt-2 cursor-pointer text-xs font-semibold text-primary"
+                      type="button"
+                      onClick={() => void loadFacets()}
+                    >
+                      Retry store filters
+                    </button>
+                  </div>
+                ) : null}
                 <label htmlFor="store-area">Area</label>
                 <select
                   id="store-area"
@@ -825,7 +991,7 @@ function StoresPage() {
                   }
                 >
                   <option value="">All areas</option>
-                  {areas.map((area) => (
+                  {filterAreas.map((area) => (
                     <option key={area} value={area}>
                       {area}
                     </option>
@@ -840,7 +1006,7 @@ function StoresPage() {
                   }
                 >
                   <option value="">All brands</option>
-                  {brands.map(([slug, name]) => (
+                  {filterBrands.map(([slug, name]) => (
                     <option key={slug} value={slug}>
                       {name}
                     </option>
@@ -866,19 +1032,25 @@ function StoresPage() {
           ) : null}
         </div>
 
-        {isLoading ? (
-          <p className="mt-8 text-sm text-muted-foreground">Loading stores…</p>
-        ) : null}
         {errorMessage ? (
           <p className="mt-8 text-sm text-destructive" role="alert">
             {errorMessage}
           </p>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
-          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
-            <p className="text-sm font-semibold text-foreground">
-              {visibleStores.length} stores
-            </p>
+        {isRefreshing ? (
+          <span className="sr-only" role="status">
+            Updating store results
+          </span>
+        ) : null}
+        {hasStoreResults || isInitialLoading ? (
+          <div
+            className={`mt-4 flex items-center gap-3 md:hidden ${hasStoreResults ? "justify-between" : "justify-end"}`}
+          >
+            {hasStoreResults ? (
+              <p className="text-sm font-semibold text-foreground">
+                {visibleStores.length} stores
+              </p>
+            ) : null}
             <div
               className="flex rounded-lg border border-border bg-card p-1"
               aria-label="Store result view"
@@ -903,7 +1075,13 @@ function StoresPage() {
             </div>
           </div>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length === 0 ? (
+        {isInitialLoading ? (
+          <StoresInitialSkeleton
+            isDesktopLayout={isDesktopLayout}
+            mobileView={mobileView}
+          />
+        ) : null}
+        {hasLoadedStores && !errorMessage && visibleStores.length === 0 ? (
           <section className="mt-8 rounded-xl border border-border bg-card p-6">
             <h2 className="text-xl font-semibold">No stores found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -922,7 +1100,7 @@ function StoresPage() {
           </section>
         ) : null}
 
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+        {hasStoreResults ? (
           <div className="mt-4 grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
             {isDesktopLayout || mobileView === "map" ? (
               <GoogleMapPanel
@@ -965,7 +1143,7 @@ function StoresPage() {
             ) : null}
           </div>
         ) : null}
-        {!isLoading && !errorMessage && visibleStores.length > 0 ? (
+        {hasStoreResults ? (
           <div className="mt-6">
             <SuggestStoreCta onClick={openSuggestStore} />
           </div>

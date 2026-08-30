@@ -1,0 +1,278 @@
+import { expect, test } from "bun:test";
+import {
+  loadPublicSearchResults,
+  PUBLIC_SEARCH_QUERY_MAX_LENGTH,
+  type PublicSupabaseClient
+} from "./discovery/data";
+import { loadPublicDrinkCategories, loadPublicDrinksPage } from "./drinks/data";
+import { maxPageForOffset, POSTGRES_INTEGER_MAX } from "./drinks/pagination";
+import { loadPublicStores } from "./stores/data";
+
+type QueryResponse = {
+  data: unknown;
+  error: null | string;
+};
+
+type QueryCall = {
+  table: string;
+  operations: string[];
+  select: string;
+};
+
+function fakeClient(responses: Record<string, QueryResponse[]>) {
+  const calls: QueryCall[] = [];
+  const client = {
+    from(table: string) {
+      const call: QueryCall = { table, operations: [], select: "" };
+      calls.push(call);
+      const response = responses[table]?.shift() ?? {
+        data: [],
+        error: null
+      };
+      const builder = {
+        select(columns: string) {
+          call.select = columns;
+          return builder;
+        },
+        ilike(column: string, value: string) {
+          call.operations.push(`ilike:${column}:${value}`);
+          return builder;
+        },
+        eq(column: string, value: string) {
+          call.operations.push(`eq:${column}:${value}`);
+          return builder;
+        },
+        order(column: string) {
+          call.operations.push(`order:${column}`);
+          return builder;
+        },
+        limit(value: number) {
+          call.operations.push(`limit:${value}`);
+          return builder;
+        },
+        in(column: string, value: string[]) {
+          call.operations.push(`in:${column}:${value.join(",")}`);
+          return builder;
+        },
+        then(
+          resolve: (value: QueryResponse) => unknown,
+          reject?: (reason: unknown) => unknown
+        ) {
+          return Promise.resolve(response).then(resolve, reject);
+        }
+      };
+      return builder;
+    },
+    rpc(name: string, args: Record<string, unknown>) {
+      const call: QueryCall = {
+        table: `rpc:${name}`,
+        operations: Object.entries(args).map(
+          ([key, value]) => `rpc:${key}:${String(value)}`
+        ),
+        select: ""
+      };
+      calls.push(call);
+      const response = responses[`rpc:${name}`]?.shift() ?? {
+        data: [],
+        error: null
+      };
+      return {
+        then(
+          resolve: (value: QueryResponse) => unknown,
+          reject?: (reason: unknown) => unknown
+        ) {
+          return Promise.resolve(response).then(resolve, reject);
+        }
+      };
+    }
+  } as unknown as PublicSupabaseClient;
+
+  return { calls, client };
+}
+
+const productId = "9de804a5-511a-4b17-829a-694634fa993d";
+const brandId = "3ff27baa-8375-448d-ac76-9bb0edbb6a2f";
+const categoryId = "6ebec59b-e16e-4be4-a8cb-647c29fd81c0";
+const locationId = "05c6f9e6-b940-4121-a365-01324ecb9fd8";
+
+const product = {
+  id: productId,
+  name: "Matcha Milk Tea",
+  slug: "matcha-milk-tea",
+  description: "Creamy green tea.",
+  is_seasonal: false,
+  discovery_tags: ["matcha"],
+  brands: { id: brandId, name: "Gong cha", slug: "gong-cha" },
+  categories: { id: categoryId, name: "Milk Tea", slug: "milk-tea" },
+  product_images: [],
+  location_products: [{ location_id: locationId }]
+};
+
+const store = {
+  id: locationId,
+  slug: "gong-cha-albany",
+  display_name: "Gong cha Albany",
+  suburb: "Albany",
+  address: "219 Don McKinnon Drive, Albany, Auckland",
+  coordinates: "POINT(174.7023 -36.726)",
+  brands: { name: "Gong cha", slug: "gong-cha" },
+  location_images: []
+};
+
+test("global search uses bounded server queries and the explicit product relation", async () => {
+  const { calls, client } = fakeClient({
+    products: [{ data: [product], error: null }],
+    locations: [{ data: [store], error: null }]
+  });
+
+  const result = await loadPublicSearchResults("  matcha ", client);
+
+  expect(result.error).toBeNull();
+  expect(result.data?.drinks[0]?.name).toBe("Matcha Milk Tea");
+  expect(result.data?.stores[0]?.displayName).toBe("Gong cha Albany");
+  expect(calls[0]?.select).toContain(
+    "location_products!location_products_product_id_fkey!inner(location_id)"
+  );
+  expect(calls[0]?.operations).toContain("ilike:name:%matcha%");
+  expect(calls[0]?.operations).toContain("limit:20");
+  expect(calls[1]?.operations).toContain("ilike:display_name:%matcha%");
+  expect(calls[1]?.operations).toContain("limit:20");
+});
+
+test("bounds global search query length before building PostgREST filters", async () => {
+  const { calls, client } = fakeClient({
+    products: [{ data: [], error: null }],
+    locations: [{ data: [], error: null }]
+  });
+  const query = "x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH + 20);
+
+  const result = await loadPublicSearchResults(query, client);
+
+  expect(result.error).toBeNull();
+  expect(calls[0]?.operations).toContain(
+    `ilike:name:%${"x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH)}%`
+  );
+  expect(calls[1]?.operations).toContain(
+    `ilike:display_name:%${"x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH)}%`
+  );
+});
+
+test("Drinks applies rich matching and server-side pagination", async () => {
+  const { calls, client } = fakeClient({
+    categories: [
+      {
+        data: [{ id: categoryId, name: "Milk Tea", slug: "milk-tea" }],
+        error: null
+      }
+    ],
+    "rpc:search_public_drinks": [
+      {
+        data: {
+          data: [
+            {
+              product,
+              available_store_count: 1
+            }
+          ],
+          total_results: 1
+        },
+        error: null
+      }
+    ]
+  });
+
+  const categories = await loadPublicDrinkCategories(client);
+  expect(categories.data?.[0]?.slug).toBe("milk-tea");
+
+  const result = await loadPublicDrinksPage(
+    {
+      categorySlug: "milk-tea",
+      page: 2,
+      pageSize: 24,
+      query: "matcha"
+    },
+    client
+  );
+
+  expect(result.error).toBeNull();
+  expect(result.totalResults).toBe(1);
+  expect(result.data?.[0]?.availableStoreCount).toBe(1);
+  const pageCall = calls.at(-1);
+  expect(pageCall?.table).toBe("rpc:search_public_drinks");
+  expect(pageCall?.operations).toContain("rpc:p_category_slug:milk-tea");
+  expect(pageCall?.operations).toContain("rpc:p_offset:24");
+  expect(pageCall?.operations).toContain("rpc:p_limit:24");
+});
+
+test("preserves pagination totals when a requested page has no rows", async () => {
+  const { client } = fakeClient({
+    "rpc:search_public_drinks": [
+      {
+        data: { data: [], total_results: 25 },
+        error: null
+      }
+    ]
+  });
+
+  const result = await loadPublicDrinksPage(
+    {
+      categorySlug: "",
+      page: 2,
+      pageSize: 24,
+      query: ""
+    },
+    client
+  );
+
+  expect(result.error).toBeNull();
+  expect(result.data).toEqual([]);
+  expect(result.totalResults).toBe(25);
+});
+
+test("bounds an extreme Drinks page before building the RPC offset", async () => {
+  const { calls, client } = fakeClient({
+    "rpc:search_public_drinks": [
+      { data: { data: [], total_results: 0 }, error: null }
+    ]
+  });
+
+  const result = await loadPublicDrinksPage(
+    {
+      categorySlug: "",
+      page: maxPageForOffset() + 1,
+      pageSize: 20,
+      query: ""
+    },
+    client
+  );
+
+  expect(result.error).toBeNull();
+  const pageCall = calls.at(-1);
+  const offset = Number(
+    pageCall?.operations
+      .find((operation) => operation.startsWith("rpc:p_offset:"))
+      ?.slice("rpc:p_offset:".length)
+  );
+  expect(offset).toBe(POSTGRES_INTEGER_MAX - 7);
+  expect(offset).toBeLessThanOrEqual(POSTGRES_INTEGER_MAX);
+});
+
+test("Stores applies text filters on the server while returning all matching map rows", async () => {
+  const { calls, client } = fakeClient({
+    "rpc:search_public_stores": [{ data: [store], error: null }]
+  });
+
+  const result = await loadPublicStores(
+    { brandSlug: "gong-cha", query: "Albany", suburb: "Albany" },
+    client
+  );
+
+  expect(result.error).toBeNull();
+  expect(result.data).toHaveLength(1);
+  expect(calls).toHaveLength(1);
+  const pageCall = calls.at(-1);
+  expect(pageCall?.table).toBe("rpc:search_public_stores");
+  expect(pageCall?.operations).toContain("rpc:p_query:Albany");
+  expect(pageCall?.operations).toContain("rpc:p_brand_slug:gong-cha");
+  expect(pageCall?.operations).toContain("rpc:p_suburb:Albany");
+});
