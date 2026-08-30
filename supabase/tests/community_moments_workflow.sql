@@ -71,8 +71,14 @@ begin
 
   execute 'reset role';
   update public.community_posts
-  set image_asset_id = image_id, status = 'active', submitted_at = now()
+  set image_asset_id = image_id
   where id = post_id;
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  if not public.activate_community_post(post_id) then
+    raise exception 'owner could not activate a finalized community image';
+  end if;
 
   execute 'set local role anon';
   select count(*) into public_count from public.list_public_community_posts();

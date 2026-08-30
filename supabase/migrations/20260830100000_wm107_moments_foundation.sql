@@ -89,10 +89,7 @@ revoke all on public.community_posts, public.community_post_likes, public.commun
 grant select on public.community_posts to authenticated;
 grant select on public.community_post_likes to authenticated;
 grant select on public.community_post_must_tries to authenticated;
-grant insert on public.community_post_reports to authenticated;
-
-grant insert, update, delete on public.community_posts to authenticated;
-grant select, update on public.community_post_reports to authenticated;
+grant select on public.community_post_reports to authenticated;
 
 create function public.moderate_community_post(
   p_post_id uuid,
@@ -123,6 +120,18 @@ begin
   end if;
   if current_status = 'removed' and p_status <> 'removed' then
     raise exception using errcode = 'P0001', message = 'removed_post_is_terminal';
+  end if;
+  if p_status = 'active' and not exists (
+    select 1
+    from public.community_posts as cp
+    join public.image_assets as ia on ia.id = cp.image_asset_id
+    where cp.id = p_post_id
+      and ia.owner_user_id = cp.owner_user_id
+      and ia.storage_key is not null
+      and ia.content_type is not null
+      and ia.byte_size is not null
+  ) then
+    raise exception using errcode = 'P0001', message = 'finalized_image_required';
   end if;
 
   update public.community_posts
@@ -371,9 +380,20 @@ begin
   if auth.uid() is null then
     raise exception using errcode = 'P0001', message = 'authentication_required';
   end if;
-  update public.community_posts
+  update public.community_posts as cp
   set status = 'active', submitted_at = now()
-  where id = p_post_id and owner_user_id = auth.uid() and status = 'draft' and image_asset_id is not null;
+  where cp.id = p_post_id
+    and cp.owner_user_id = auth.uid()
+    and cp.status = 'draft'
+    and exists (
+      select 1
+      from public.image_assets as ia
+      where ia.id = cp.image_asset_id
+        and ia.owner_user_id = cp.owner_user_id
+        and ia.storage_key is not null
+        and ia.content_type is not null
+        and ia.byte_size is not null
+    );
   return found;
 end;
 $$;
