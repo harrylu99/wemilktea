@@ -1,8 +1,10 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent
 } from "react";
 import { Link } from "react-router-dom";
@@ -73,11 +75,35 @@ function MomentActions({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties | null>(null);
 
   useEffect(() => {
     if (!reportOpen) return;
     queueMicrotask(() => reportReasonRef.current?.focus());
   }, [reportOpen]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPopoverStyle(null);
+      return;
+    }
+
+    const updatePopoverPosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.max(0, Math.min(176, window.innerWidth - 24));
+      const left = Math.min(
+        Math.max(12, rect.right - width),
+        Math.max(12, window.innerWidth - 12 - width)
+      );
+      setPopoverStyle({ left, top: rect.bottom + 8, width });
+    };
+
+    updatePopoverPosition();
+    window.addEventListener("resize", updatePopoverPosition);
+    return () => window.removeEventListener("resize", updatePopoverPosition);
+  }, [open]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -165,8 +191,12 @@ function MomentActions({
         <div
           ref={popoverRef}
           aria-label="Moment actions"
-          className="absolute right-0 top-11 z-20 min-w-44 rounded-xl border border-border bg-popover p-1 shadow-lg"
+          className="fixed z-20 min-w-44 max-w-[calc(100vw-24px)] rounded-xl border border-border bg-popover p-1 shadow-lg"
           role={reportOpen ? "dialog" : "menu"}
+          style={{
+            ...popoverStyle,
+            visibility: popoverStyle ? "visible" : "hidden"
+          }}
         >
           {reportOpen ? (
             <form className="grid gap-3 p-3" onSubmit={reportMoment}>
@@ -335,7 +365,7 @@ function MomentCard({
           type="button"
           onClick={() => void toggleLike()}
         >
-          <span className="flex items-center gap-1 whitespace-nowrap">
+          <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-black/60 px-2 py-1">
             <span aria-hidden="true">{moment.likedByMe ? "♥" : "♡"}</span>
             {moment.likeCount}
           </span>
