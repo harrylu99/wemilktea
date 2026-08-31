@@ -112,7 +112,9 @@ let ownIds = new Set<string>();
 let deferNextPage = false;
 let failNextPage = false;
 let failRpc = false;
+let deferRpc = false;
 let pendingNextPage: ((page: MockPage) => void) | null = null;
+let pendingRpc: (() => void) | null = null;
 const pageCalls: Array<unknown> = [];
 const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
@@ -130,6 +132,11 @@ const supabaseMock = {
   auth,
   rpc: mock(async (name: string, args: Record<string, unknown>) => {
     rpcCalls.push({ name, args });
+    if (deferRpc) {
+      return new Promise<{ data: true; error: null }>((resolve) => {
+        pendingRpc = () => resolve({ data: true, error: null });
+      });
+    }
     if (failRpc) return { data: null, error: { message: "rpc_failed" } };
     return { data: true, error: null };
   })
@@ -225,7 +232,9 @@ beforeEach(() => {
   deferNextPage = false;
   failNextPage = false;
   failRpc = false;
+  deferRpc = false;
   pendingNextPage = null;
+  pendingRpc = null;
   FakeIntersectionObserver.current = null;
   pageCalls.length = 0;
   rpcCalls.length = 0;
@@ -562,6 +571,9 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
     view.container.querySelector("[data-sip-gesture-surface]")
   ).toBeTruthy();
   expect(view.queryByText("What’s Auckland sipping? 🧋")).toBeNull();
+  expect(view.getByRole("main").className).toContain("items-start");
+  expect(view.getByRole("main").className).toContain("md:items-center");
+  expect(view.getByRole("img").getAttribute("draggable")).toBe("false");
   expect(pageCalls).toHaveLength(1);
   expect(auth.signInAnonymously).not.toHaveBeenCalled();
 });
@@ -587,6 +599,7 @@ test.serial(
       name: "like_community_post",
       args: { p_post_id: firstMoment.id }
     });
+    expect(view.getAllByRole("status")).toHaveLength(1);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
     ).toBeTruthy();
@@ -799,6 +812,33 @@ test.serial("keeps metadata touch scrolling out of Sip actions", async () => {
   expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
   expect(rpcCalls).toHaveLength(0);
 });
+
+test.serial(
+  "ignores an action completion from an exited Sip session",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    deferRpc = true;
+
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowRight" }
+    );
+    await act(async () => await Promise.resolve());
+    expect(pendingRpc).toBeTruthy();
+
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    pendingRpc!();
+    await act(async () => await Promise.resolve());
+
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+  }
+);
 
 test.serial(
   "shows a visible retryable error when a Sip action fails",

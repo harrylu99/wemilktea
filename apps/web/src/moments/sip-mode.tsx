@@ -91,6 +91,7 @@ function SipCard({
             alt={imageAlt(moment)}
             className="max-h-[min(62dvh,34rem)] w-full object-contain md:max-h-[calc(100dvh-9rem)]"
             decoding="async"
+            draggable={false}
             height={moment.height ?? undefined}
             src={moment.imageUrl}
             width={moment.width ?? undefined}
@@ -199,6 +200,7 @@ export function SipMode({
     startY: number;
   } | null>(null);
   const pendingRef = useRef(false);
+  const mountedRef = useRef(true);
   const [helpOpen, setHelpOpen] = useState(false);
   const [drag, setDrag] = useState({
     action: null as SipAction | null,
@@ -209,6 +211,13 @@ export function SipMode({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState(false);
   const moment = moments[index] ?? null;
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    []
+  );
 
   const closeHelp = useCallback(() => {
     setHelpOpen(false);
@@ -280,6 +289,7 @@ export function SipMode({
           message: "That action could not be completed. Please try again."
         };
       }
+      if (!mountedRef.current) return;
       if (!result.ok) {
         setFeedback(result.message);
         setFeedbackError(true);
@@ -483,7 +493,7 @@ export function SipMode({
           </div>
         ) : null}
       </header>
-      <main className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 pb-8 sm:px-8">
+      <main className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-5 pb-8 sm:px-8 md:items-center">
         {content}
       </main>
       {feedback ? (
@@ -495,9 +505,11 @@ export function SipMode({
           {feedback}
         </p>
       ) : null}
-      <p aria-live="polite" className="sr-only" role="status">
-        {pending ? `${actionLabel(pending)} in progress` : feedback}
-      </p>
+      {pending ? (
+        <p aria-live="polite" className="sr-only" role="status">
+          {`${actionLabel(pending)} in progress`}
+        </p>
+      ) : null}
     </div>
   );
 }
