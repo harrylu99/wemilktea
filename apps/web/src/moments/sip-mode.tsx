@@ -190,6 +190,7 @@ export function SipMode({
   onLoadMore: () => Promise<void>;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const endTriggerRef = useRef<HTMLButtonElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const helpPanelRef = useRef<HTMLDivElement>(null);
   const didFocusStageRef = useRef(false);
@@ -212,12 +213,12 @@ export function SipMode({
   const [feedbackError, setFeedbackError] = useState(false);
   const moment = moments[index] ?? null;
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   const closeHelp = useCallback(() => {
     setHelpOpen(false);
@@ -233,13 +234,17 @@ export function SipMode({
 
   useEffect(() => {
     if (helpOpen) return;
+    if (!moment && !hasMore) {
+      queueMicrotask(() => endTriggerRef.current?.focus());
+      return;
+    }
     const indexChanged = lastIndexRef.current !== index;
     lastIndexRef.current = index;
     if (!didFocusStageRef.current || indexChanged) {
       queueMicrotask(() => stageRef.current?.focus());
       didFocusStageRef.current = true;
     }
-  }, [helpOpen, index]);
+  }, [hasMore, helpOpen, index, moment]);
 
   useEffect(() => {
     if (helpOpen) {
@@ -406,6 +411,7 @@ export function SipMode({
           You’ve caught up on the latest Moments.
         </p>
         <button
+          ref={endTriggerRef}
           className="mx-auto rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground"
           type="button"
           onClick={onExit}
@@ -416,25 +422,62 @@ export function SipMode({
     );
   } else {
     content = (
-      <div
-        ref={stageRef}
-        aria-label={`Sip Mode, Moment ${index + 1}`}
-        className="flex min-h-0 w-full max-w-5xl items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        role="region"
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        onLostPointerCapture={clearPointer}
-        onPointerCancel={clearPointer}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        <SipCard
-          moment={moment}
-          dragAction={drag.action}
-          dragX={drag.x}
-          dragY={drag.y}
-        />
+      <div className="grid min-h-0 w-full max-w-5xl gap-4">
+        <div
+          ref={stageRef}
+          aria-label={`Sip Mode, Moment ${index + 1}`}
+          className="flex min-h-0 w-full items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          role="region"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          onLostPointerCapture={clearPointer}
+          onPointerCancel={clearPointer}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
+          <SipCard
+            moment={moment}
+            dragAction={drag.action}
+            dragX={drag.x}
+            dragY={drag.y}
+          />
+        </div>
+        <div
+          aria-label="Sip actions"
+          className="flex justify-center gap-2"
+          role="group"
+        >
+          <button
+            aria-label="Skip this Moment"
+            className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={pending !== null}
+            type="button"
+            onClick={() => void runAction("skip")}
+          >
+            Skip
+          </button>
+          <button
+            aria-label="Like this Moment"
+            aria-pressed={moment.likedByMe}
+            className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={pending !== null}
+            type="button"
+            onClick={() => void runAction("like")}
+          >
+            Like
+          </button>
+          <button
+            aria-label="Must Try this Moment"
+            aria-pressed={moment.mustTryByMe}
+            className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={pending !== null}
+            type="button"
+            onClick={() => void runAction("must_try")}
+          >
+            Must Try
+          </button>
+        </div>
       </div>
     );
   }
@@ -488,6 +531,7 @@ export function SipMode({
               <li>← Swipe or press Left to Skip</li>
               <li>→ Swipe or press Right to Like</li>
               <li>↑ Swipe or press Up to Must Try</li>
+              <li>Or use the action buttons below the card</li>
               <li>Press Escape or Exit to return to Gallery</li>
             </ul>
           </div>

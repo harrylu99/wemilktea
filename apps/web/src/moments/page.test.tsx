@@ -574,6 +574,11 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
   expect(view.getByRole("main").className).toContain("items-start");
   expect(view.getByRole("main").className).toContain("md:items-center");
   expect(view.getByRole("img").getAttribute("draggable")).toBe("false");
+  expect(view.getByRole("button", { name: "Skip this Moment" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Like this Moment" })).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: "Must Try this Moment" })
+  ).toBeTruthy();
   expect(pageCalls).toHaveLength(1);
   expect(auth.signInAnonymously).not.toHaveBeenCalled();
 });
@@ -900,6 +905,28 @@ test.serial("restores focus to the Sip Mode trigger after exit", async () => {
     document.activeElement as HTMLElement
   );
 });
+
+test.serial(
+  "moves focus into the terminal state after the final action",
+  async () => {
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      {
+        key: "ArrowLeft"
+      }
+    );
+    await act(async () => await Promise.resolve());
+
+    const backButton = view.getByRole("button", { name: "Back to Gallery" });
+    expect(backButton).toBe(document.activeElement as HTMLElement);
+    fireEvent.keyDown(backButton, { key: "Escape" });
+    await act(async () => await Promise.resolve());
+    expect(view.getByText("What’s Auckland sipping? 🧋")).toBeTruthy();
+  }
+);
 
 test.serial("lets Escape exit from the Sip chrome controls", async () => {
   const view = renderMoments();
