@@ -11,7 +11,8 @@ export default tseslint.config(
       "**/coverage/**",
       "**/node_modules/**",
       "supabase/.temp/**",
-      "supabase/.branches/**"
+      "supabase/.branches/**",
+      "workers/**/worker-configuration.d.ts"
     ]
   },
   js.configs.recommended,
