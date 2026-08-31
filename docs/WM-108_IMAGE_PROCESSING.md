@@ -6,6 +6,15 @@ This is a decision record for WM-108. It does not add the production WM-109
 upload pipeline and it does not modify the existing Admin image-storage
 function.
 
+## Scope gate
+
+The checked-in V1 product definition still excludes public accounts and social
+features. The WeMilkTea v1.4 WM-108 ticket explicitly authorizes this technical
+spike, but this note does not update `docs/PRD.md`, approve a public launch, or
+authorize WM-109. The product owner must approve the v1.4 scope and update the
+product definition before this technical recommendation is treated as an
+implementation decision.
+
 ## Decision
 
 Use a hybrid pipeline for WM-109:
@@ -68,15 +77,15 @@ source-byte guard, and a 40,000,000 decoded-pixel guard.
 
 | Input                 | Input bytes |                   Decoded dimensions |               WebP output | Browser time |
 | --------------------- | ----------: | -----------------------------------: | ------------------------: | -----------: |
-| Normal JPEG           |     109,879 |                          1600 × 1200 | 53,574 bytes, 1600 × 1200 |      69.0 ms |
-| Transparent PNG       |       3,270 |                            800 × 600 |    1,902 bytes, 800 × 600 |      16.7 ms |
-| WebP source           |      53,078 |                          1600 × 1200 | 50,834 bytes, 1600 × 1200 |      60.1 ms |
-| Large landscape JPEG  |     538,259 |                          4032 × 3024 | 89,340 bytes, 2048 × 1536 |     125.4 ms |
-| Large portrait JPEG   |     548,714 |                          3024 × 4032 | 87,150 bytes, 1536 × 2048 |     119.8 ms |
-| EXIF/GPS JPEG         |       2,444 | 400 × 300 source; 300 × 400 oriented |    1,018 bytes, 300 × 400 |       4.3 ms |
+| Normal JPEG           |     109,879 |                          1600 × 1200 | 53,574 bytes, 1600 × 1200 |      66.9 ms |
+| Transparent PNG       |       3,270 |                            800 × 600 |    1,902 bytes, 800 × 600 |      16.2 ms |
+| WebP source           |      53,078 |                          1600 × 1200 | 50,834 bytes, 1600 × 1200 |      58.5 ms |
+| Large landscape JPEG  |     538,259 |                          4032 × 3024 | 89,340 bytes, 2048 × 1536 |     127.2 ms |
+| Large portrait JPEG   |     548,714 |                          3024 × 4032 | 87,150 bytes, 1536 × 2048 |     134.6 ms |
+| EXIF/GPS JPEG         |       2,549 | 400 × 300 source; 300 × 400 oriented |    1,018 bytes, 300 × 400 |       4.5 ms |
 | Malformed `photo.jpg` |          19 |                          not decoded |                  rejected |       0.1 ms |
 
-The synthetic EXIF fixture contained Orientation 6, camera make/model, and
+The synthetic EXIF/XMP fixture contained Orientation 6, camera make/model, and
 synthetic GPS coordinates. The output pixel quadrants were blue/red/yellow/green
 from top-left clockwise, proving that orientation was applied before metadata
 was discarded. Independent inspection found WebP chunks `VP8X`, `ICCP`, and

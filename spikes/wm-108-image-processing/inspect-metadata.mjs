@@ -76,6 +76,7 @@ function inspectJpeg(bytes) {
   const metadata = [];
   let exif = null;
   let hasXmp = false;
+  const xmpIdentifier = "http://ns.adobe.com/xap/1.0/";
   let offset = 2;
   while (offset + 4 <= bytes.length) {
     if (bytes[offset] !== 0xff) break;
@@ -90,7 +91,7 @@ function inspectJpeg(bytes) {
       exif = parseExif(bytes, offset + 2);
     } else if (
       marker === 0xe1 &&
-      ascii(bytes, offset + 2, 29) === "http://ns.adobe.com/xap/1.0/"
+      ascii(bytes, offset + 2, xmpIdentifier.length) === xmpIdentifier
     ) {
       metadata.push("XMP");
       hasXmp = true;

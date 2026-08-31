@@ -131,11 +131,39 @@ function buildExifApp1() {
   return segment;
 }
 
+function buildXmpApp1() {
+  const identifier = "http://ns.adobe.com/xap/1.0/\0";
+  const packet =
+    '<x:xmpmeta xmlns:x="adobe:ns:meta/" data-wm108="synthetic"></x:xmpmeta>\0';
+  const payload = new Uint8Array(identifier.length + packet.length);
+  writeAscii(payload, 0, identifier);
+  writeAscii(payload, identifier.length, packet);
+  const segment = new Uint8Array(4 + payload.length);
+  segment.set([0xff, 0xe1], 0);
+  const segmentLength = payload.length + 2;
+  segment[2] = (segmentLength >> 8) & 0xff;
+  segment[3] = segmentLength & 0xff;
+  segment.set(payload, 4);
+  return segment;
+}
+
 async function addExif(inputPath, outputPath) {
   const source = new Uint8Array(await readFile(inputPath));
   if (source[0] !== 0xff || source[1] !== 0xd8)
     throw new Error("Expected a JPEG SOI marker.");
   const segment = buildExifApp1();
+  const output = new Uint8Array(source.length + segment.length);
+  output.set(source.subarray(0, 2), 0);
+  output.set(segment, 2);
+  output.set(source.subarray(2), segment.length + 2);
+  await writeFile(outputPath, output);
+}
+
+async function addXmp(inputPath, outputPath) {
+  const source = new Uint8Array(await readFile(inputPath));
+  if (source[0] !== 0xff || source[1] !== 0xd8)
+    throw new Error("Expected a JPEG SOI marker.");
+  const segment = buildXmpApp1();
   const output = new Uint8Array(source.length + segment.length);
   output.set(source.subarray(0, 2), 0);
   output.set(segment, 2);
@@ -223,6 +251,7 @@ await ffmpeg([
   orientationBase
 ]);
 await addExif(orientationBase, orientationExif);
+await addXmp(orientationExif, orientationExif);
 await writeFile(malformed, "this is not a JPEG\n");
 
 process.stdout.write(
