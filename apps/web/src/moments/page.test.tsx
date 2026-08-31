@@ -608,6 +608,7 @@ test.serial(
       args: { p_post_id: firstMoment.id }
     });
     expect(view.getAllByRole("status")).toHaveLength(1);
+    expect(view.getByRole("main").className).toContain("md:items-start");
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
     ).toBeTruthy();

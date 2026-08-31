@@ -555,7 +555,9 @@ export function SipMode({
           </div>
         ) : null}
       </header>
-      <main className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-5 pb-8 sm:px-8 md:items-center">
+      <main
+        className={`flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-5 pb-8 sm:px-8 ${feedback ? "md:items-start" : "md:items-center"}`}
+      >
         {content}
       </main>
       {feedback ? (
