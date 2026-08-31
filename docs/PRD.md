@@ -12,8 +12,9 @@ V1 includes these routes and flows:
 - Drinks and drink detail
 - Daily Milk Tea Picker and picker result
 - Suggest a Store
+- Milk Tea Moments Gallery
 
-The public experience is focused on discovering stores and drinks. It is not an account, social, ordering, loyalty, or delivery product in V1.
+The public experience is focused on discovering stores and drinks. V1.4 also includes Milk Tea Moments: a lightweight public Gallery with community contributions and reactions. Public users do not need a traditional visible account or profile flow; anonymous identity is an implementation mechanism for write ownership. WeMilktea is not becoming a general social network.
 
 ## WeMilktea Admin
 
@@ -33,4 +34,4 @@ Canonical WeMilktea data includes stores, their geographic location, drinks/prod
 
 ## Non-goals
 
-Do not add V2 concepts or unapproved product areas. In particular, V1 does not imply accounts for public users, social features, reviews, ordering/payment, delivery, loyalty, or a standalone general-purpose backend.
+Do not add V2 concepts or unapproved product areas. In particular, the Moments approval does not imply comments, followers, direct messages/chat, notifications, social profiles or network graphs, reviews, ordering/payment, delivery, loyalty, or a standalone general-purpose backend.

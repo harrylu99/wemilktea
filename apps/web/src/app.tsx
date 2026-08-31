@@ -52,6 +52,7 @@ import {
 import { shouldScrollToTop } from "./route-scroll";
 import { useDismissiblePopover } from "./use-dismissible-popover";
 import { useDebouncedValue } from "./use-debounced-value";
+import { MomentsPage } from "./moments/page";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -1203,6 +1204,7 @@ export function App() {
         <Route element={<StoresPage />} path="/stores" />
         <Route element={<StoreDetailPage />} path="/stores/:slug" />
         <Route element={<SearchPage />} path="/search" />
+        <Route element={<MomentsPage />} path="/moments" />
         <Route element={<LegacyExploreRedirect />} path="/explore" />
         <Route element={<DrinksPage />} path="/drinks" />
         <Route
