@@ -90,20 +90,41 @@ function MomentActions({
 
     const updatePopoverPosition = () => {
       const trigger = triggerRef.current;
-      if (!trigger) return;
+      const popover = popoverRef.current;
+      if (!trigger || !popover) return;
       const rect = trigger.getBoundingClientRect();
+      const margin = 12;
+      const gap = 8;
       const width = Math.max(0, Math.min(176, window.innerWidth - 24));
       const left = Math.min(
-        Math.max(12, rect.right - width),
-        Math.max(12, window.innerWidth - 12 - width)
+        Math.max(margin, rect.right - width),
+        Math.max(margin, window.innerWidth - margin - width)
       );
-      setPopoverStyle({ left, top: rect.bottom + 8, width });
+      const height = popover.getBoundingClientRect().height;
+      const maxTop = Math.max(margin, window.innerHeight - margin - height);
+      const belowTop = rect.bottom + gap;
+      const aboveTop = rect.top - gap - height;
+      const top =
+        belowTop + height <= window.innerHeight - margin ||
+        rect.bottom - margin >= height
+          ? Math.min(belowTop, maxTop)
+          : Math.max(margin, aboveTop);
+      setPopoverStyle({ left, top, width });
     };
 
     updatePopoverPosition();
-    window.addEventListener("resize", updatePopoverPosition);
-    return () => window.removeEventListener("resize", updatePopoverPosition);
-  }, [open]);
+    window.addEventListener("resize", updatePopoverPosition, {
+      passive: true
+    });
+    window.addEventListener("scroll", updatePopoverPosition, {
+      capture: true,
+      passive: true
+    });
+    return () => {
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [open, reportOpen]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -191,7 +212,7 @@ function MomentActions({
         <div
           ref={popoverRef}
           aria-label="Moment actions"
-          className="fixed z-20 min-w-44 max-w-[calc(100vw-24px)] rounded-xl border border-border bg-popover p-1 shadow-lg"
+          className="fixed z-20 min-w-44 max-h-[calc(100vh-24px)] max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg"
           role={reportOpen ? "dialog" : "menu"}
           style={{
             ...popoverStyle,
@@ -365,7 +386,10 @@ function MomentCard({
           type="button"
           onClick={() => void toggleLike()}
         >
-          <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-black/60 px-2 py-1">
+          <span
+            className="flex items-center gap-1 whitespace-nowrap"
+            style={{ textShadow: "0 1px 3px rgb(0 0 0 / 0.75)" }}
+          >
             <span aria-hidden="true">{moment.likedByMe ? "♥" : "♡"}</span>
             {moment.likeCount}
           </span>
