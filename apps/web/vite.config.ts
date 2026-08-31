@@ -106,6 +106,7 @@ function sitemapXml(origin: string, entries: SitemapEntry[]) {
     "/",
     "/stores",
     "/drinks",
+    "/moments",
     "/picker"
   ].map((path) => ({ path }));
   const allEntries = [...staticEntries, ...entries];
