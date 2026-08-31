@@ -1,5 +1,7 @@
 begin;
 
+select plan(1);
+
 do $$
 declare
   admin_id uuid := extensions.gen_random_uuid();
@@ -192,5 +194,8 @@ begin
   end if;
 end;
 $$;
+
+select pass('WM-107 community Moments workflow');
+select * from finish();
 
 rollback;
