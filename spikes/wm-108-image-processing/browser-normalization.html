@@ -10,6 +10,7 @@
       .map((name) => name.trim())
       .filter(Boolean);
     const maxLongEdge = Number(params.get("maxLongEdge") ?? 2048);
+    const maxDimension = Number(params.get("maxDimension") ?? 8000);
     const maxInputBytes = Number(
       params.get("maxInputBytes") ?? 10 * 1024 * 1024
     );
@@ -32,6 +33,171 @@
           requestedQuality
         );
       });
+    }
+
+    function ascii(bytes, offset, length) {
+      if (offset + length > bytes.length) return "";
+      let value = "";
+      for (let index = 0; index < length; index += 1) {
+        value += String.fromCharCode(bytes[offset + index]);
+      }
+      return value;
+    }
+
+    function readUint16BE(bytes, offset) {
+      return (bytes[offset] << 8) | bytes[offset + 1];
+    }
+
+    function readUint16LE(bytes, offset) {
+      return bytes[offset] | (bytes[offset + 1] << 8);
+    }
+
+    function readUint24LE(bytes, offset) {
+      return (
+        bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16)
+      );
+    }
+
+    function readUint32BE(bytes, offset) {
+      return (
+        bytes[offset] * 0x1000000 +
+        (bytes[offset + 1] << 16) +
+        (bytes[offset + 2] << 8) +
+        bytes[offset + 3]
+      );
+    }
+
+    function readUint32LE(bytes, offset) {
+      return (
+        bytes[offset] +
+        (bytes[offset + 1] << 8) +
+        (bytes[offset + 2] << 16) +
+        bytes[offset + 3] * 0x1000000
+      );
+    }
+
+    function jpegDimensions(bytes) {
+      if (bytes.length < 2 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+        throw new Error("Image is not a JPEG stream.");
+      }
+      const sofMarkers = new Set([
+        0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce,
+        0xcf
+      ]);
+      let offset = 2;
+      while (offset + 3 < bytes.length) {
+        if (bytes[offset] !== 0xff) {
+          throw new Error("JPEG header is malformed.");
+        }
+        while (bytes[offset] === 0xff) offset += 1;
+        const marker = bytes[offset++];
+        if (marker === 0xd9 || marker === 0xda) break;
+        if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+        if (offset + 2 > bytes.length) break;
+        const segmentLength = readUint16BE(bytes, offset);
+        if (segmentLength < 2 || offset + segmentLength > bytes.length) break;
+        if (sofMarkers.has(marker)) {
+          if (segmentLength < 7) break;
+          return {
+            width: readUint16BE(bytes, offset + 5),
+            height: readUint16BE(bytes, offset + 3)
+          };
+        }
+        offset += segmentLength;
+      }
+      throw new Error("JPEG dimensions are unavailable before decode.");
+    }
+
+    function pngDimensions(bytes) {
+      const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+      if (
+        bytes.length < 24 ||
+        !signature.every((byte, index) => bytes[index] === byte) ||
+        ascii(bytes, 12, 4) !== "IHDR"
+      ) {
+        throw new Error("Image is not a PNG stream.");
+      }
+      return {
+        width: readUint32BE(bytes, 16),
+        height: readUint32BE(bytes, 20)
+      };
+    }
+
+    function webpDimensions(bytes) {
+      if (
+        bytes.length < 16 ||
+        ascii(bytes, 0, 4) !== "RIFF" ||
+        ascii(bytes, 8, 4) !== "WEBP"
+      ) {
+        throw new Error("Image is not a WebP stream.");
+      }
+      let offset = 12;
+      while (offset + 8 <= bytes.length) {
+        const chunkType = ascii(bytes, offset, 4);
+        const chunkSize = readUint32LE(bytes, offset + 4);
+        const data = offset + 8;
+        if (data + chunkSize > bytes.length) break;
+        if (chunkType === "VP8X" && chunkSize >= 10) {
+          return {
+            width: 1 + readUint24LE(bytes, data + 4),
+            height: 1 + readUint24LE(bytes, data + 7)
+          };
+        }
+        if (
+          chunkType === "VP8 " &&
+          chunkSize >= 10 &&
+          bytes[data + 3] === 0x9d &&
+          bytes[data + 4] === 0x01 &&
+          bytes[data + 5] === 0x2a
+        ) {
+          return {
+            width: readUint16LE(bytes, data + 6) & 0x3fff,
+            height: readUint16LE(bytes, data + 8) & 0x3fff
+          };
+        }
+        if (chunkType === "VP8L" && chunkSize >= 5 && bytes[data] === 0x2f) {
+          return {
+            width: 1 + ((bytes[data + 1] | (bytes[data + 2] << 8)) & 0x3fff),
+            height:
+              1 +
+              (((bytes[data + 2] >> 6) |
+                (bytes[data + 3] << 2) |
+                (bytes[data + 4] << 10)) &
+                0x3fff)
+          };
+        }
+        offset = data + chunkSize + (chunkSize % 2);
+      }
+      throw new Error("WebP dimensions are unavailable before decode.");
+    }
+
+    function headerDimensions(bytes) {
+      if (bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF") {
+        return webpDimensions(bytes);
+      }
+      if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50) {
+        return pngDimensions(bytes);
+      }
+      return jpegDimensions(bytes);
+    }
+
+    function assertSafeDimensions({ width, height }, label) {
+      if (!Number.isInteger(width) || !Number.isInteger(height)) {
+        throw new Error(`${label} dimensions are not integers.`);
+      }
+      if (width <= 0 || height <= 0) {
+        throw new Error(`${label} dimensions must be positive.`);
+      }
+      if (width > maxDimension || height > maxDimension) {
+        throw new Error(
+          `${label} dimensions exceed ${maxDimension}px (${width}×${height}).`
+        );
+      }
+      if (width > Math.floor(maxPixels / height)) {
+        throw new Error(
+          `${label} pixel count exceeds ${maxPixels} pixels (${width}×${height}).`
+        );
+      }
     }
 
     function colourName(data) {
@@ -91,17 +257,22 @@
             `Input exceeds ${maxInputBytes} bytes before image decode.`
           );
         }
+        const header = headerDimensions(new Uint8Array(inputBytes));
+        assertSafeDimensions(header, "Header");
         const bitmap = await createImageBitmap(source, {
           imageOrientation: "from-image",
           premultiplyAlpha: "default"
         });
         const decodedWidth = bitmap.width;
         const decodedHeight = bitmap.height;
-        if (decodedWidth * decodedHeight > maxPixels) {
-          bitmap.close();
-          throw new Error(
-            `Decoded pixel count exceeds ${maxPixels} pixels (${decodedWidth}×${decodedHeight}).`
+        try {
+          assertSafeDimensions(
+            { width: decodedWidth, height: decodedHeight },
+            "Decoded"
           );
+        } catch (error) {
+          bitmap.close();
+          throw error;
         }
         const scale = Math.min(
           1,
@@ -177,6 +348,7 @@
           .startsWith("data:image/webp")
       },
       maxLongEdge,
+      maxDimension,
       maxInputBytes,
       maxPixels,
       outputType,

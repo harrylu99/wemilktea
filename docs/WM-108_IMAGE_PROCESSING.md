@@ -58,10 +58,11 @@ Existing Product/Store Admin key conventions remain unchanged.
 The committed prototype is deliberately dependency-light:
 
 - `spikes/wm-108-image-processing/browser-normalization.html` runs in a real
-  browser. It fetches fixtures as `Blob`s, calls
-  `createImageBitmap(source, { imageOrientation: "from-image" })`, downscales
-  to the requested long edge, draws to a normal 2D canvas, and calls
-  `canvas.toBlob()`.
+  browser. It fetches fixtures as `Blob`s, inspects JPEG/PNG/WebP header
+  dimensions and applies byte, dimension, and pixel guards before calling
+  `createImageBitmap(source, { imageOrientation: "from-image" })`. It repeats
+  the dimension/pixel checks after decode, then downscales to the requested
+  long edge, draws to a normal 2D canvas, and calls `canvas.toBlob()`.
 - `generate-fixtures.mjs` creates synthetic JPEG, PNG, WebP, portrait,
   landscape, EXIF/GPS, and malformed fixtures with the locally installed
   `ffmpeg` and `cwebp` binaries. The EXIF/GPS values are synthetic and contain
@@ -113,18 +114,20 @@ WM-109 device pass.
 
 ## Guard experiments
 
-The browser harness rejected a 4032 × 3024 image when its test limit was set to
-10,000,000 pixels, with:
+The browser harness rejected a 4032 × 3024 image before `createImageBitmap` when
+its test limit was set to 10,000,000 pixels, with:
 
 ```text
-Decoded pixel count exceeds 10000000 pixels (4032×3024).
+Header pixel count exceeds 10000000 pixels (4032×3024).
 ```
 
-It also rejected the 109,879-byte normal JPEG before decode when the test byte
-limit was set to 100,000 bytes. The malformed fixture was served as
-`image/jpeg` from a `.jpg` URL and still failed real browser decode. These
-checks demonstrate the intended fail-closed behavior; WM-109 must repeat them
-at the authoritative server boundary.
+The same preflight rejected the large landscape before decode when the
+dimension limit was set to 3,000px. It also rejected the 109,879-byte normal
+JPEG before decode when the test byte limit was set to 100,000 bytes. The
+malformed fixture was served as `image/jpeg` from a `.jpg` URL and was rejected
+by the header check. These checks reduce client-side decompression pressure but
+cannot be trusted against forged headers; WM-109 must repeat them and perform
+authoritative decode verification at the server boundary.
 
 ## Limits recommendation
 
@@ -162,13 +165,14 @@ the changelog alone.
 
 ### Browser processing
 
-Actually tested and successful for all valid fixtures. It avoids sending the
-large source decode to the server, reduces upload size, and removes EXIF/GPS
-by re-encoding pixels. It is not an authority: a malicious client can skip the
-browser, send fake headers, or send a valid but unsafe image. The server must
-validate the candidate independently. The harness also checks the returned
-Blob type because canvas may fall back to PNG when a requested encoder is not
-available.
+Actually tested and successful for all valid fixtures. It performs a bounded
+JPEG/PNG/WebP header preflight before browser decode, avoids sending the large
+source decode to the server, reduces upload size, and removes EXIF/GPS by
+re-encoding pixels. It is not an authority: a malicious client can skip the
+browser or send forged headers, and a browser decoder can still encounter
+malformed content. The server must validate the candidate independently. The
+harness also checks the returned Blob type because canvas may fall back to PNG
+when a requested encoder is not available.
 
 ### Cloudflare processing
 
