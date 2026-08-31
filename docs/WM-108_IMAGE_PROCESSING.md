@@ -26,9 +26,14 @@ Use a hybrid pipeline for WM-109:
 3. Server-side authorization, byte checks, decode/dimension verification, and
    WebP metadata checks remain mandatory. A client must not be able to finalize
    an `image_assets` row by claiming that it normalized an image.
-4. Move/copy the candidate into the final R2 namespace only after validation,
-   then finalize the owned draft with server-observed metadata. Delete rejected
-   or abandoned quarantine objects.
+4. Bind validation and promotion to the same object version. The server must
+   capture the quarantine object's ETag/version and either conditionally copy
+   that exact version into a unique server-only validation key before checking
+   it, or use an equivalent ETag/version precondition for the final copy. If
+   the precondition fails, reject or restart the upload. Never unconditionally
+   re-read or copy the client-writable quarantine key after validation. Promote
+   only the exact validated object, then finalize the owned draft with
+   server-observed metadata. Delete rejected or abandoned quarantine objects.
 
 The preferred verifier is a small Cloudflare Worker using the existing R2
 account plus the current Images binding `info()` operation. It gives the
@@ -200,6 +205,8 @@ Server responsibilities:
 
 - require the authenticated owner identity only at the first write action;
 - authorize the owned draft and derive the quarantine/final object key;
+- bind validation and promotion to one object version with an ETag/version
+  precondition or an immutable server-controlled copy;
 - issue a short-lived, single-object upload authorization;
 - check object existence, exact content type, byte length, magic bytes, and
   server-observed dimensions;
