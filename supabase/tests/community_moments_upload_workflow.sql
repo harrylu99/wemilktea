@@ -20,7 +20,6 @@ begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', owner_id::text, true);
   select public.create_community_post_draft('WM-109 upload test') into post_id;
-  execute 'reset role';
 
   valid_quarantine := 'community/' || owner_id || '/' || post_id || '/quarantine/33333333-3333-4333-8333-333333333333.webp';
   valid_final := replace(valid_quarantine, '/quarantine/', '/');
@@ -34,6 +33,7 @@ begin
   exception
     when insufficient_privilege then null;
   end;
+  execute 'reset role';
 end;
 $$;
 
