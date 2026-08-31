@@ -73,6 +73,7 @@ begin
     post_id, owner_id, valid_quarantine, valid_final,
     'image/webp', 1000, 1200, 800, 'test-etag'
   );
+  execute 'reset role';
 
   if image_id is null or duplicate_image_id <> image_id then
     raise exception 'duplicate finalization was not idempotent';
@@ -84,6 +85,7 @@ begin
     raise exception 'verified metadata was not persisted';
   end if;
 
+  execute 'set local role service_role';
   begin
     perform public.finalize_community_post_image(
       post_id, other_id,
@@ -107,6 +109,8 @@ begin
   exception
     when sqlstate 'P0001' then null;
   end;
+
+  execute 'reset role';
 end;
 $$;
 
