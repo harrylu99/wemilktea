@@ -574,6 +574,9 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
   expect(view.getByRole("main").className).toContain("items-start");
   expect(view.getByRole("main").className).toContain("md:items-center");
   expect(view.getByRole("img").getAttribute("draggable")).toBe("false");
+  expect(
+    view.getByRole("article", { name: "Current Moment" }).className
+  ).toContain("md:max-h-[calc(100dvh-13rem)]");
   expect(view.getByRole("button", { name: "Skip this Moment" })).toBeTruthy();
   expect(view.getByRole("button", { name: "Like this Moment" })).toBeTruthy();
   expect(
@@ -697,6 +700,49 @@ test.serial(
     expect(pageCalls).toHaveLength(2);
   }
 );
+
+test.serial("preserves focus through a pagination loading gap", async () => {
+  const thirdMoment = {
+    ...secondMoment,
+    id: "77777777-7777-4777-8777-777777777777",
+    caption: "Third cup"
+  };
+  nextPage = {
+    data: [firstMoment, secondMoment],
+    nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+    hasMore: true,
+    error: null
+  };
+  cursorPage = {
+    data: [thirdMoment],
+    nextCursor: null,
+    hasMore: false,
+    error: null
+  };
+  deferNextPage = true;
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  await act(async () => await Promise.resolve());
+
+  fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 1" }), {
+    key: "ArrowLeft"
+  });
+  fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 2" }), {
+    key: "ArrowLeft"
+  });
+  await act(async () => await Promise.resolve());
+
+  const loading = view.getByText("Loading more Moments…");
+  expect(loading).toBe(document.activeElement as HTMLElement);
+
+  deferNextPage = false;
+  pendingNextPage!(cursorPage);
+  await act(async () => await Promise.resolve());
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 3" })).toBe(
+    document.activeElement as HTMLElement
+  );
+});
 
 test.serial(
   "continues Sip prefetch after an empty normalized page",

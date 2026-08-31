@@ -77,7 +77,7 @@ function SipCard({
   return (
     <article
       aria-label="Current Moment"
-      className="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xl md:max-h-[calc(100dvh-9rem)] md:flex-row"
+      className="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xl md:max-h-[calc(100dvh-13rem)] md:flex-row"
       style={{
         transform: `translate(${dragDistance}px, ${dragVerticalDistance}px)`
       }}
@@ -191,6 +191,8 @@ export function SipMode({
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const endTriggerRef = useRef<HTMLButtonElement>(null);
+  const loadMoreStatusRef = useRef<HTMLParagraphElement>(null);
+  const retryLoadMoreRef = useRef<HTMLButtonElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const helpPanelRef = useRef<HTMLDivElement>(null);
   const didFocusStageRef = useRef(false);
@@ -212,6 +214,7 @@ export function SipMode({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState(false);
   const moment = moments[index] ?? null;
+  const hadMomentRef = useRef(Boolean(moment));
 
   useEffect(() => {
     mountedRef.current = true;
@@ -234,17 +237,29 @@ export function SipMode({
 
   useEffect(() => {
     if (helpOpen) return;
+    const momentArrived = Boolean(moment) && !hadMomentRef.current;
+    hadMomentRef.current = Boolean(moment);
+    if (!moment && hasMore) {
+      queueMicrotask(() => {
+        if (loadMoreStatus === "error") {
+          retryLoadMoreRef.current?.focus();
+        } else {
+          loadMoreStatusRef.current?.focus();
+        }
+      });
+      return;
+    }
     if (!moment && !hasMore) {
       queueMicrotask(() => endTriggerRef.current?.focus());
       return;
     }
     const indexChanged = lastIndexRef.current !== index;
     lastIndexRef.current = index;
-    if (!didFocusStageRef.current || indexChanged) {
+    if (!didFocusStageRef.current || indexChanged || momentArrived) {
       queueMicrotask(() => stageRef.current?.focus());
       didFocusStageRef.current = true;
     }
-  }, [hasMore, helpOpen, index, moment]);
+  }, [hasMore, helpOpen, index, loadMoreStatus, moment]);
 
   useEffect(() => {
     if (helpOpen) {
@@ -388,11 +403,14 @@ export function SipMode({
     content = hasMore ? (
       <div className="grid max-w-md gap-3 text-center">
         {loadMoreStatus === "loading" ? (
-          <p role="status">Loading more Moments…</p>
+          <p ref={loadMoreStatusRef} role="status" tabIndex={-1}>
+            Loading more Moments…
+          </p>
         ) : loadMoreStatus === "error" ? (
           <>
             <p>More Moments couldn’t load.</p>
             <button
+              ref={retryLoadMoreRef}
               className="mx-auto rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent"
               type="button"
               onClick={() => void onLoadMore()}
