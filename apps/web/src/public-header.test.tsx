@@ -76,6 +76,14 @@ test("marks Pick for me active for the picker and result routes", () => {
   }
 });
 
+test("marks Moments active for the Gallery route", () => {
+  const active = activeLinks(renderHeader("/moments"));
+
+  expect(active).toHaveLength(1);
+  expect(active[0]?.text).toBe("Moments");
+  expect(active[0]?.attributes).toContain('href="/moments"');
+});
+
 test("does not mark a top-level destination active on Home or Search", () => {
   for (const pathname of ["/", "/search"]) {
     expect(topLevelActiveLinks(renderHeader(pathname))).toHaveLength(0);

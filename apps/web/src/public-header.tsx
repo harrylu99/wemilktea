@@ -40,7 +40,8 @@ export function PublicHeader() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const links = [
     ["Stores", "/stores"],
-    ["Drinks", "/drinks"]
+    ["Drinks", "/drinks"],
+    ["Moments", "/moments"]
   ] as const;
 
   useEffect(() => {
