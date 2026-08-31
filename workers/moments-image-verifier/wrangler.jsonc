@@ -4,6 +4,9 @@
   "main": "index.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "MOMENTS_APP_ORIGIN": "configure-at-deploy"
+  },
   "images": { "binding": "IMAGES" },
   "r2_buckets": [
     {

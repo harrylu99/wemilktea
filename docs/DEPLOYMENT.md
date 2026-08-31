@@ -358,19 +358,21 @@ a test; it targets the production Worker.
 Configure these with Supabase secrets. Never put them in a Vite environment
 file, database row, frontend source, or response body.
 
-| Secret                      | Functions                                                     | Purpose                                 |
-| --------------------------- | ------------------------------------------------------------- | --------------------------------------- |
-| `GOOGLE_PLACES_API_KEY`     | `store-discovery`, `candidate-google-detail`                  | Server-side Places requests             |
-| `ADMIN_APP_ORIGIN`          | `store-discovery`, `candidate-google-detail`, `image-storage` | Exact CORS/origin allow-list            |
-| `MOMENTS_APP_ORIGIN`        | `community-image-storage`                                    | Exact public Web CORS origin            |
-| `MOMENTS_IMAGE_VERIFIER_URL` | `community-image-storage`                                   | Private verifier Worker endpoint        |
-| `MOMENTS_IMAGE_VERIFIER_TOKEN` | `community-image-storage`                                | Shared server-to-Worker token           |
-| `SUPABASE_SERVICE_ROLE_KEY` | `store-discovery`, `community-image-storage`                  | Privileged server-side DB operations    |
-| `R2_ACCOUNT_ID`             | `image-storage`, `community-image-storage`                    | R2 endpoint                             |
-| `R2_ACCESS_KEY_ID`          | `image-storage`, `community-image-storage`                    | Bucket-scoped R2 access                 |
-| `R2_SECRET_ACCESS_KEY`      | `image-storage`, `community-image-storage`                    | Bucket-scoped R2 access                 |
-| `R2_BUCKET`                 | `image-storage`, `community-image-storage`                    | Image bucket name                       |
-| `R2_PUBLIC_BASE_URL`        | `image-storage`                                               | Validated public image URL construction |
+| Secret                              | Functions                                                     | Purpose                                 |
+| ----------------------------------- | ------------------------------------------------------------- | --------------------------------------- |
+| `GOOGLE_PLACES_API_KEY`             | `store-discovery`, `candidate-google-detail`                  | Server-side Places requests             |
+| `ADMIN_APP_ORIGIN`                  | `store-discovery`, `candidate-google-detail`, `image-storage` | Exact CORS/origin allow-list            |
+| `MOMENTS_APP_ORIGIN`                | `community-image-storage`                                     | Exact public Web CORS origin            |
+| `MOMENTS_IMAGE_UPLOAD_URL`          | `community-image-storage`                                     | Bounded Worker upload endpoint          |
+| `MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET` | `community-image-storage`                                     | Worker upload capability signing secret |
+| `MOMENTS_IMAGE_VERIFIER_URL`        | `community-image-storage`                                     | Private verifier Worker endpoint        |
+| `MOMENTS_IMAGE_VERIFIER_TOKEN`      | `community-image-storage`                                     | Shared server-to-Worker token           |
+| `SUPABASE_SERVICE_ROLE_KEY`         | `store-discovery`, `community-image-storage`                  | Privileged server-side DB operations    |
+| `R2_ACCOUNT_ID`                     | `image-storage`, `community-image-storage`                    | R2 endpoint                             |
+| `R2_ACCESS_KEY_ID`                  | `image-storage`, `community-image-storage`                    | Bucket-scoped R2 access                 |
+| `R2_SECRET_ACCESS_KEY`              | `image-storage`, `community-image-storage`                    | Bucket-scoped R2 access                 |
+| `R2_BUCKET`                         | `image-storage`, `community-image-storage`                    | Image bucket name                       |
+| `R2_PUBLIC_BASE_URL`                | `image-storage`                                               | Validated public image URL construction |
 
 Supabase supplies the deployed function context for `SUPABASE_URL` and the
 function's service context. Follow `supabase/functions/.env.example` for local
@@ -573,15 +575,15 @@ certification.
 
 ## Troubleshooting
 
-| Symptom                  | First place to look                                                  |
-| ------------------------ | -------------------------------------------------------------------- |
-| Direct route returns 404 | Wrangler `assets.not_found_handling` and the published `dist` output |
-| Public data is empty     | Supabase project URL/key, production catalogue and RLS               |
-| Admin cannot sign in     | Auth Site URL/redirects and `admin_users`                            |
-| Function returns 403     | `ADMIN_APP_ORIGIN`, JWT and `is_admin()`                             |
-| Discovery fails          | Function logs, Places quota/key restriction and migration state      |
-| Image upload fails       | R2 secrets, bucket CORS, presigned URL expiry and function logs      |
-| Map is unavailable       | Browser key referrer/API restriction and console errors              |
+| Symptom                  | First place to look                                                   |
+| ------------------------ | --------------------------------------------------------------------- |
+| Direct route returns 404 | Wrangler `assets.not_found_handling` and the published `dist` output  |
+| Public data is empty     | Supabase project URL/key, production catalogue and RLS                |
+| Admin cannot sign in     | Auth Site URL/redirects and `admin_users`                             |
+| Function returns 403     | `ADMIN_APP_ORIGIN`, JWT and `is_admin()`                              |
+| Discovery fails          | Function logs, Places quota/key restriction and migration state       |
+| Image upload fails       | Worker upload URL/token, R2 secrets, lifecycle rule and function logs |
+| Map is unavailable       | Browser key referrer/API restriction and console errors               |
 
 ## Release evidence
 

@@ -17,7 +17,7 @@ export function buildQuarantineKey(
   postId: string,
   uploadId: string
 ) {
-  return `community/${userId}/${postId}/quarantine/${uploadId}.webp`;
+  return `community-quarantine/${userId}/${postId}/${uploadId}.webp`;
 }
 
 export function buildFinalKey(
@@ -34,7 +34,7 @@ export function parseOwnedQuarantineKey(
   postId: string
 ) {
   const match = new RegExp(
-    `^community/${userId}/${postId}/quarantine/(${uuid})\\.webp$`
+    `^community-quarantine/${userId}/${postId}/(${uuid})\\.webp$`
   ).exec(key);
   return match ? buildFinalKey(userId, postId, match[1]) : null;
 }

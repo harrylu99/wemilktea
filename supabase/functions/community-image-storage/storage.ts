@@ -1,13 +1,10 @@
 import {
   DeleteObjectCommand,
   HeadObjectCommand,
-  PutObjectCommand,
   S3Client
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type CommunityR2Storage = {
-  createPutUrl(key: string, expiresIn: number): Promise<string>;
   headObject(key: string): Promise<{
     contentType: string | null;
     contentLength: number | null;
@@ -32,17 +29,6 @@ export function createCommunityR2Storage(input: {
   });
 
   return {
-    async createPutUrl(key, expiresIn) {
-      return getSignedUrl(
-        client,
-        new PutObjectCommand({
-          Bucket: input.bucket,
-          Key: key,
-          ContentType: "image/webp"
-        }),
-        { expiresIn }
-      );
-    },
     async headObject(key) {
       const response = await client.send(
         new HeadObjectCommand({ Bucket: input.bucket, Key: key })

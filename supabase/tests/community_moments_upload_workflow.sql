@@ -21,8 +21,8 @@ begin
   perform set_config('request.jwt.claim.sub', owner_id::text, true);
   select public.create_community_post_draft('WM-109 upload test') into post_id;
 
-  valid_quarantine := 'community/' || owner_id || '/' || post_id || '/quarantine/33333333-3333-4333-8333-333333333333.webp';
-  valid_final := replace(valid_quarantine, '/quarantine/', '/');
+  valid_quarantine := 'community-quarantine/' || owner_id || '/' || post_id || '/33333333-3333-4333-8333-333333333333.webp';
+  valid_final := replace(valid_quarantine, 'community-quarantine/', 'community/');
 
   begin
     perform public.finalize_community_post_image(
@@ -59,8 +59,8 @@ begin
   select id into owner_id from auth.users where email = 'wm109-owner@example.test';
   select id into other_id from auth.users where email = 'wm109-other@example.test';
   select id into post_id from public.community_posts where owner_user_id = owner_id and caption = 'WM-109 upload test';
-  valid_quarantine := 'community/' || owner_id || '/' || post_id || '/quarantine/33333333-3333-4333-8333-333333333333.webp';
-  valid_final := replace(valid_quarantine, '/quarantine/', '/');
+  valid_quarantine := 'community-quarantine/' || owner_id || '/' || post_id || '/33333333-3333-4333-8333-333333333333.webp';
+  valid_final := replace(valid_quarantine, 'community-quarantine/', 'community/');
 
   execute 'set local role service_role';
   select image_asset_id into image_id
@@ -89,7 +89,7 @@ begin
   begin
     perform public.finalize_community_post_image(
       post_id, other_id,
-      'community/' || other_id || '/' || post_id || '/quarantine/44444444-4444-4444-8444-444444444444.webp',
+      'community-quarantine/' || other_id || '/' || post_id || '/44444444-4444-4444-8444-444444444444.webp',
       'community/' || other_id || '/' || post_id || '/44444444-4444-4444-8444-444444444444.webp',
       'image/webp', 1000, 1200, 800, 'other-etag'
     );
@@ -101,7 +101,7 @@ begin
   begin
     perform public.finalize_community_post_image(
       post_id, owner_id,
-      'community/' || owner_id || '/' || post_id || '/quarantine/55555555-5555-4555-8555-555555555555.webp',
+      'community-quarantine/' || owner_id || '/' || post_id || '/55555555-5555-4555-8555-555555555555.webp',
       'community/' || owner_id || '/' || post_id || '/55555555-5555-4555-8555-555555555555.webp',
       'image/webp', 1000, 3000, 3000, 'large-etag'
     );

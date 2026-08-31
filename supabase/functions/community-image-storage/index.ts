@@ -9,6 +9,11 @@ import {
   communityImageRequestSchema,
   parseOwnedQuarantineKey
 } from "./storage-policy.ts";
+import {
+  createMomentsUploadToken,
+  momentsUploadTokenPurpose,
+  momentsUploadTokenVersion
+} from "../_shared/moments-upload-token.ts";
 
 const uploadExpirySeconds = 10 * 60;
 const maxImageBytes = 10 * 1024 * 1024;
@@ -18,6 +23,8 @@ const environmentSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   MOMENTS_APP_ORIGIN: z.string().url(),
+  MOMENTS_IMAGE_UPLOAD_URL: z.string().url(),
+  MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET: z.string().min(1),
   MOMENTS_IMAGE_VERIFIER_URL: z.string().url(),
   MOMENTS_IMAGE_VERIFIER_TOKEN: z.string().min(1),
   R2_ACCOUNT_ID: z.string().min(1),
@@ -179,6 +186,10 @@ Deno.serve(async (request) => {
     SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY"),
     SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
     MOMENTS_APP_ORIGIN: Deno.env.get("MOMENTS_APP_ORIGIN"),
+    MOMENTS_IMAGE_UPLOAD_URL: Deno.env.get("MOMENTS_IMAGE_UPLOAD_URL"),
+    MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET: Deno.env.get(
+      "MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET"
+    ),
     MOMENTS_IMAGE_VERIFIER_URL: Deno.env.get("MOMENTS_IMAGE_VERIFIER_URL"),
     MOMENTS_IMAGE_VERIFIER_TOKEN: Deno.env.get("MOMENTS_IMAGE_VERIFIER_TOKEN"),
     R2_ACCOUNT_ID: Deno.env.get("R2_ACCOUNT_ID"),
@@ -238,12 +249,22 @@ Deno.serve(async (request) => {
 
     const uploadId = crypto.randomUUID();
     const quarantineKey = buildQuarantineKey(user.userId, post.id, uploadId);
+    const uploadToken = await createMomentsUploadToken(
+      {
+        v: momentsUploadTokenVersion,
+        purpose: momentsUploadTokenPurpose,
+        ownerUserId: user.userId,
+        postId: post.id,
+        uploadId,
+        quarantineKey,
+        expiresAt: Math.floor(Date.now() / 1000) + uploadExpirySeconds
+      },
+      environment.data.MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET
+    );
     return response(
       {
-        uploadUrl: await storage.createPutUrl(
-          quarantineKey,
-          uploadExpirySeconds
-        ),
+        uploadUrl: `${environment.data.MOMENTS_IMAGE_UPLOAD_URL.replace(/\/+$/, "")}/upload`,
+        uploadToken,
         quarantineKey,
         contentType: "image/webp",
         expiresIn: uploadExpirySeconds,

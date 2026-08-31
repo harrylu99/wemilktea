@@ -6,7 +6,8 @@ The production path is deliberately separate from the Admin
 ```text
 browser normalization
   -> owner-scoped Edge Function authorization
-  -> R2 quarantine/{upload-id}.webp
+  -> signed capability to bounded Cloudflare Worker upload
+  -> R2 community-quarantine/{owner}/{post}/{upload}.webp
   -> Cloudflare Images info() + WebP metadata verification
   -> R2 final object
   -> service-role-only transaction: image_assets + draft -> active
@@ -29,9 +30,10 @@ dimensions.
 
 `community-image-storage` verifies the Supabase user JWT and only authorizes a
 draft owned by that user. The server derives
-`community/{user-id}/{post-id}/quarantine/{upload-id}.webp`; the browser never
-chooses an object key. The URL is valid for 10 minutes and only signs
-`Content-Type: image/webp`.
+`community-quarantine/{user-id}/{post-id}/{upload-id}.webp` and returns a
+10-minute HMAC upload capability; the browser never chooses an object key and
+never receives a direct R2 write URL. The Cloudflare Worker reads the body
+incrementally and rejects uploads over 10 MiB before writing to R2.
 
 The verifier Worker independently checks the exact R2 object ETag, byte size,
 WebP RIFF/chunk structure, forbidden metadata chunks, Cloudflare Images
@@ -52,6 +54,8 @@ set the secret with Wrangler. The Supabase function requires:
 ```text
 SUPABASE_SERVICE_ROLE_KEY
 MOMENTS_APP_ORIGIN
+MOMENTS_IMAGE_UPLOAD_URL
+MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET
 MOMENTS_IMAGE_VERIFIER_URL
 MOMENTS_IMAGE_VERIFIER_TOKEN
 R2_ACCOUNT_ID
@@ -60,9 +64,21 @@ R2_SECRET_ACCESS_KEY
 R2_BUCKET
 ```
 
-No production settings, secrets, Worker, database, or R2 objects are changed
-by this repository task. Production anonymous Auth remains a separate manual
-rollout decision.
+The Worker also requires `MOMENTS_APP_ORIGIN`, `BUCKET`, `IMAGES`,
+`MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET`, and `VERIFY_TOKEN`. Before production
+enablement, configure and verify the R2 lifecycle backstop with this installed
+Wrangler syntax:
+
+```bash
+npx wrangler r2 bucket lifecycle add <BUCKET_NAME> \
+  delete-community-quarantine community-quarantine/ --expire-days 1
+npx wrangler r2 bucket lifecycle list <BUCKET_NAME>
+```
+
+The rule must match only `community-quarantine/`, never final `community/`
+objects. No production settings, secrets, Worker, database, lifecycle rule, or
+R2 objects are changed by this repository task. Production anonymous Auth
+remains a separate manual rollout decision.
 
 ## Cleanup and failure behavior
 
@@ -70,8 +86,8 @@ Verification failures delete the known quarantine key. A successful finalization
 deletes the quarantine source after the database transaction succeeds. If the
 database call fails, the function checks for a concurrent successful reference
 before deleting the promoted object; otherwise both temporary objects are
-cleaned up. R2 lifecycle rules should expire `community/*/quarantine/*` after a
-short retention period to cover abandoned uploads. Owner delete remains the
+cleaned up. The one-day R2 lifecycle rule for `community-quarantine/` is the
+backstop for uploads abandoned before finalize. Owner delete remains the
 existing soft delete for moderation/audit; hidden or removed Moments retain a
 referenced final object until a later retention policy explicitly permits
 deletion.

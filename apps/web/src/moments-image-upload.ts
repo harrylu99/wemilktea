@@ -5,6 +5,7 @@ type NormalizedMomentImage = Awaited<ReturnType<typeof normalizeMomentImage>>;
 
 type UploadAuthorization = {
   uploadUrl: string;
+  uploadToken: string;
   quarantineKey: string;
   contentType: "image/webp";
   expiresIn: number;
@@ -42,6 +43,7 @@ function isUploadAuthorization(value: unknown): value is UploadAuthorization {
   const response = value as Partial<UploadAuthorization>;
   return (
     typeof response.uploadUrl === "string" &&
+    typeof response.uploadToken === "string" &&
     typeof response.quarantineKey === "string" &&
     response.contentType === "image/webp" &&
     typeof response.expiresIn === "number" &&
@@ -84,10 +86,15 @@ export async function uploadMomentImage(
 
   const uploadResponse = await fetch(authorization.data.uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": authorization.data.contentType },
+    headers: {
+      Authorization: `Bearer ${authorization.data.uploadToken}`,
+      "Content-Type": authorization.data.contentType
+    },
     body: normalized.file
   }).catch(() => null);
   if (!uploadResponse?.ok) {
+    if (uploadResponse?.status === 413)
+      throw new MomentImageUploadError("The normalized image is too large.");
     throw new MomentImageUploadError("The image could not be uploaded.");
   }
 

@@ -48,8 +48,8 @@ begin
     or greatest(p_width, p_height) > 2048
     or p_etag is null
     or p_etag = ''
-    or p_quarantine_key !~ ('^community/' || p_owner_user_id::text || '/' || p_post_id::text || '/quarantine/[0-9a-f-]{36}\.webp$')
-    or p_storage_key <> replace(p_quarantine_key, '/quarantine/', '/') then
+    or p_quarantine_key !~ ('^community-quarantine/' || p_owner_user_id::text || '/' || p_post_id::text || '/[0-9a-f-]{36}\.webp$')
+    or p_storage_key <> replace(p_quarantine_key, 'community-quarantine/', 'community/') then
     raise exception using errcode = 'P0001', message = 'invalid_verified_image';
   end if;
 

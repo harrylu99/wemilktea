@@ -1,16 +1,26 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./worker-configuration.d.ts" />
 
-type RuntimeEnv = Env & { VERIFY_TOKEN: string };
+import {
+  momentsUploadTokenPurpose,
+  momentsUploadTokenVersion,
+  verifyMomentsUploadToken
+} from "../../supabase/functions/_shared/moments-upload-token";
 
-const maxImageBytes = 10 * 1024 * 1024;
+type RuntimeEnv = Env & {
+  VERIFY_TOKEN: string;
+  MOMENTS_APP_ORIGIN: string;
+  MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET: string;
+};
+
+export const maxImageBytes = 10 * 1024 * 1024;
 const maxSourceDimension = 8000;
 const maxSourcePixels = 40_000_000;
 const maxOutputLongEdge = 2048;
 const uuidPattern =
   "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const sourceKeyPattern = new RegExp(
-  `^community/(${uuidPattern})/(${uuidPattern})/quarantine/(${uuidPattern})\\.webp$`
+  `^community-quarantine/(${uuidPattern})/(${uuidPattern})/(${uuidPattern})\\.webp$`
 );
 
 type VerificationRequest = {
@@ -19,11 +29,72 @@ type VerificationRequest = {
   expectedEtag: string;
 };
 
-function json(body: Record<string, unknown>, status = 200) {
+type UploadBodyResult =
+  { bytes: ArrayBuffer } | { status: 400 | 413; error: string };
+
+function json(
+  body: Record<string, unknown>,
+  status = 200,
+  headers: HeadersInit = {}
+) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json", ...headers }
   });
+}
+
+function uploadCorsHeaders(request: Request, origin: string) {
+  const requestOrigin = request.headers.get("Origin");
+  if (requestOrigin && requestOrigin !== origin) return null;
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Access-Control-Allow-Methods": "PUT, OPTIONS",
+    Vary: "Origin"
+  };
+}
+
+export async function readBoundedBody(
+  request: Request,
+  limit = maxImageBytes
+): Promise<UploadBodyResult> {
+  const contentLength = request.headers.get("Content-Length");
+  if (contentLength !== null) {
+    const declaredLength = Number(contentLength);
+    if (!Number.isSafeInteger(declaredLength) || declaredLength <= 0)
+      return { status: 400, error: "invalid_content_length" };
+    if (declaredLength > limit)
+      return { status: 413, error: "payload_too_large" };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return { status: 400, error: "empty_upload" };
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      if (value.byteLength > limit - total) {
+        await reader.cancel("payload too large").catch(() => undefined);
+        return { status: 413, error: "payload_too_large" };
+      }
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } catch {
+    await reader.cancel().catch(() => undefined);
+    return { status: 400, error: "upload_read_failed" };
+  }
+  if (total < 1) return { status: 400, error: "empty_upload" };
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { bytes: bytes.buffer };
 }
 
 async function digest(value: string) {
@@ -97,12 +168,79 @@ export function inspectWebp(bytes: ArrayBuffer) {
 
 export default {
   async fetch(request, env: RuntimeEnv) {
-    if (
-      request.method !== "POST" ||
-      new URL(request.url).pathname !== "/verify"
-    ) {
-      return json({ error: "not_found" }, 404);
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/upload") {
+      const headers = uploadCorsHeaders(request, env.MOMENTS_APP_ORIGIN);
+      if (!headers) return json({ error: "origin_not_allowed" }, 403);
+      if (request.method === "OPTIONS")
+        return new Response(null, { status: 204, headers });
+      if (request.method !== "PUT")
+        return json({ error: "method_not_allowed" }, 405);
+
+      const authorization = request.headers.get("Authorization") ?? "";
+      const token = authorization.startsWith("Bearer ")
+        ? authorization.slice(7)
+        : "";
+      const claims = token
+        ? await verifyMomentsUploadToken(
+            token,
+            env.MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET
+          )
+        : null;
+      if (
+        !claims ||
+        claims.purpose !== momentsUploadTokenPurpose ||
+        claims.v !== momentsUploadTokenVersion
+      )
+        return json({ error: "unauthorized" }, 401, headers);
+
+      const match = sourceKeyPattern.exec(claims.quarantineKey);
+      if (
+        !match ||
+        claims.ownerUserId !== match[1] ||
+        claims.postId !== match[2] ||
+        claims.uploadId !== match[3]
+      )
+        return json({ error: "invalid_upload_key" }, 400, headers);
+      if (
+        request.headers
+          .get("Content-Type")
+          ?.split(";", 1)[0]
+          .trim()
+          .toLowerCase() !== "image/webp"
+      )
+        return json({ error: "normalized_webp_required" }, 415, headers);
+
+      const body = await readBoundedBody(request);
+      if ("error" in body)
+        return json({ error: body.error }, body.status, headers);
+      const webp = inspectWebp(body.bytes);
+      if (!webp.valid) return json({ error: webp.reason }, 400, headers);
+
+      const object = await env.BUCKET.put(claims.quarantineKey, body.bytes, {
+        onlyIf: { etagDoesNotMatch: "*" },
+        httpMetadata: { contentType: "image/webp" },
+        customMetadata: {
+          purpose: momentsUploadTokenPurpose,
+          uploadId: claims.uploadId
+        }
+      });
+      if (!object)
+        return json({ error: "upload_already_exists" }, 409, headers);
+      return json(
+        {
+          uploadId: claims.uploadId,
+          quarantineKey: claims.quarantineKey,
+          etag: object.etag,
+          byteSize: body.bytes.byteLength
+        },
+        200,
+        headers
+      );
     }
+
+    if (request.method !== "POST" || pathname !== "/verify")
+      return json({ error: "not_found" }, 404);
 
     const authorization = request.headers.get("Authorization") ?? "";
     if (
