@@ -5,6 +5,7 @@ import { supabase, supabaseConfigurationError } from "../lib/supabase";
 export const MOMENTS_PAGE_SIZE = 20;
 
 const uuidSchema = z.string().uuid();
+const ownMomentIdRowSchema = z.object({ id: uuidSchema });
 const momentCursorRowSchema = z.object({
   id: uuidSchema,
   submitted_at: z.string().min(1)
@@ -209,8 +210,8 @@ export async function loadOwnMomentIds(
 
   return new Set(
     data.flatMap((row) => {
-      const parsed = uuidSchema.safeParse(row.id);
-      return parsed.success ? [parsed.data] : [];
+      const parsed = ownMomentIdRowSchema.safeParse(row);
+      return parsed.success ? [parsed.data.id] : [];
     })
   );
 }

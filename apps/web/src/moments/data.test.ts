@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   loadPublicMomentsPage,
+  loadOwnMomentIds,
   normalizePublicMoment,
   MOMENTS_PAGE_SIZE
 } from "./data";
@@ -202,4 +203,27 @@ test("reports a malformed RPC payload without rendering partial data", async () 
     hasMore: false,
     nextCursor: null
   });
+});
+
+test("skips malformed own Moment rows without throwing", async () => {
+  const client = {
+    auth: {
+      getUser: async () => ({
+        data: { user: { id: firstRow.id } },
+        error: null
+      })
+    },
+    from: () => ({
+      select: () => ({
+        eq: async () => ({
+          data: [null, { id: firstRow.id }, { id: "not-a-uuid" }],
+          error: null
+        })
+      })
+    })
+  } as unknown as NonNullable<Parameters<typeof loadOwnMomentIds>[0]>;
+
+  await expect(loadOwnMomentIds(client)).resolves.toEqual(
+    new Set([firstRow.id])
+  );
 });
