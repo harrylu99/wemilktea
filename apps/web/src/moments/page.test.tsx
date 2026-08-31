@@ -555,6 +555,12 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
 
   expect(view.getByRole("heading", { name: "Sip Mode" })).toBeTruthy();
   expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
+  expect(
+    view.getByRole("region", { name: "Sip Mode, Moment 1" }).className
+  ).not.toContain("touch-none");
+  expect(
+    view.container.querySelector("[data-sip-gesture-surface]")
+  ).toBeTruthy();
   expect(view.queryByText("What’s Auckland sipping? 🧋")).toBeNull();
   expect(pageCalls).toHaveLength(1);
   expect(auth.signInAnonymously).not.toHaveBeenCalled();
@@ -731,22 +737,25 @@ test.serial(
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
     fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
-    const stage = view.getByRole("region", { name: "Sip Mode, Moment 1" });
+    const gestureSurface = view.container.querySelector<HTMLElement>(
+      "[data-sip-gesture-surface]"
+    );
+    expect(gestureSurface).toBeTruthy();
 
-    fireEvent.pointerDown(stage, {
+    fireEvent.pointerDown(gestureSurface!, {
       button: 0,
       clientX: 200,
       clientY: 200,
       isPrimary: true,
       pointerId: 1
     });
-    fireEvent.pointerMove(stage, {
+    fireEvent.pointerMove(gestureSurface!, {
       clientX: 80,
       clientY: 200,
       isPrimary: true,
       pointerId: 1
     });
-    fireEvent.pointerUp(stage, {
+    fireEvent.pointerUp(gestureSurface!, {
       clientX: 80,
       clientY: 200,
       isPrimary: true,
@@ -760,6 +769,36 @@ test.serial(
     expect(auth.signInAnonymously).not.toHaveBeenCalled();
   }
 );
+
+test.serial("keeps metadata touch scrolling out of Sip actions", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  const details = view.getByText(firstMoment.caption);
+
+  fireEvent.pointerDown(details, {
+    button: 0,
+    clientX: 200,
+    clientY: 200,
+    isPrimary: true,
+    pointerId: 1
+  });
+  fireEvent.pointerMove(details, {
+    clientX: 200,
+    clientY: 80,
+    isPrimary: true,
+    pointerId: 1
+  });
+  fireEvent.pointerUp(details, {
+    clientX: 200,
+    clientY: 80,
+    isPrimary: true,
+    pointerId: 1
+  });
+
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
+  expect(rpcCalls).toHaveLength(0);
+});
 
 test.serial(
   "shows a visible retryable error when a Sip action fails",

@@ -82,7 +82,10 @@ function SipCard({
         transform: `translate(${dragDistance}px, ${dragVerticalDistance}px)`
       }}
     >
-      <div className="relative flex min-h-[min(62dvh,34rem)] flex-1 items-center justify-center bg-muted md:min-h-0">
+      <div
+        className="relative flex min-h-[min(62dvh,34rem)] flex-1 touch-none items-center justify-center bg-muted md:min-h-0"
+        data-sip-gesture-surface="true"
+      >
         {moment.imageUrl && !imageError ? (
           <img
             alt={imageAlt(moment)}
@@ -113,7 +116,7 @@ function SipCard({
         </span>
       </div>
       {hasDetails ? (
-        <div className="grid content-center gap-2 p-5 md:min-h-0 md:w-[min(28rem,38%)] md:overflow-y-auto md:p-7">
+        <div className="grid content-start gap-2 overflow-y-auto p-5 [touch-action:pan-y] md:min-h-0 md:w-[min(28rem,38%)] md:p-7">
           {product ? (
             moment.product.id &&
             moment.product.slug &&
@@ -313,7 +316,8 @@ export function SipMode({
       pendingRef.current ||
       helpOpen ||
       (event.target instanceof HTMLElement &&
-        Boolean(event.target.closest("a,button,input,select,textarea")))
+        (Boolean(event.target.closest("a,button,input,select,textarea")) ||
+          !event.target.closest("[data-sip-gesture-surface]")))
     ) {
       return;
     }
@@ -405,7 +409,7 @@ export function SipMode({
       <div
         ref={stageRef}
         aria-label={`Sip Mode, Moment ${index + 1}`}
-        className="flex min-h-0 w-full max-w-5xl touch-none items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="flex min-h-0 w-full max-w-5xl items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         role="region"
         tabIndex={0}
         onKeyDown={handleKeyDown}
