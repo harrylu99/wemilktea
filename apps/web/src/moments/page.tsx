@@ -544,7 +544,12 @@ export function MomentsPage() {
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore || typeof IntersectionObserver === "undefined") {
+    if (
+      !sentinel ||
+      !hasMore ||
+      loadMoreStatus === "error" ||
+      typeof IntersectionObserver === "undefined"
+    ) {
       return;
     }
     const observer = new IntersectionObserver(
@@ -555,7 +560,7 @@ export function MomentsPage() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadMore]);
+  }, [hasMore, loadMore, loadMoreStatus]);
 
   const updateLike = (postId: string, liked: boolean) => {
     setMoments((current) =>
@@ -662,7 +667,7 @@ export function MomentsPage() {
             </button>
           </section>
         ) : null}
-        {status === "ready" && moments.length === 0 ? (
+        {status === "ready" && moments.length === 0 && !hasMore ? (
           <section className="mt-8 rounded-2xl border border-border bg-card p-8 text-center">
             <p className="text-xs font-semibold tracking-[0.16em] text-primary">
               THE GALLERY IS QUIET
@@ -673,7 +678,7 @@ export function MomentsPage() {
             </p>
           </section>
         ) : null}
-        {status === "ready" && moments.length > 0 ? (
+        {status === "ready" && (moments.length > 0 || hasMore) ? (
           <section aria-label="Public Moments Gallery" className="mt-5">
             <div className="moments-grid columns-2 gap-3 md:columns-3 md:gap-4 lg:columns-4">
               {moments.map((moment) => (

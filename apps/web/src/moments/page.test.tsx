@@ -105,6 +105,7 @@ let nextPage: MockPage = {
   hasMore: false,
   error: null
 };
+let cursorPage: MockPage | null = null;
 let ownIds = new Set<string>();
 let deferNextPage = false;
 let failNextPage = false;
@@ -176,7 +177,7 @@ mock.module("./data", () => ({
         error: "query_failed"
       };
     }
-    return nextPage;
+    return cursor && cursorPage ? cursorPage : nextPage;
   },
   momentReportReasons: [
     ["spam", "Spam"],
@@ -213,6 +214,7 @@ beforeEach(() => {
     hasMore: false,
     error: null
   };
+  cursorPage = null;
   ownIds = new Set();
   deferNextPage = false;
   failNextPage = false;
@@ -423,7 +425,7 @@ test.serial(
 );
 
 test.serial(
-  "preserves the feed and retries a failed next-page request",
+  "stops automatic retries after a failed next-page request",
   async () => {
     const secondPageMoment = { ...secondMoment, caption: "Retry cup" };
     nextPage = {
@@ -442,6 +444,14 @@ test.serial(
 
     expect(view.getByRole("alert").textContent).toContain("couldn’t load");
     expect(view.getByText(firstMoment.caption)).toBeTruthy();
+    expect(pageCalls).toHaveLength(2);
+    expect(FakeIntersectionObserver.current).toBeNull();
+    await act(async () => {
+      FakeIntersectionObserver.current?.trigger();
+      await Promise.resolve();
+    });
+    expect(pageCalls).toHaveLength(2);
+
     failNextPage = false;
     nextPage = {
       data: [secondPageMoment],
@@ -451,5 +461,81 @@ test.serial(
     };
     fireEvent.click(view.getByRole("button", { name: "Try again" }));
     expect(await view.findByText("Retry cup")).toBeTruthy();
+    expect(pageCalls).toHaveLength(3);
+  }
+);
+
+test.serial("continues pagination after an empty validated page", async () => {
+  nextPage = {
+    data: [],
+    nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+    hasMore: true,
+    error: null
+  };
+  cursorPage = {
+    data: [secondMoment],
+    nextCursor: null,
+    hasMore: false,
+    error: null
+  };
+  const view = renderMoments();
+  await act(async () => await Promise.resolve());
+
+  expect(view.queryByText("No Moments yet.")).toBeNull();
+  expect(FakeIntersectionObserver.current).toBeTruthy();
+  await act(async () => {
+    FakeIntersectionObserver.current?.trigger();
+    await Promise.resolve();
+  });
+
+  expect(await view.findByText("Surprise jasmine drink")).toBeTruthy();
+  expect(pageCalls).toHaveLength(2);
+});
+
+test.serial("renders the genuine empty feed state", async () => {
+  nextPage = {
+    data: [],
+    nextCursor: null,
+    hasMore: false,
+    error: null
+  };
+  const view = renderMoments();
+  await act(async () => await Promise.resolve());
+
+  expect(view.getByText("No Moments yet.")).toBeTruthy();
+  expect(FakeIntersectionObserver.current).toBeNull();
+  expect(pageCalls).toHaveLength(1);
+});
+
+test.serial(
+  "keeps the retry state for an empty page without automatic retries",
+  async () => {
+    nextPage = {
+      data: [],
+      nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+      hasMore: true,
+      error: null
+    };
+    failNextPage = true;
+    const view = renderMoments();
+    await act(async () => await Promise.resolve());
+
+    expect(view.queryByText("No Moments yet.")).toBeNull();
+    expect(FakeIntersectionObserver.current).toBeTruthy();
+    await act(async () => {
+      FakeIntersectionObserver.current?.trigger();
+      await Promise.resolve();
+    });
+
+    expect(view.getByRole("alert").textContent).toContain("couldn’t load");
+    expect(view.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(view.queryByText("No Moments yet.")).toBeNull();
+    expect(pageCalls).toHaveLength(2);
+    expect(FakeIntersectionObserver.current).toBeNull();
+    await act(async () => {
+      FakeIntersectionObserver.current?.trigger();
+      await Promise.resolve();
+    });
+    expect(pageCalls).toHaveLength(2);
   }
 );
