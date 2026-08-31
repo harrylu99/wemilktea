@@ -83,7 +83,7 @@ export function inspectWebp(bytes: ArrayBuffer) {
     }
     if (type === "VP8X" && size >= 10) {
       const flags = data[offset + 8];
-      if ((flags & 0xc1) !== 0 || (flags & 0x38) !== 0) {
+      if ((flags & 0xc1) !== 0 || (flags & 0x0e) !== 0) {
         return { valid: false as const, reason: "forbidden_webp_metadata" };
       }
     }

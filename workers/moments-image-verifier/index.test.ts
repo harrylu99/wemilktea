@@ -33,6 +33,33 @@ function webpBytes(extraChunk?: string) {
   ]);
 }
 
+function webpVp8xBytes(flags: number) {
+  const bytes = new Uint8Array(42);
+  bytes.set(
+    [..."RIFF"].map((character) => character.charCodeAt(0)),
+    0
+  );
+  bytes.set(
+    [..."WEBP"].map((character) => character.charCodeAt(0)),
+    8
+  );
+  bytes.set(
+    [..."VP8X"].map((character) => character.charCodeAt(0)),
+    12
+  );
+  const view = new DataView(bytes.buffer);
+  view.setUint32(4, 34, true);
+  view.setUint32(16, 10, true);
+  bytes[20] = flags;
+  bytes.set(
+    [..."VP8 "].map((character) => character.charCodeAt(0)),
+    30
+  );
+  view.setUint32(34, 4, true);
+  bytes.set([1, 2, 3, 4], 38);
+  return bytes;
+}
+
 function createEnvironment(
   bytes = webpBytes(),
   infoOverrides: Record<string, unknown> = {}
@@ -130,6 +157,8 @@ describe("Moments image verifier", () => {
       expectedEtag: "source-etag"
     });
     expect(wrongKeyResponse.status).toBe(400);
+    expect(inspectWebp(webpVp8xBytes(0x30).buffer).valid).toBe(true);
+    expect(inspectWebp(webpVp8xBytes(0x08).buffer).valid).toBe(false);
   });
 
   test("rejects decode failures, oversized dimensions, and MIME mismatches", async () => {
