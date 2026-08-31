@@ -5,14 +5,18 @@ import { supabase, supabaseConfigurationError } from "../lib/supabase";
 export const MOMENTS_PAGE_SIZE = 20;
 
 const uuidSchema = z.string().uuid();
+const momentCursorRowSchema = z.object({
+  id: uuidSchema,
+  submitted_at: z.string().min(1)
+});
 
 const publicMomentRowSchema = z.object({
   id: uuidSchema,
   image_asset_id: uuidSchema,
   storage_key: z.string().min(1),
   content_type: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
   caption: z.string(),
   display_name: z.string().nullable(),
   location_id: uuidSchema.nullable(),
@@ -23,6 +27,7 @@ const publicMomentRowSchema = z.object({
   product_text: z.string().nullable(),
   product_name: z.string().nullable(),
   product_slug: z.string().nullable(),
+  product_brand_slug: z.string().nullable().optional(),
   created_at: z.string().min(1),
   submitted_at: z.string().min(1),
   like_count: z.coerce.number().int().nonnegative(),
@@ -44,8 +49,8 @@ export type PublicMoment = {
   id: string;
   imageAssetId: string;
   imageUrl: string | null;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   caption: string;
   displayName: string | null;
   location: {
@@ -58,6 +63,7 @@ export type PublicMoment = {
     id: string | null;
     name: string | null;
     slug: string | null;
+    brandSlug: string | null;
     text: string | null;
   };
   createdAt: string;
@@ -106,6 +112,7 @@ export function normalizePublicMoment(
       id: parsed.data.product_id,
       name: parsed.data.product_name,
       slug: parsed.data.product_slug,
+      brandSlug: parsed.data.product_brand_slug ?? null,
       text: parsed.data.product_text
     },
     createdAt: parsed.data.created_at,
@@ -143,8 +150,8 @@ export async function loadPublicMomentsPage(
     };
   }
 
-  const rows = publicMomentRowSchema.array().safeParse(data);
-  if (!rows.success) {
+  const rawRows = z.array(z.unknown()).safeParse(data);
+  if (!rawRows.success) {
     return {
       data: null,
       nextCursor: null,
@@ -153,19 +160,23 @@ export async function loadPublicMomentsPage(
     };
   }
 
-  const hasMore = rows.data.length > MOMENTS_PAGE_SIZE;
-  const pageRows = rows.data.slice(0, MOMENTS_PAGE_SIZE);
+  const consumedRows = rawRows.data.slice(0, MOMENTS_PAGE_SIZE + 1);
+  const hasLookAhead = consumedRows.length > MOMENTS_PAGE_SIZE;
+  const pageRows = consumedRows.slice(0, MOMENTS_PAGE_SIZE);
   const moments = pageRows
     .map((row) => normalizePublicMoment(row))
     .filter((moment): moment is PublicMoment => moment !== null);
-  const lastMoment = moments.at(-1);
+  const cursorRow = momentCursorRowSchema.safeParse(pageRows.at(-1));
 
   return {
     data: moments,
-    nextCursor: lastMoment
-      ? { submittedAt: lastMoment.submittedAt, id: lastMoment.id }
+    nextCursor: cursorRow.success
+      ? {
+          submittedAt: cursorRow.data.submitted_at,
+          id: cursorRow.data.id
+        }
       : null,
-    hasMore,
+    hasMore: cursorRow.success && hasLookAhead,
     error: null
   };
 }

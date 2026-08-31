@@ -42,6 +42,19 @@ function publicProduct(moment: PublicMoment) {
   return moment.product.name ?? moment.product.text;
 }
 
+function relativeMomentTime(value: string, now = Date.now()) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  const minutes = Math.max(
+    1,
+    Math.floor(Math.max(0, now - timestamp) / 60_000)
+  );
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
 function MomentActions({
   moment,
   isOwn,
@@ -53,6 +66,7 @@ function MomentActions({
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const reportReasonRef = useRef<HTMLSelectElement>(null);
   const [open, setOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<MomentReportReason | "">("");
@@ -60,10 +74,16 @@ function MomentActions({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!reportOpen) return;
+    queueMicrotask(() => reportReasonRef.current?.focus());
+  }, [reportOpen]);
+
   const close = useCallback(() => {
     setOpen(false);
     setReportOpen(false);
     setReportReason("");
+    queueMicrotask(() => triggerRef.current?.focus());
   }, []);
 
   useDismissiblePopover({
@@ -122,8 +142,7 @@ function MomentActions({
     setPending(false);
     if (!result) return;
     setMessage("Report sent");
-    setReportOpen(false);
-    setReportReason("");
+    close();
   };
 
   return (
@@ -157,6 +176,7 @@ function MomentActions({
               >
                 Report reason
                 <select
+                  ref={reportReasonRef}
                   className="h-10 rounded-lg border border-border bg-card px-2 text-sm font-normal text-foreground"
                   id={`report-${moment.id}`}
                   value={reportReason}
@@ -183,7 +203,7 @@ function MomentActions({
                 <button
                   className="rounded-lg px-2 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted"
                   type="button"
-                  onClick={() => setReportOpen(false)}
+                  onClick={close}
                 >
                   Cancel
                 </button>
@@ -220,12 +240,15 @@ function MomentActions({
               {error}
             </p>
           ) : null}
-          {!reportOpen && message ? (
-            <p className="px-3 pb-2 text-xs text-primary" role="status">
-              {message}
-            </p>
-          ) : null}
         </div>
+      ) : null}
+      {message ? (
+        <p
+          className="absolute right-0 top-11 z-20 rounded-lg bg-card px-3 py-2 text-xs text-primary shadow-sm"
+          role="status"
+        >
+          {message}
+        </p>
       ) : null}
     </div>
   );
@@ -247,6 +270,12 @@ function MomentCard({
   const [likeError, setLikeError] = useState<string | null>(null);
   const location = publicLocation(moment);
   const product = publicProduct(moment);
+  const author = moment.displayName?.trim() || null;
+  const caption = moment.caption.trim();
+  const relativeTime = author ? relativeMomentTime(moment.submittedAt) : null;
+  const hasDetails = Boolean(
+    caption || location || product || author || likeError
+  );
 
   const toggleLike = async () => {
     if (!supabase || likePending) return;
@@ -272,20 +301,25 @@ function MomentCard({
   };
 
   return (
-    <article className="moments-card relative mb-4 w-full break-inside-avoid overflow-visible rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+    <article className="moments-card relative mb-3 w-full break-inside-avoid overflow-visible rounded-xl border border-border bg-card text-card-foreground">
       <div
-        className="moments-card-media relative overflow-hidden rounded-t-2xl bg-muted"
-        style={{ aspectRatio: `${moment.width} / ${moment.height}` }}
+        className={`moments-card-media relative overflow-hidden bg-muted ${hasDetails ? "rounded-t-xl" : "rounded-xl"}`}
+        style={{
+          aspectRatio:
+            moment.width && moment.height
+              ? `${moment.width} / ${moment.height}`
+              : "4 / 3"
+        }}
       >
         {moment.imageUrl && !imageError ? (
           <img
             alt={momentImageAlt(moment)}
             className="h-full w-full object-cover"
             decoding="async"
-            height={moment.height}
+            height={moment.height ?? undefined}
             loading="lazy"
             src={moment.imageUrl}
-            width={moment.width}
+            width={moment.width ?? undefined}
             onError={() => setImageError(true)}
           />
         ) : (
@@ -296,52 +330,73 @@ function MomentCard({
             moment.likedByMe ? "Unlike this Moment" : "Like this Moment"
           }
           aria-pressed={moment.likedByMe}
-          className="absolute bottom-3 right-3 rounded-full bg-card/90 px-3 py-2 text-sm font-semibold text-card-foreground shadow-sm backdrop-blur hover:bg-card disabled:cursor-wait disabled:opacity-70"
+          className="absolute bottom-0 right-0 grid size-11 place-items-end p-2 text-xs font-medium text-white drop-shadow-sm hover:text-white/80 disabled:cursor-wait disabled:opacity-70"
           disabled={likePending}
           type="button"
           onClick={() => void toggleLike()}
         >
-          <span aria-hidden="true">{moment.likedByMe ? "♥" : "♡"}</span>{" "}
-          {moment.likeCount}
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span aria-hidden="true">{moment.likedByMe ? "♥" : "♡"}</span>
+            {moment.likeCount}
+          </span>
         </button>
       </div>
       <div className="absolute right-3 top-3 z-10">
         <MomentActions isOwn={isOwn} moment={moment} onDelete={onDelete} />
       </div>
-      <div className="grid gap-2 p-4">
-        {moment.caption.trim() ? (
-          <p className="break-words text-sm leading-5">{moment.caption}</p>
-        ) : null}
-        {location || product ? (
-          <div className="grid gap-1 text-xs text-muted-foreground">
-            {location ? (
-              moment.location.id &&
-              moment.location.slug &&
-              moment.location.name ? (
-                <Link
-                  className="w-fit font-semibold text-primary hover:underline"
-                  to={`/stores/${encodeURIComponent(moment.location.slug)}`}
-                >
-                  {location}
-                </Link>
-              ) : (
-                <span>{location}</span>
-              )
-            ) : null}
-            {product ? <span>{product}</span> : null}
-          </div>
-        ) : null}
-        {moment.displayName?.trim() ? (
-          <p className="text-xs font-medium text-muted-foreground">
-            {moment.displayName}
-          </p>
-        ) : null}
-        {likeError ? (
-          <p className="text-xs text-destructive" role="alert">
-            {likeError}
-          </p>
-        ) : null}
-      </div>
+      {hasDetails ? (
+        <div className="grid gap-1 px-3.5 py-3">
+          {product ? (
+            moment.product.id &&
+            moment.product.slug &&
+            moment.product.name &&
+            moment.product.brandSlug ? (
+              <Link
+                className="break-words text-xl font-semibold leading-7 hover:underline"
+                to={`/drinks/${encodeURIComponent(moment.product.brandSlug)}/${encodeURIComponent(moment.product.slug)}`}
+              >
+                {product}
+              </Link>
+            ) : (
+              <span className="break-words text-xl font-semibold leading-7">
+                {product}
+              </span>
+            )
+          ) : null}
+          {location ? (
+            moment.location.id &&
+            moment.location.slug &&
+            moment.location.name ? (
+              <Link
+                className="w-fit break-words text-sm leading-5 text-muted-foreground hover:underline"
+                to={`/stores/${encodeURIComponent(moment.location.slug)}`}
+              >
+                {location}
+              </Link>
+            ) : (
+              <span className="break-words text-sm leading-5 text-muted-foreground">
+                {location}
+              </span>
+            )
+          ) : null}
+          {author ? (
+            <p className="text-sm leading-5 text-muted-foreground">
+              {author}
+              {relativeTime ? ` · ${relativeTime}` : ""}
+            </p>
+          ) : null}
+          {caption ? (
+            <p className="break-words whitespace-pre-wrap pt-1 text-sm leading-5">
+              {caption}
+            </p>
+          ) : null}
+          {likeError ? (
+            <p className="text-xs text-destructive" role="alert">
+              {likeError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -350,13 +405,13 @@ function MomentsSkeleton() {
   return (
     <div
       aria-label="Loading Moments"
-      className="moments-grid columns-2 gap-4"
+      className="moments-grid columns-2 gap-3 md:columns-3 md:gap-4 lg:columns-4"
       role="status"
     >
       {Array.from({ length: 6 }, (_, index) => (
         <div
           aria-hidden="true"
-          className="moments-card mb-4 inline-block w-full break-inside-avoid rounded-2xl border border-border bg-card"
+          className="moments-card mb-3 inline-block w-full break-inside-avoid rounded-xl border border-border bg-card"
           key={index}
           style={{
             height:
@@ -483,37 +538,48 @@ export function MomentsPage() {
         title="Milk Tea Moments | WeMilktea"
       />
       <PublicHeader />
-      <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 pb-10 pt-6 sm:px-8 md:pt-8">
-        <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 pb-10 pt-6 sm:px-8">
+        <header className="flex flex-col gap-5">
           <div>
             <p className="text-xs font-semibold tracking-[0.16em] text-primary">
               MILK TEA MOMENTS
             </p>
-            <h1 className="mt-3 text-3xl font-semibold leading-9 md:text-[40px] md:leading-[48px]">
-              A little joy, shared.
+            <h1 className="mt-3 text-[32px] font-semibold leading-10">
+              What’s Auckland sipping? 🧋
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-5 text-muted-foreground">
-              Discover the cups and places the WeMilktea community is enjoying.
+            <p className="mt-3 max-w-3xl text-base leading-6 text-muted-foreground">
+              Little milk tea moments shared around the city. Browse the gallery
+              or switch to Sip Mode.
             </p>
           </div>
-          <div className="flex items-center gap-2" aria-label="Moments views">
-            <span className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">
-              Gallery
-            </span>
-            <span
-              aria-disabled="true"
-              className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-muted-foreground"
-            >
-              Sip Mode · soon
-            </span>
+          <div
+            aria-label="Moments views"
+            className="flex max-w-full items-center gap-2 overflow-x-auto pb-1"
+          >
+            <div className="flex h-12 w-[190px] shrink-0 items-center rounded-xl border border-border bg-card p-1">
+              <span className="flex h-10 w-[86px] shrink-0 items-center rounded-lg bg-accent px-4 py-2 text-xs font-medium text-primary">
+                Gallery
+              </span>
+              <button
+                aria-describedby="sip-mode-status"
+                className="flex h-10 w-[96px] shrink-0 items-center rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground disabled:cursor-not-allowed"
+                disabled
+                title="Sip Mode is coming soon."
+                type="button"
+              >
+                Sip Mode
+              </button>
+            </div>
             <button
-              aria-disabled="true"
-              className="rounded-xl border border-border px-4 py-2 text-xs font-semibold text-muted-foreground disabled:cursor-not-allowed disabled:opacity-70"
+              className="flex h-12 w-[156px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground disabled:cursor-not-allowed"
               disabled
               type="button"
             >
-              Share your moment · soon
+              Share your moment
             </button>
+            <span className="sr-only" id="sip-mode-status">
+              Sip Mode is not available yet.
+            </span>
           </div>
         </header>
 
@@ -554,8 +620,8 @@ export function MomentsPage() {
           </section>
         ) : null}
         {status === "ready" && moments.length > 0 ? (
-          <section aria-label="Public Moments Gallery" className="mt-8">
-            <div className="moments-grid columns-2 gap-4 md:columns-3 lg:columns-4 lg:gap-5">
+          <section aria-label="Public Moments Gallery" className="mt-5">
+            <div className="moments-grid columns-2 gap-3 md:columns-3 md:gap-4 lg:columns-4">
               {moments.map((moment) => (
                 <MomentCard
                   isOwn={ownMomentIds.has(moment.id)}

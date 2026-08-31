@@ -65,6 +65,7 @@ const firstMoment: PublicMoment = {
     id: "44444444-4444-4444-8444-444444444444",
     name: "Matcha Cloud Latte",
     slug: "matcha-cloud-latte",
+    brandSlug: "gong-cha",
     text: null
   },
   createdAt: "2026-08-31T00:00:00.000Z",
@@ -81,7 +82,13 @@ const secondMoment = {
   caption: "",
   displayName: null,
   location: { id: null, name: null, slug: null, text: "Takapuna tea shop" },
-  product: { id: null, name: null, slug: null, text: "Surprise jasmine drink" },
+  product: {
+    id: null,
+    name: null,
+    slug: null,
+    brandSlug: null,
+    text: "Surprise jasmine drink"
+  },
   likeCount: 0
 };
 
@@ -248,6 +255,11 @@ test.serial(
     expect(
       view.getByRole("link", { name: "Mellow Tea House" }).getAttribute("href")
     ).toBe("/stores/mellow-tea-house");
+    expect(
+      view
+        .getByRole("link", { name: "Matcha Cloud Latte" })
+        .getAttribute("href")
+    ).toBe("/drinks/gong-cha/matcha-cloud-latte");
     expect(pageCalls).toHaveLength(1);
   }
 );
@@ -297,9 +309,10 @@ test.serial(
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
 
-    fireEvent.click(
-      view.getAllByRole("button", { name: "Open Moment actions" })[1]!
-    );
+    const trigger = view.getAllByRole("button", {
+      name: "Open Moment actions"
+    })[1]!;
+    fireEvent.click(trigger);
     fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
     fireEvent.change(view.getByLabelText("Report reason"), {
       target: { value: "spam" }
@@ -312,6 +325,33 @@ test.serial(
       args: { p_details: null, p_post_id: secondMoment.id, p_reason: "spam" }
     });
     expect(view.getByRole("status").textContent).toBe("Report sent");
+    expect(trigger).toBe(document.activeElement as HTMLElement);
+  }
+);
+
+test.serial(
+  "moves report focus into the form and restores it to the trigger",
+  async () => {
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+
+    const trigger = view.getByRole("button", { name: "Open Moment actions" });
+    fireEvent.click(trigger);
+    fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
+    await act(async () => await Promise.resolve());
+
+    expect(view.getByLabelText("Report reason")).toBe(
+      document.activeElement as HTMLElement
+    );
+    fireEvent.click(view.getByRole("button", { name: "Cancel" }));
+    await act(async () => await Promise.resolve());
+    expect(trigger).toBe(document.activeElement as HTMLElement);
+
+    fireEvent.click(trigger);
+    fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
+    await act(async () => await Promise.resolve());
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(trigger).toBe(document.activeElement as HTMLElement);
   }
 );
 

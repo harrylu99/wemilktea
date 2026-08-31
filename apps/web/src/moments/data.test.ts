@@ -22,6 +22,7 @@ const firstRow = {
   product_text: null,
   product_name: "Matcha Cloud Latte",
   product_slug: "matcha-cloud-latte",
+  product_brand_slug: "gong-cha",
   created_at: "2026-08-31T00:00:00.000Z",
   submitted_at: "2026-08-31T00:00:00.000Z",
   like_count: 3,
@@ -68,6 +69,67 @@ test("normalizes canonical and free-text Moment metadata without inventing links
   });
 });
 
+test("keeps a valid dimensionless image in the public feed", async () => {
+  const client = {
+    rpc: async () => ({
+      data: [{ ...firstRow, width: null, height: null }],
+      error: null
+    })
+  } as unknown as NonNullable<Parameters<typeof loadPublicMomentsPage>[1]>;
+
+  const result = await loadPublicMomentsPage(null, client);
+
+  expect(result.error).toBeNull();
+  expect(result.data).toHaveLength(1);
+  expect(result.data?.[0]).toMatchObject({ width: null, height: null });
+});
+
+test("skips a malformed row without dropping valid Moments", async () => {
+  const client = {
+    rpc: async () => ({
+      data: [
+        firstRow,
+        { ...firstRow, caption: null },
+        { ...firstRow, id: "55555555-5555-4555-8555-555555555555" }
+      ],
+      error: null
+    })
+  } as unknown as NonNullable<Parameters<typeof loadPublicMomentsPage>[1]>;
+
+  const result = await loadPublicMomentsPage(null, client);
+
+  expect(result.error).toBeNull();
+  expect(result.data?.map((moment) => moment.id)).toEqual([
+    firstRow.id,
+    "55555555-5555-4555-8555-555555555555"
+  ]);
+});
+
+test("advances the cursor past an invalid trailing row", async () => {
+  const trailingRow = {
+    ...makeRow(MOMENTS_PAGE_SIZE),
+    caption: null
+  };
+  const rows = [
+    ...Array.from({ length: MOMENTS_PAGE_SIZE - 1 }, (_, index) =>
+      makeRow(index + 1)
+    ),
+    trailingRow
+  ];
+  const client = {
+    rpc: async () => ({ data: rows, error: null })
+  } as unknown as NonNullable<Parameters<typeof loadPublicMomentsPage>[1]>;
+
+  const result = await loadPublicMomentsPage(null, client);
+
+  expect(result.data).toHaveLength(MOMENTS_PAGE_SIZE - 1);
+  expect(result.nextCursor).toEqual({
+    id: trailingRow.id,
+    submittedAt: trailingRow.submitted_at
+  });
+  expect(result.hasMore).toBe(false);
+});
+
 test("requests one look-ahead row and advances the submitted_at/id cursor", async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const rows = Array.from({ length: MOMENTS_PAGE_SIZE + 1 }, (_, index) =>
@@ -101,9 +163,9 @@ test("requests one look-ahead row and advances the submitted_at/id cursor", asyn
   });
 });
 
-test("reports malformed RPC data instead of rendering a partial Moment", async () => {
+test("reports a malformed RPC payload without rendering partial data", async () => {
   const client = {
-    rpc: async () => ({ data: [{ ...firstRow, width: 0 }], error: null })
+    rpc: async () => ({ data: { id: firstRow.id }, error: null })
   } as unknown as NonNullable<Parameters<typeof loadPublicMomentsPage>[1]>;
 
   const result = await loadPublicMomentsPage(null, client);
