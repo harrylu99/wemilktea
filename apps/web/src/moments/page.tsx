@@ -386,10 +386,7 @@ function MomentCard({
           type="button"
           onClick={() => void toggleLike()}
         >
-          <span
-            className="flex items-center gap-1 whitespace-nowrap"
-            style={{ textShadow: "0 1px 3px rgb(0 0 0 / 0.75)" }}
-          >
+          <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-black/60 px-2 py-1">
             <span aria-hidden="true">{moment.likedByMe ? "♥" : "♡"}</span>
             {moment.likeCount}
           </span>

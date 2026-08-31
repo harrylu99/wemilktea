@@ -168,6 +168,15 @@ export async function loadPublicMomentsPage(
     .filter((moment): moment is PublicMoment => moment !== null);
   const cursorRow = momentCursorRowSchema.safeParse(pageRows.at(-1));
 
+  if (hasLookAhead && !cursorRow.success) {
+    return {
+      data: null,
+      nextCursor: null,
+      hasMore: false,
+      error: "invalid_data"
+    };
+  }
+
   return {
     data: moments,
     nextCursor: cursorRow.success

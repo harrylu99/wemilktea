@@ -130,6 +130,32 @@ test("advances the cursor past an invalid trailing row", async () => {
   expect(result.hasMore).toBe(false);
 });
 
+test("reports a malformed cursor row instead of ending pagination", async () => {
+  const malformedCursorRow = {
+    ...makeRow(MOMENTS_PAGE_SIZE),
+    id: "not-a-uuid"
+  };
+  const rows = [
+    ...Array.from({ length: MOMENTS_PAGE_SIZE - 1 }, (_, index) =>
+      makeRow(index + 1)
+    ),
+    malformedCursorRow,
+    makeRow(MOMENTS_PAGE_SIZE + 1)
+  ];
+  const client = {
+    rpc: async () => ({ data: rows, error: null })
+  } as unknown as NonNullable<Parameters<typeof loadPublicMomentsPage>[1]>;
+
+  const result = await loadPublicMomentsPage(null, client);
+
+  expect(result).toEqual({
+    data: null,
+    nextCursor: null,
+    hasMore: false,
+    error: "invalid_data"
+  });
+});
+
 test("requests one look-ahead row and advances the submitted_at/id cursor", async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const rows = Array.from({ length: MOMENTS_PAGE_SIZE + 1 }, (_, index) =>
