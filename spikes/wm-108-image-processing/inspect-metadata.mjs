@@ -169,6 +169,12 @@ function inspectBytes(bytes) {
 
 function runProbe(path) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     const child = spawn(
       "ffprobe",
       [
@@ -189,6 +195,13 @@ function runProbe(path) {
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
     });
+    child.on("error", (error) => {
+      finish({
+        ok: false,
+        details: null,
+        error: `ffprobe unavailable: ${error.code ?? error.message}`
+      });
+    });
     child.on("close", (code) => {
       let details = null;
       try {
@@ -204,7 +217,7 @@ function runProbe(path) {
         Number.isInteger(stream.height) &&
         stream.width > 0 &&
         stream.height > 0;
-      resolve({
+      finish({
         ok: validStream,
         details,
         error: validStream
