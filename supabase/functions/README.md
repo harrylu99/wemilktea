@@ -8,6 +8,12 @@ Add a function here only for a secret-bearing or privileged V1 operation, such a
 
 `image-storage` authorizes an admin, issues a short-lived R2 presigned upload URL, verifies the uploaded object, and attaches only metadata through admin-only RPCs. R2 credentials stay in Edge Function secrets; the browser receives no credentials or bucket access. See [Image storage](../../docs/IMAGE_STORAGE.md).
 
+`community-image-storage` is a separate owner-scoped Moments boundary. It issues
+short-lived WebP quarantine PUT URLs only for an authenticated owner's draft,
+delegates authoritative decode/dimension/metadata checks and promotion to the
+bound Cloudflare verifier Worker, and calls the service-role-only finalization
+RPC. It must not be used by the Admin catalogue flow.
+
 `external-menu` authorizes an admin, resolves a canonical location through the
 provider-neutral `location_external_sources` mapping, fetches the mapped Uber
 Eats menu with server-only credentials, and returns only normalized review data.

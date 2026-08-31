@@ -99,7 +99,7 @@ The admin browser flow needs no additional environment variables. See [Admin aut
 
 Google Places discovery is configured only for the server-side Edge Function. See [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md) for its local variables, deployment setup, API usage boundary, and required policy checks.
 
-R2 image secrets are configured only for the `image-storage` Edge Function. The browser receives only `VITE_R2_PUBLIC_BASE_URL`; see [Image storage](docs/IMAGE_STORAGE.md) for bucket permissions, presigned uploads, CORS, and the Google-image restriction.
+R2 image secrets are configured only for server-side Edge Functions. The browser receives only `VITE_R2_PUBLIC_BASE_URL`; see [Image storage](docs/IMAGE_STORAGE.md) for the Admin bucket permissions and [WM-109 Moments image upload](docs/WM-109_MOMENTS_IMAGE_UPLOAD.md) for the owner-scoped quarantine path.
 
 Product catalogue management is documented in [Product catalogue management](docs/PRODUCTS.md). It uses the existing canonical `products` and `location_products` model and the WM-24 image boundary.
 

@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - .github/workflows/supabase-functions-deploy.yml
       - supabase/config.toml
       - supabase/functions/**
   workflow_dispatch:
@@ -60,5 +61,11 @@ jobs:
       - name: Deploy image-storage
         run: >-
           supabase functions deploy image-storage
+          --project-ref "$SUPABASE_PROJECT_REF"
+          --use-api
+
+      - name: Deploy community-image-storage
+        run: >-
+          supabase functions deploy community-image-storage
           --project-ref "$SUPABASE_PROJECT_REF"
           --use-api

@@ -362,11 +362,14 @@ file, database row, frontend source, or response body.
 | --------------------------- | ------------------------------------------------------------- | --------------------------------------- |
 | `GOOGLE_PLACES_API_KEY`     | `store-discovery`, `candidate-google-detail`                  | Server-side Places requests             |
 | `ADMIN_APP_ORIGIN`          | `store-discovery`, `candidate-google-detail`, `image-storage` | Exact CORS/origin allow-list            |
-| `SUPABASE_SERVICE_ROLE_KEY` | `store-discovery`                                             | Privileged discovery writes             |
-| `R2_ACCOUNT_ID`             | `image-storage`                                               | R2 endpoint                             |
-| `R2_ACCESS_KEY_ID`          | `image-storage`                                               | Bucket-scoped R2 access                 |
-| `R2_SECRET_ACCESS_KEY`      | `image-storage`                                               | Bucket-scoped R2 access                 |
-| `R2_BUCKET`                 | `image-storage`                                               | Image bucket name                       |
+| `MOMENTS_APP_ORIGIN`        | `community-image-storage`                                    | Exact public Web CORS origin            |
+| `MOMENTS_IMAGE_VERIFIER_URL` | `community-image-storage`                                   | Private verifier Worker endpoint        |
+| `MOMENTS_IMAGE_VERIFIER_TOKEN` | `community-image-storage`                                | Shared server-to-Worker token           |
+| `SUPABASE_SERVICE_ROLE_KEY` | `store-discovery`, `community-image-storage`                  | Privileged server-side DB operations    |
+| `R2_ACCOUNT_ID`             | `image-storage`, `community-image-storage`                    | R2 endpoint                             |
+| `R2_ACCESS_KEY_ID`          | `image-storage`, `community-image-storage`                    | Bucket-scoped R2 access                 |
+| `R2_SECRET_ACCESS_KEY`      | `image-storage`, `community-image-storage`                    | Bucket-scoped R2 access                 |
+| `R2_BUCKET`                 | `image-storage`, `community-image-storage`                    | Image bucket name                       |
 | `R2_PUBLIC_BASE_URL`        | `image-storage`                                               | Validated public image URL construction |
 
 Supabase supplies the deployed function context for `SUPABASE_URL` and the

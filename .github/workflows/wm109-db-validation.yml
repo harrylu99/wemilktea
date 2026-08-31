@@ -1,0 +1,45 @@
+name: Validate WM-109 database contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/wm-109-moments-image-upload
+    paths:
+      - .github/workflows/wm109-db-validation.yml
+      - supabase/config.toml
+      - supabase/migrations/**
+      - supabase/tests/community_moments_upload_workflow.sql
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.113.0
+      - name: Start isolated Supabase
+        run: supabase start --exclude realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+        env:
+          SUPABASE_TELEMETRY_DISABLED: "1"
+      - name: Run WM-109 database workflow
+        run: supabase test db --local supabase/tests/community_moments_upload_workflow.sql
+        env:
+          SUPABASE_TELEMETRY_DISABLED: "1"
+      - name: Run schema lint
+        continue-on-error: true
+        run: supabase db lint --local --schema public --fail-on error
+        env:
+          SUPABASE_TELEMETRY_DISABLED: "1"
+      - name: Stop isolated Supabase
+        if: always()
+        run: supabase stop --no-backup
+        env:
+          SUPABASE_TELEMETRY_DISABLED: "1"
