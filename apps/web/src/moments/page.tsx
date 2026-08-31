@@ -22,6 +22,11 @@ import {
 } from "./data";
 import { ensurePublicWriteIdentity } from "./identity";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import {
+  SipMode,
+  type SipActionResult,
+  type SipLoadMoreStatus
+} from "./sip-mode";
 
 type FeedStatus = "loading" | "ready" | "error";
 type LoadMoreStatus = "idle" | "loading" | "error";
@@ -481,8 +486,13 @@ export function MomentsPage() {
   const [loadMoreStatus, setLoadMoreStatus] = useState<LoadMoreStatus>("idle");
   const [cursor, setCursor] = useState<MomentsCursor | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [mode, setMode] = useState<"gallery" | "sip">("gallery");
+  const [sipIndex, setSipIndex] = useState(0);
   const generationRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const sipTriggerRef = useRef<HTMLButtonElement>(null);
+  const previousModeRef = useRef<"gallery" | "sip">("gallery");
+  const galleryScrollYRef = useRef(0);
 
   const loadInitial = useCallback(async () => {
     const generation = ++generationRef.current;
@@ -491,6 +501,7 @@ export function MomentsPage() {
     setMoments([]);
     setCursor(null);
     setHasMore(false);
+    setSipIndex(0);
 
     const [page, ownIds] = await Promise.all([
       loadPublicMomentsPage(),
@@ -559,28 +570,142 @@ export function MomentsPage() {
     return () => observer.disconnect();
   }, [hasMore, loadMore, loadMoreStatus]);
 
-  const updateLike = (postId: string, liked: boolean) => {
+  const updateLike = useCallback((postId: string, liked: boolean) => {
     setMoments((current) =>
       current.map((moment) =>
         moment.id === postId
           ? {
               ...moment,
-              likeCount: Math.max(0, moment.likeCount + (liked ? 1 : -1)),
+              likeCount:
+                moment.likedByMe === liked
+                  ? moment.likeCount
+                  : Math.max(0, moment.likeCount + (liked ? 1 : -1)),
               likedByMe: liked
             }
           : moment
       )
     );
-  };
+  }, []);
 
-  const removeMoment = (postId: string) => {
+  const removeMoment = useCallback((postId: string) => {
     setMoments((current) => current.filter((moment) => moment.id !== postId));
     setOwnMomentIds((current) => {
       const next = new Set(current);
       next.delete(postId);
       return next;
     });
+  }, []);
+
+  const ensureLike = useCallback(
+    async (postId: string): Promise<SipActionResult> => {
+      const currentMoment = moments.find((item) => item.id === postId);
+      if (!currentMoment || currentMoment.likedByMe) return { ok: true };
+      if (!supabase) {
+        return {
+          ok: false,
+          message:
+            supabaseConfigurationError ?? "Likes are unavailable right now."
+        };
+      }
+      const identity = await ensurePublicWriteIdentity();
+      if (identity.error) {
+        return { ok: false, message: "Likes are unavailable right now." };
+      }
+      const { error } = await supabase.rpc("like_community_post", {
+        p_post_id: postId
+      });
+      if (error) {
+        return {
+          ok: false,
+          message: "Your Like could not be saved. Please try again."
+        };
+      }
+      updateLike(postId, true);
+      return { ok: true };
+    },
+    [moments, updateLike]
+  );
+
+  const ensureMustTry = useCallback(
+    async (postId: string): Promise<SipActionResult> => {
+      const currentMoment = moments.find((item) => item.id === postId);
+      if (!currentMoment || currentMoment.mustTryByMe) return { ok: true };
+      if (!supabase) {
+        return {
+          ok: false,
+          message:
+            supabaseConfigurationError ?? "Must Try is unavailable right now."
+        };
+      }
+      const identity = await ensurePublicWriteIdentity();
+      if (identity.error) {
+        return { ok: false, message: "Must Try is unavailable right now." };
+      }
+      const { error } = await supabase.rpc("save_community_post_must_try", {
+        p_post_id: postId
+      });
+      if (error) {
+        return {
+          ok: false,
+          message: "Must Try could not be saved. Please try again."
+        };
+      }
+      setMoments((current) =>
+        current.map((item) =>
+          item.id === postId ? { ...item, mustTryByMe: true } : item
+        )
+      );
+      return { ok: true };
+    },
+    [moments]
+  );
+
+  useLayoutEffect(() => {
+    if (
+      mode === "gallery" &&
+      previousModeRef.current === "sip" &&
+      typeof window !== "undefined"
+    ) {
+      window.scrollTo({
+        behavior: "auto",
+        left: 0,
+        top: galleryScrollYRef.current
+      });
+      queueMicrotask(() => sipTriggerRef.current?.focus());
+    }
+    previousModeRef.current = mode;
+  }, [mode]);
+
+  const enterSipMode = () => {
+    if (status !== "ready" || moments.length === 0) return;
+    galleryScrollYRef.current = window.scrollY;
+    setMode("sip");
   };
+
+  const exitSipMode = useCallback(() => setMode("gallery"), []);
+
+  if (mode === "sip") {
+    return (
+      <>
+        <Seo
+          description="Browse public milk tea Moments from the WeMilktea community."
+          path="/moments"
+          title="Milk Tea Moments | WeMilktea"
+        />
+        <SipMode
+          hasMore={hasMore}
+          index={sipIndex}
+          loadMoreStatus={loadMoreStatus as SipLoadMoreStatus}
+          moments={moments}
+          onAdvance={() => setSipIndex((current) => current + 1)}
+          onEnsureLike={ensureLike}
+          onEnsureMustTry={ensureMustTry}
+          onExit={exitSipMode}
+          onLoadMore={loadMore}
+        />
+      </>
+    );
+  }
 
   const showFooter =
     status === "error" ||
@@ -617,11 +742,12 @@ export function MomentsPage() {
                 Gallery
               </span>
               <button
-                aria-describedby="sip-mode-status"
-                className="flex h-10 w-[96px] shrink-0 items-center rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground disabled:cursor-not-allowed"
-                disabled
-                title="Sip Mode is coming soon."
+                ref={sipTriggerRef}
+                aria-pressed={false}
+                className="flex h-10 w-[96px] shrink-0 items-center rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={status !== "ready" || moments.length === 0}
                 type="button"
+                onClick={enterSipMode}
               >
                 Sip Mode
               </button>
@@ -634,7 +760,7 @@ export function MomentsPage() {
               Share your moment
             </button>
             <span className="sr-only" id="sip-mode-status">
-              Sip Mode is not available yet.
+              Sip Mode opens the current Moments without reloading the feed.
             </span>
           </div>
         </header>
