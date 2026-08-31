@@ -200,6 +200,58 @@
       }
     }
 
+    async function readBoundedBody(response) {
+      const contentLengthHeader = response.headers.get("content-length");
+      const contentLength =
+        contentLengthHeader === null ? null : Number(contentLengthHeader);
+      if (
+        Number.isSafeInteger(contentLength) &&
+        contentLength >= 0 &&
+        contentLength > maxInputBytes
+      ) {
+        throw new Error(
+          `Input exceeds ${maxInputBytes} bytes from Content-Length before image read.`
+        );
+      }
+      if (!response.body) {
+        throw new Error(
+          "Response body stream is unavailable for bounded read."
+        );
+      }
+
+      const reader = response.body.getReader();
+      const chunks = [];
+      let totalBytes = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > maxInputBytes) {
+          await reader.cancel();
+          throw new Error(
+            `Input exceeds ${maxInputBytes} bytes while reading image body.`
+          );
+        }
+        chunks.push(value);
+      }
+      if (
+        Number.isSafeInteger(contentLength) &&
+        contentLength >= 0 &&
+        contentLength !== totalBytes
+      ) {
+        throw new Error(
+          `Content-Length ${contentLength} does not match ${totalBytes} received bytes.`
+        );
+      }
+      const bytes = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return bytes.buffer;
+    }
+
     function colourName(data) {
       const [red, green, blue, alpha] = data;
       if (alpha < 32) return "transparent";
@@ -242,16 +294,21 @@
     }
 
     async function normalizeFixture(name) {
-      const response = await fetch(`/fixtures/${encodeURIComponent(name)}`);
-      if (!response.ok)
-        throw new Error(`Fixture request failed: ${response.status}`);
-      const inputBytes = await response.arrayBuffer();
-      const inputType =
-        response.headers.get("content-type") ?? "application/octet-stream";
-      const source = new Blob([inputBytes], { type: inputType });
       const startedAt = performance.now();
+      let processingStartedAt = startedAt;
+      let inputBytes = null;
+      let inputType = "application/octet-stream";
 
       try {
+        const response = await fetch(`/fixtures/${encodeURIComponent(name)}`);
+        if (!response.ok)
+          throw new Error(`Fixture request failed: ${response.status}`);
+        inputType =
+          response.headers.get("content-type") ?? "application/octet-stream";
+        const inputBuffer = await readBoundedBody(response);
+        inputBytes = new Uint8Array(inputBuffer);
+        processingStartedAt = performance.now();
+        const source = new Blob([inputBuffer], { type: inputType });
         if (inputBytes.byteLength > maxInputBytes) {
           throw new Error(
             `Input exceeds ${maxInputBytes} bytes before image decode.`
@@ -312,7 +369,9 @@
           outputBytes: output.size,
           outputWidth,
           outputHeight,
-          processingMs: Number((performance.now() - startedAt).toFixed(1)),
+          processingMs: Number(
+            (performance.now() - processingStartedAt).toFixed(1)
+          ),
           outputPixels
         };
         if (includeBytes) {
@@ -327,7 +386,7 @@
           name,
           accepted: false,
           inputType,
-          inputBytes: inputBytes.byteLength,
+          inputBytes: inputBytes?.byteLength ?? null,
           processingMs: Number((performance.now() - startedAt).toFixed(1)),
           error: error instanceof Error ? error.message : String(error)
         };

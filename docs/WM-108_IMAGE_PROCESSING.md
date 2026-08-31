@@ -125,9 +125,12 @@ Header pixel count exceeds 10000000 pixels (4032×3024).
 The same preflight rejected the large landscape before decode when the
 dimension limit was set to 3,000px. It also rejected the 109,879-byte normal
 JPEG before decode when the test byte limit was set to 100,000 bytes. The
-malformed fixture was served as `image/jpeg` from a `.jpg` URL and was rejected
-by the header check. These checks reduce client-side decompression pressure but
-cannot be trusted against forged headers; WM-109 must repeat them and perform
+Content-Length check rejected both cases before reading their bodies; when a
+length is unavailable, the harness streams the body and aborts at the same
+limit, then retains a post-read size check. The malformed fixture was served as
+`image/jpeg` from a `.jpg` URL and was rejected by the header check. These
+checks reduce client-side memory and decompression pressure but cannot be
+trusted against forged headers; WM-109 must repeat them and perform
 authoritative decode verification at the server boundary.
 
 ## Limits recommendation
