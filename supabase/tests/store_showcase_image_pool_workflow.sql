@@ -195,7 +195,11 @@ begin
   perform set_config('request.jwt.claim.sub', admin_user_id::text, true);
   previous_key := public.remove_location_image(location_id);
   if previous_key is not null
-    or exists (select 1 from public.location_images where location_id = workflow.location_id)
+    or exists (
+      select 1
+      from public.location_images
+      where public.location_images.location_id = workflow.location_id
+    )
     or not exists (select 1 from public.image_assets where id = workflow.first_image_id)
     or not exists (select 1 from public.store_showcase_image_pool where image_id = workflow.first_image_id) then
     raise exception 'removing a Store pool image deleted reusable stock metadata';
