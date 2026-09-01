@@ -243,10 +243,11 @@ begin
   execute 'reset role';
   if assigned_image_id <> first_image_id or assigned is not false
     or exists (
-      select 1 from public.location_images
-      where location_id = workflow.location_id
-        and image_id = workflow.second_image_id
-        and is_primary
+      select 1
+      from public.location_images
+      where public.location_images.location_id = workflow.location_id
+        and public.location_images.image_id = workflow.second_image_id
+        and public.location_images.is_primary
     ) then
     raise exception 'existing primary Store image was replaced';
   end if;
