@@ -11,9 +11,7 @@ export type VerificationResult =
   | { kind: "terminal_failure" }
   | { kind: "retryable_failure" };
 
-const terminalVerifierErrors = new Set([
-  "source_not_found",
-  "source_changed",
+const terminalImageErrors = new Set([
   "image_too_large",
   "invalid_webp_container",
   "invalid_webp_chunk",
@@ -21,9 +19,17 @@ const terminalVerifierErrors = new Set([
   "forbidden_webp_metadata",
   "image_decode_failed",
   "normalized_webp_required",
-  "invalid_image_dimensions",
-  "final_object_exists"
+  "invalid_image_dimensions"
 ]);
+
+function isTerminalVerifierFailure(status: number, error: unknown) {
+  if (typeof error !== "string") return false;
+  if (status === 400) return terminalImageErrors.has(error);
+  if (status === 404) return error === "source_not_found";
+  if (status === 409) return error === "final_object_exists";
+  if (status === 412) return error === "source_changed";
+  return false;
+}
 
 export function shouldDeleteQuarantine(result: VerificationResult) {
   return result.kind === "terminal_failure";
@@ -69,11 +75,9 @@ export async function verifyAndPromote(input: {
     )
       return { kind: "retryable_failure" };
     return {
-      kind:
-        typeof body?.error === "string" &&
-        terminalVerifierErrors.has(body.error)
-          ? "terminal_failure"
-          : "retryable_failure"
+      kind: isTerminalVerifierFailure(verifierResponse.status, body?.error)
+        ? "terminal_failure"
+        : "retryable_failure"
     };
   }
   if (

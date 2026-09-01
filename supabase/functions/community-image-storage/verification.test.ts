@@ -62,7 +62,9 @@ describe("Moments verifier failure handling", () => {
 
   test("keeps quarantine for verifier authentication failures", async () => {
     globalThis.fetch = async () =>
-      new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
+      new Response(JSON.stringify({ error: "source_changed" }), {
+        status: 401
+      });
 
     const result = await verifyAndPromote(input);
 
