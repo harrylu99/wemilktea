@@ -194,6 +194,7 @@ begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', admin_user_id::text, true);
   previous_key := public.remove_location_image(location_id);
+  execute 'reset role';
   if previous_key is not null
     or exists (
       select 1
@@ -263,6 +264,7 @@ begin
     1200,
     800
   ) as attached;
+  execute 'reset role';
   if previous_key is not null
     or exists (select 1 from public.image_assets where id = workflow.first_image_id)
        is not true
