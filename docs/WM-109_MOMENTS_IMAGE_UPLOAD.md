@@ -82,16 +82,18 @@ remains a separate manual rollout decision.
 
 ## Cleanup and failure behavior
 
-Verification failures delete the known quarantine key. A successful finalization
-deletes the quarantine source after the database transaction succeeds. If the
-database call fails, the function checks for a concurrent successful reference
-before deleting the promoted object; otherwise both temporary objects are
-cleaned up. The one-day R2 lifecycle rule for `community-quarantine/` is the
-backstop for uploads abandoned before finalize. Owner delete remains the
-existing soft delete for moderation/audit; hidden or removed Moments retain a
-referenced final object until a later retention policy explicitly permits
-deletion.
+Terminal verification failures delete the known quarantine key. Transient or
+ambiguous verifier failures preserve it so the client can retry; the one-day
+R2 lifecycle rule for `community-quarantine/` is the backstop for uploads
+abandoned before retry/finalize. A successful finalization deletes the
+quarantine source after the database transaction succeeds. If the database
+call fails, the function checks for a concurrent successful reference before
+deleting the promoted object; otherwise both temporary objects are cleaned up.
+Owner delete remains the existing soft delete for moderation/audit; hidden or
+removed Moments retain a referenced final object until a later retention policy
+explicitly permits deletion.
 
-The Worker is not deployed by this task, and its live Images binding behavior
-must be validated in the configured non-production Cloudflare environment
-before production rollout.
+The production Edge Function and verifier Worker are separate rollout steps;
+the production Supabase deployment workflow intentionally does not deploy
+`community-image-storage` automatically when this PR is merged. Configure and
+deploy it only as part of the separately approved production rollout.

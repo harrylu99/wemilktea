@@ -14,6 +14,7 @@ import {
   momentsUploadTokenPurpose,
   momentsUploadTokenVersion
 } from "../_shared/moments-upload-token.ts";
+import { verifyAndPromote, shouldDeleteQuarantine } from "./verification.ts";
 
 const uploadExpirySeconds = 10 * 60;
 const maxImageBytes = 10 * 1024 * 1024;
@@ -138,45 +139,6 @@ async function readFinalizedImage(
     byteSize: asset.byte_size,
     width: asset.width,
     height: asset.height
-  };
-}
-
-async function verifyAndPromote(
-  environment: z.infer<typeof environmentSchema>,
-  sourceKey: string,
-  finalKey: string,
-  expectedEtag: string
-) {
-  const verifierUrl = `${environment.MOMENTS_IMAGE_VERIFIER_URL.replace(/\/+$/, "")}/verify`;
-  const verifierResponse = await fetch(verifierUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${environment.MOMENTS_IMAGE_VERIFIER_TOKEN}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ sourceKey, finalKey, expectedEtag })
-  });
-  const body = (await verifierResponse.json().catch(() => null)) as Record<
-    string,
-    unknown
-  > | null;
-  if (!verifierResponse.ok || !body) return null;
-  if (
-    body.finalKey !== finalKey ||
-    body.sourceKey !== sourceKey ||
-    body.contentType !== "image/webp" ||
-    typeof body.finalEtag !== "string" ||
-    typeof body.byteSize !== "number" ||
-    typeof body.width !== "number" ||
-    typeof body.height !== "number"
-  )
-    return null;
-  return {
-    contentType: "image/webp" as const,
-    byteSize: body.byteSize,
-    width: body.width,
-    height: body.height,
-    etag: body.finalEtag
   };
 }
 
@@ -312,17 +274,24 @@ Deno.serve(async (request) => {
       );
     }
 
-    const verified = await verifyAndPromote(
-      environment.data,
-      parsed.data.quarantineKey,
+    const verified = await verifyAndPromote({
+      verifierUrl: environment.data.MOMENTS_IMAGE_VERIFIER_URL,
+      verifierToken: environment.data.MOMENTS_IMAGE_VERIFIER_TOKEN,
+      sourceKey: parsed.data.quarantineKey,
       finalKey,
-      object.etag
-    );
-    if (!verified) {
-      await deleteObject(storage, parsed.data.quarantineKey);
+      expectedEtag: object.etag
+    });
+    if (verified.kind !== "success") {
+      if (shouldDeleteQuarantine(verified))
+        await deleteObject(storage, parsed.data.quarantineKey);
       return response(
-        { error: "Uploaded image could not be verified." },
-        400,
+        {
+          error:
+            verified.kind === "retryable_failure"
+              ? "Image verification is temporarily unavailable. Please try again."
+              : "Uploaded image could not be verified."
+        },
+        verified.kind === "retryable_failure" ? 502 : 400,
         headers
       );
     }
@@ -334,11 +303,11 @@ Deno.serve(async (request) => {
         p_owner_user_id: user.userId,
         p_quarantine_key: parsed.data.quarantineKey,
         p_storage_key: finalKey,
-        p_content_type: verified.contentType,
-        p_byte_size: verified.byteSize,
-        p_width: verified.width,
-        p_height: verified.height,
-        p_etag: verified.etag
+        p_content_type: verified.image.contentType,
+        p_byte_size: verified.image.byteSize,
+        p_width: verified.image.width,
+        p_height: verified.image.height,
+        p_etag: verified.image.etag
       }
     );
     const finalized = (Array.isArray(data) ? data[0] : data) as
