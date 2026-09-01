@@ -82,6 +82,29 @@ test.describe("public accessibility", () => {
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
+
+  test("Moments Share composer has no WCAG A/AA axe violations", async ({
+    page
+  }) => {
+    await page.goto("/moments");
+    await waitForPublicPage(page);
+    const trigger = page.getByRole("button", { name: "Share your moment" });
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Share your moment" });
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Close Share your moment" })
+    ).toBeFocused();
+
+    const results = await new AxeBuilder({ page })
+      .include('[role="dialog"]')
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
 });
 
 test("public routes expose meaningful document titles", async ({ page }) => {

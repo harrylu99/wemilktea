@@ -21,6 +21,7 @@ import {
   type PublicMoment
 } from "./data";
 import { ensurePublicWriteIdentity } from "./identity";
+import { ShareMomentComposer } from "./share-composer";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import {
   SipMode,
@@ -493,6 +494,10 @@ export function MomentsPage() {
   const sipTriggerRef = useRef<HTMLButtonElement>(null);
   const previousModeRef = useRef<"gallery" | "sip">("gallery");
   const galleryScrollYRef = useRef(0);
+  const shareTriggerRef = useRef<HTMLButtonElement>(null);
+  const emptyShareTriggerRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const loadInitial = useCallback(async () => {
     const generation = ++generationRef.current;
@@ -753,9 +758,13 @@ export function MomentsPage() {
               </button>
             </div>
             <button
+              ref={shareTriggerRef}
               className="flex h-12 w-[156px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground disabled:cursor-not-allowed"
-              disabled
               type="button"
+              onClick={() => {
+                returnFocusRef.current = shareTriggerRef.current;
+                setShareOpen(true);
+              }}
             >
               Share your moment
             </button>
@@ -797,8 +806,19 @@ export function MomentsPage() {
             </p>
             <h2 className="mt-3 text-2xl font-semibold">No Moments yet.</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Check back soon for community cups and discoveries.
+              Be the first to share what you&apos;re drinking 🧋
             </p>
+            <button
+              ref={emptyShareTriggerRef}
+              className="mt-5 min-h-11 rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground"
+              type="button"
+              onClick={() => {
+                returnFocusRef.current = emptyShareTriggerRef.current;
+                setShareOpen(true);
+              }}
+            >
+              Share first Moment
+            </button>
           </section>
         ) : null}
         {status === "ready" && (moments.length > 0 || hasMore) ? (
@@ -844,6 +864,12 @@ export function MomentsPage() {
         ) : null}
       </main>
       {showFooter ? <PublicFooter /> : null}
+      <ShareMomentComposer
+        open={shareOpen}
+        returnFocusRef={returnFocusRef}
+        onClose={() => setShareOpen(false)}
+        onSuccess={() => void loadInitial()}
+      />
     </div>
   );
 }

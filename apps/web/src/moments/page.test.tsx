@@ -523,6 +523,16 @@ test.serial("renders the genuine empty feed state", async () => {
   expect(pageCalls).toHaveLength(1);
 });
 
+test.serial("opens the Share composer from the Gallery CTA", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+
+  fireEvent.click(view.getByRole("button", { name: "Share your moment" }));
+
+  expect(view.getByRole("dialog", { name: "Share your moment" })).toBeTruthy();
+  expect(auth.signInAnonymously).not.toHaveBeenCalled();
+});
+
 test.serial(
   "keeps the retry state for an empty page without automatic retries",
   async () => {
