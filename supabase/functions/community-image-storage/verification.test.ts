@@ -24,6 +24,18 @@ describe("Moments verifier failure handling", () => {
     expect(shouldDeleteQuarantine(result)).toBe(false);
   });
 
+  test("keeps quarantine when a 5xx carries a terminal-looking error", async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: "invalid_image_dimensions" }), {
+        status: 503
+      });
+
+    const result = await verifyAndPromote(input);
+
+    expect(result).toEqual({ kind: "retryable_failure" });
+    expect(shouldDeleteQuarantine(result)).toBe(false);
+  });
+
   test("keeps quarantine for an ambiguous successful response", async () => {
     globalThis.fetch = async () =>
       new Response(JSON.stringify({ finalKey: input.finalKey }), {

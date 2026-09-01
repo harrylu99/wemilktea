@@ -62,6 +62,12 @@ export async function verifyAndPromote(input: {
     unknown
   > | null;
   if (!verifierResponse.ok) {
+    if (
+      verifierResponse.status >= 500 ||
+      verifierResponse.status === 408 ||
+      verifierResponse.status === 429
+    )
+      return { kind: "retryable_failure" };
     return {
       kind:
         typeof body?.error === "string" &&
