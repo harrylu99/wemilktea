@@ -11,6 +11,20 @@ export type VerificationResult =
   | { kind: "terminal_failure" }
   | { kind: "retryable_failure" };
 
+const terminalVerifierErrors = new Set([
+  "source_not_found",
+  "source_changed",
+  "image_too_large",
+  "invalid_webp_container",
+  "invalid_webp_chunk",
+  "unsupported_webp_chunk",
+  "forbidden_webp_metadata",
+  "image_decode_failed",
+  "normalized_webp_required",
+  "invalid_image_dimensions",
+  "final_object_exists"
+]);
+
 export function shouldDeleteQuarantine(result: VerificationResult) {
   return result.kind === "terminal_failure";
 }
@@ -50,11 +64,10 @@ export async function verifyAndPromote(input: {
   if (!verifierResponse.ok) {
     return {
       kind:
-        verifierResponse.status >= 500 ||
-        verifierResponse.status === 408 ||
-        verifierResponse.status === 429
-          ? "retryable_failure"
-          : "terminal_failure"
+        typeof body?.error === "string" &&
+        terminalVerifierErrors.has(body.error)
+          ? "terminal_failure"
+          : "retryable_failure"
     };
   }
   if (

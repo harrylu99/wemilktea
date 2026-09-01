@@ -48,6 +48,28 @@ describe("Moments verifier failure handling", () => {
     expect(shouldDeleteQuarantine(result)).toBe(true);
   });
 
+  test("keeps quarantine for verifier authentication failures", async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
+
+    const result = await verifyAndPromote(input);
+
+    expect(result).toEqual({ kind: "retryable_failure" });
+    expect(shouldDeleteQuarantine(result)).toBe(false);
+  });
+
+  test("keeps quarantine for unknown client errors", async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: "unexpected_protocol_error" }), {
+        status: 422
+      });
+
+    const result = await verifyAndPromote(input);
+
+    expect(result).toEqual({ kind: "retryable_failure" });
+    expect(shouldDeleteQuarantine(result)).toBe(false);
+  });
+
   test("returns verified metadata on success", async () => {
     globalThis.fetch = async () =>
       new Response(

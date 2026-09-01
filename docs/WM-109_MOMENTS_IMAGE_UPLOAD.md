@@ -82,16 +82,17 @@ remains a separate manual rollout decision.
 
 ## Cleanup and failure behavior
 
-Terminal verification failures delete the known quarantine key. Transient or
-ambiguous verifier failures preserve it so the client can retry; the one-day
-R2 lifecycle rule for `community-quarantine/` is the backstop for uploads
-abandoned before retry/finalize. A successful finalization deletes the
-quarantine source after the database transaction succeeds. If the database
-call fails, the function checks for a concurrent successful reference before
-deleting the promoted object; otherwise both temporary objects are cleaned up.
-Owner delete remains the existing soft delete for moderation/audit; hidden or
-removed Moments retain a referenced final object until a later retention policy
-explicitly permits deletion.
+Known terminal verification failures (for example, invalid image bytes,
+dimensions, metadata, or a changed/missing source) delete the quarantine key.
+Transient, ambiguous, and unknown verifier failures preserve it so the client
+can retry; the one-day R2 lifecycle rule for `community-quarantine/` is the
+backstop for uploads abandoned before retry/finalize. A successful finalization
+deletes the quarantine source after the database transaction succeeds. If the
+database call fails, the function checks for a concurrent successful reference
+before deleting the promoted object; otherwise both temporary objects are
+cleaned up. Owner delete remains the existing soft delete for moderation/audit;
+hidden or removed Moments retain a referenced final object until a later
+retention policy explicitly permits deletion.
 
 The production Edge Function and verifier Worker are separate rollout steps;
 the production Supabase deployment workflow intentionally does not deploy
