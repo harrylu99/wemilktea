@@ -9,6 +9,7 @@ data/product-imports/*.csv
 data/product-imports/*.json
 !data/product-imports/example.csv
 .wrangler/
+workers/moments-image-verifier/worker-configuration.d.ts
 test-results/
 playwright-report/
 supabase/.temp/

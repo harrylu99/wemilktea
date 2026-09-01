@@ -35,6 +35,9 @@ verify_jwt = true
 [functions.image-storage]
 verify_jwt = true
 
+[functions.community-image-storage]
+verify_jwt = true
+
 [functions.external-menu]
 verify_jwt = true
 

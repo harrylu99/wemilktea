@@ -1,5 +1,7 @@
 begin;
 
+select plan(1);
+
 do $$
 declare
   admin_id uuid := extensions.gen_random_uuid();
@@ -15,7 +17,7 @@ declare
   product_id uuid;
   draft_status text;
   public_count integer;
-  like_count bigint;
+  post_like_count bigint;
   liked boolean;
   must_try boolean;
 begin
@@ -103,10 +105,10 @@ begin
   perform set_config('request.jwt.claim.sub', owner_id::text, true);
 
   select like_count, liked_by_me, must_try_by_me
-  into like_count, liked, must_try
+  into post_like_count, liked, must_try
   from public.list_public_community_posts()
   where id = post_id;
-  if like_count <> 0 or liked or must_try then
+  if post_like_count <> 0 or liked or must_try then
     raise exception 'new public feed reaction state is incorrect';
   end if;
 
@@ -121,10 +123,10 @@ begin
   end if;
 
   select like_count, liked_by_me, must_try_by_me
-  into like_count, liked, must_try
+  into post_like_count, liked, must_try
   from public.list_public_community_posts()
   where id = post_id;
-  if like_count <> 1 or not liked or not must_try then
+  if post_like_count <> 1 or not liked or not must_try then
     raise exception 'owner reaction state is incorrect';
   end if;
 
@@ -192,5 +194,8 @@ begin
   end if;
 end;
 $$;
+
+select pass('WM-107 community Moments workflow');
+select * from finish();
 
 rollback;

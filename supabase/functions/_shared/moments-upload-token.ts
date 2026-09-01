@@ -1,0 +1,100 @@
+export const momentsUploadTokenPurpose = "moments-image-upload" as const;
+export const momentsUploadTokenVersion = 1 as const;
+
+export type MomentsUploadTokenClaims = {
+  v: typeof momentsUploadTokenVersion;
+  purpose: typeof momentsUploadTokenPurpose;
+  ownerUserId: string;
+  postId: string;
+  uploadId: string;
+  quarantineKey: string;
+  expiresAt: number;
+};
+
+function encode(value: string | Uint8Array) {
+  const bytes =
+    typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
+function decode(value: string) {
+  try {
+    const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
+    const binary = atob(
+      normalized + "=".repeat((4 - (normalized.length % 4)) % 4)
+    );
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+async function signature(secret: string, value: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
+  return new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value))
+  );
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array) {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1)
+    difference |= left[index] ^ right[index];
+  return difference === 0;
+}
+
+export async function createMomentsUploadToken(
+  claims: MomentsUploadTokenClaims,
+  secret: string
+) {
+  const payload = encode(JSON.stringify(claims));
+  return `${payload}.${encode(await signature(secret, payload))}`;
+}
+
+export async function verifyMomentsUploadToken(
+  token: string,
+  secret: string,
+  now = Math.floor(Date.now() / 1000)
+) {
+  const [payload, encodedSignature, ...extra] = token.split(".");
+  if (!payload || !encodedSignature || extra.length > 0) return null;
+  const actualSignature = decode(encodedSignature);
+  if (
+    !actualSignature ||
+    !equalBytes(actualSignature, await signature(secret, payload))
+  )
+    return null;
+  const encodedPayload = decode(payload);
+  if (!encodedPayload) return null;
+  try {
+    const claims = JSON.parse(
+      new TextDecoder().decode(encodedPayload)
+    ) as Partial<MomentsUploadTokenClaims>;
+    if (
+      claims.v !== momentsUploadTokenVersion ||
+      claims.purpose !== momentsUploadTokenPurpose ||
+      typeof claims.ownerUserId !== "string" ||
+      typeof claims.postId !== "string" ||
+      typeof claims.uploadId !== "string" ||
+      typeof claims.quarantineKey !== "string" ||
+      !Number.isSafeInteger(claims.expiresAt) ||
+      claims.expiresAt <= now
+    )
+      return null;
+    return claims as MomentsUploadTokenClaims;
+  } catch {
+    return null;
+  }
+}
