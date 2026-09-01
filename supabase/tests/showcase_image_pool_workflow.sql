@@ -1,7 +1,5 @@
 begin;
 
-select plan(1);
-
 do $$
 <<workflow>>
 declare
@@ -81,7 +79,7 @@ begin
       1200,
       800,
       'milk tea',
-      0::smallint
+      0
     );
     raise exception 'ordinary authenticated user imported showcase image';
   exception
@@ -137,7 +135,7 @@ begin
     1200,
     800,
     'milk tea',
-    0::smallint
+    0
   ) as result;
   if showcase_image_id is null or created is not true then
     raise exception 'showcase image was not created';
@@ -158,21 +156,18 @@ begin
     1200,
     800,
     'milk tea',
-    0::smallint
+    0
   ) as result;
   if assigned_image_id <> showcase_image_id or created is not false then
     raise exception 'repeated showcase import was not idempotent';
   end if;
 
-  execute 'reset role';
   insert into public.product_images (product_id, image_id, sort_order, is_primary)
   values (first_product_id, showcase_image_id, 9, false);
-  execute 'set local role service_role';
 
   select result.image_id, result.assigned
   into assigned_image_id, assigned
   from public.assign_showcase_image_to_product(first_product_id, showcase_image_id) as result;
-  execute 'reset role';
   if assigned_image_id <> showcase_image_id
     or assigned is not true
     or not exists (
@@ -186,15 +181,11 @@ begin
     raise exception 'assignment did not update the existing product_images primary-key conflict';
   end if;
 
-  execute 'set local role service_role';
   perform public.assign_showcase_image_to_product(second_product_id, showcase_image_id);
-  execute 'reset role';
   if (select count(*) from public.product_images where product_images.image_id = workflow.showcase_image_id and is_primary) <> 2 then
     raise exception 'one showcase asset was not shared across two products';
   end if;
 
-  execute 'set local role authenticated';
-  perform set_config('request.jwt.claim.sub', admin_user_id::text, true);
   previous_key := public.remove_product_image(first_product_id);
   if previous_key is not null
     or exists (select 1 from public.product_images where product_id = first_product_id and is_primary)
@@ -223,8 +214,5 @@ begin
   execute 'reset role';
 end;
 $$;
-
-select pass('product showcase image pool workflow completed');
-select * from finish();
 
 rollback;

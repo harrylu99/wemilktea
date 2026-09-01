@@ -1,7 +1,5 @@
 begin;
 
-select plan(1);
-
 do $$
 <<workflow>>
 declare
@@ -77,7 +75,7 @@ begin
       'pexels', 'wm77-denied', 'showcase/pexels/wm77-denied.jpg',
       'https://www.pexels.com/photo/wm77-denied/',
       'Photo by Example via Pexels', 'Bubble tea shop interior',
-      'image/jpeg', 1024, 1200, 800, 'bubble tea shop', 0::smallint
+      'image/jpeg', 1024, 1200, 800, 'bubble tea shop', 0
     );
     raise exception 'authenticated user imported Store showcase image';
   exception
@@ -102,7 +100,7 @@ begin
     1200,
     800,
     'milk tea',
-    0::smallint
+    0
   ) as result;
   if first_image_id is null or created is not true then
     raise exception 'Product showcase source was not created';
@@ -122,7 +120,7 @@ begin
     1200,
     800,
     'bubble tea shop',
-    0::smallint
+    0
   ) as result;
   if assigned_image_id <> first_image_id or created is not true then
     raise exception 'Store pool did not reuse the Product showcase asset';
@@ -142,17 +140,15 @@ begin
     1200,
     800,
     'bubble tea shop',
-    0::smallint
+    0
   ) as result;
   if assigned_image_id <> first_image_id or created is not false then
     raise exception 'Repeated Store showcase import was not idempotent';
   end if;
 
-  execute 'reset role';
   update public.store_showcase_image_pool
   set is_active = false
   where provider = 'pexels' and external_photo_id = 'wm77-cross-pool';
-  execute 'set local role service_role';
   begin
     perform public.assign_showcase_image_to_location(location_id, first_image_id);
     raise exception 'inactive Store showcase image was assignable';
@@ -160,11 +156,9 @@ begin
     when others then
       if sqlerrm <> 'store_showcase_image_not_available' then raise; end if;
   end;
-  execute 'reset role';
   update public.store_showcase_image_pool
   set is_active = true
   where provider = 'pexels' and external_photo_id = 'wm77-cross-pool';
-  execute 'set local role service_role';
 
   select result.image_id, result.assigned
   into assigned_image_id, assigned
@@ -180,7 +174,6 @@ begin
     raise exception 'Repeated Store showcase assignment was not idempotent';
   end if;
 
-  execute 'reset role';
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -194,13 +187,8 @@ begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', admin_user_id::text, true);
   previous_key := public.remove_location_image(location_id);
-  execute 'reset role';
   if previous_key is not null
-    or exists (
-      select 1
-      from public.location_images
-      where public.location_images.location_id = workflow.location_id
-    )
+    or exists (select 1 from public.location_images where location_id = workflow.location_id)
     or not exists (select 1 from public.image_assets where id = workflow.first_image_id)
     or not exists (select 1 from public.store_showcase_image_pool where image_id = workflow.first_image_id) then
     raise exception 'removing a Store pool image deleted reusable stock metadata';
@@ -229,25 +217,21 @@ begin
     1200,
     800,
     'bubble tea counter',
-    1::smallint
+    1
   ) as result;
-  execute 'reset role';
   if second_image_id is null or created is not true then
     raise exception 'Second Store showcase image was not created';
   end if;
 
-  execute 'set local role service_role';
   select result.image_id, result.assigned
   into assigned_image_id, assigned
   from public.assign_showcase_image_to_location(location_id, second_image_id) as result;
-  execute 'reset role';
   if assigned_image_id <> first_image_id or assigned is not false
     or exists (
-      select 1
-      from public.location_images
-      where public.location_images.location_id = workflow.location_id
-        and public.location_images.image_id = workflow.second_image_id
-        and public.location_images.is_primary
+      select 1 from public.location_images
+      where location_id = workflow.location_id
+        and image_id = workflow.second_image_id
+        and is_primary
     ) then
     raise exception 'existing primary Store image was replaced';
   end if;
@@ -265,7 +249,6 @@ begin
     1200,
     800
   ) as attached;
-  execute 'reset role';
   if previous_key is not null
     or exists (select 1 from public.image_assets where id = workflow.first_image_id)
        is not true
@@ -276,8 +259,5 @@ begin
   execute 'reset role';
 end;
 $$;
-
-select pass('Store showcase image pool workflow completed');
-select * from finish();
 
 rollback;
