@@ -1,6 +1,7 @@
 import { GlobalWindow } from "happy-dom";
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
 import type { PublicMoment } from "./data";
+import { resolveSipAction } from "./sip-gesture";
 
 const browserWindow = new GlobalWindow();
 browserWindow.location.href = "http://localhost:5173/moments";
@@ -106,10 +107,14 @@ let nextPage: MockPage = {
   error: null
 };
 let cursorPage: MockPage | null = null;
+let cursorPages: MockPage[] = [];
 let ownIds = new Set<string>();
 let deferNextPage = false;
 let failNextPage = false;
+let failRpc = false;
+let deferRpc = false;
 let pendingNextPage: ((page: MockPage) => void) | null = null;
+let pendingRpc: (() => void) | null = null;
 const pageCalls: Array<unknown> = [];
 const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
@@ -127,6 +132,12 @@ const supabaseMock = {
   auth,
   rpc: mock(async (name: string, args: Record<string, unknown>) => {
     rpcCalls.push({ name, args });
+    if (deferRpc) {
+      return new Promise<{ data: true; error: null }>((resolve) => {
+        pendingRpc = () => resolve({ data: true, error: null });
+      });
+    }
+    if (failRpc) return { data: null, error: { message: "rpc_failed" } };
     return { data: true, error: null };
   })
 };
@@ -177,6 +188,7 @@ mock.module("./data", () => ({
         error: "query_failed"
       };
     }
+    if (cursor && cursorPages.length > 0) return cursorPages.shift()!;
     return cursor && cursorPage ? cursorPage : nextPage;
   },
   momentReportReasons: [
@@ -215,10 +227,14 @@ beforeEach(() => {
     error: null
   };
   cursorPage = null;
+  cursorPages = [];
   ownIds = new Set();
   deferNextPage = false;
   failNextPage = false;
+  failRpc = false;
+  deferRpc = false;
   pendingNextPage = null;
+  pendingRpc = null;
   FakeIntersectionObserver.current = null;
   pageCalls.length = 0;
   rpcCalls.length = 0;
@@ -539,3 +555,443 @@ test.serial(
     expect(pageCalls).toHaveLength(2);
   }
 );
+
+test.serial("enters Sip Mode without reloading the public feed", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+  expect(view.getByRole("heading", { name: "Sip Mode" })).toBeTruthy();
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
+  expect(
+    view.getByRole("region", { name: "Sip Mode, Moment 1" }).className
+  ).not.toContain("touch-none");
+  expect(
+    view.container.querySelector("[data-sip-gesture-surface]")
+  ).toBeTruthy();
+  expect(view.queryByText("What’s Auckland sipping? 🧋")).toBeNull();
+  expect(view.getByRole("main").className).toContain("items-start");
+  expect(view.getByRole("main").className).toContain("md:items-center");
+  expect(view.getByRole("img").getAttribute("draggable")).toBe("false");
+  expect(
+    view.getByRole("article", { name: "Current Moment" }).className
+  ).toContain("md:max-h-[calc(100dvh-13rem)]");
+  expect(view.getByRole("button", { name: "Skip this Moment" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Like this Moment" })).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: "Must Try this Moment" })
+  ).toBeTruthy();
+  expect(pageCalls).toHaveLength(1);
+  expect(auth.signInAnonymously).not.toHaveBeenCalled();
+});
+
+test.serial(
+  "uses the same keyboard actions for Like and Must Try",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    const stage = view.getByRole("region", { name: "Sip Mode, Moment 1" });
+    fireEvent.keyDown(stage, { key: "ArrowRight" });
+    await act(async () => await Promise.resolve());
+
+    expect(rpcCalls.at(-1)).toEqual({
+      name: "like_community_post",
+      args: { p_post_id: firstMoment.id }
+    });
+    expect(view.getAllByRole("status")).toHaveLength(1);
+    expect(view.getByRole("main").className).toContain("md:items-start");
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" }),
+      { key: "ArrowUp" }
+    );
+    await act(async () => await Promise.resolve());
+
+    expect(rpcCalls.at(-1)).toEqual({
+      name: "save_community_post_must_try",
+      args: { p_post_id: secondMoment.id }
+    });
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "prefetches near the end once and keeps the current card",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = {
+      data: [firstMoment, secondMoment],
+      nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+      hasMore: true,
+      error: null
+    };
+    cursorPage = {
+      data: [thirdMoment],
+      nextCursor: null,
+      hasMore: false,
+      error: null
+    };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    await act(async () => await Promise.resolve());
+
+    expect(pageCalls).toHaveLength(2);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowLeft" }
+    );
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" }),
+      { key: "ArrowLeft" }
+    );
+    await act(async () => await Promise.resolve());
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "does not autoretry a failed Sip prefetch before the end",
+  async () => {
+    nextPage = {
+      data: [firstMoment, secondMoment],
+      nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+      hasMore: true,
+      error: null
+    };
+    failNextPage = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    await act(async () => await Promise.resolve());
+
+    expect(pageCalls).toHaveLength(2);
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowLeft" }
+    );
+    await act(async () => await Promise.resolve());
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+    expect(pageCalls).toHaveLength(2);
+  }
+);
+
+test.serial("preserves focus through a pagination loading gap", async () => {
+  const thirdMoment = {
+    ...secondMoment,
+    id: "77777777-7777-4777-8777-777777777777",
+    caption: "Third cup"
+  };
+  nextPage = {
+    data: [firstMoment, secondMoment],
+    nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+    hasMore: true,
+    error: null
+  };
+  cursorPage = {
+    data: [thirdMoment],
+    nextCursor: null,
+    hasMore: false,
+    error: null
+  };
+  deferNextPage = true;
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  await act(async () => await Promise.resolve());
+
+  fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 1" }), {
+    key: "ArrowLeft"
+  });
+  fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 2" }), {
+    key: "ArrowLeft"
+  });
+  await act(async () => await Promise.resolve());
+
+  const loading = view.getByText("Loading more Moments…");
+  expect(loading).toBe(document.activeElement as HTMLElement);
+
+  deferNextPage = false;
+  pendingNextPage!(cursorPage);
+  await act(async () => await Promise.resolve());
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 3" })).toBe(
+    document.activeElement as HTMLElement
+  );
+});
+
+test.serial(
+  "continues Sip prefetch after an empty normalized page",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = {
+      data: [firstMoment, secondMoment],
+      nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
+      hasMore: true,
+      error: null
+    };
+    cursorPages = [
+      {
+        data: [],
+        nextCursor: {
+          submittedAt: secondMoment.submittedAt,
+          id: secondMoment.id
+        },
+        hasMore: true,
+        error: null
+      },
+      { data: [thirdMoment], nextCursor: null, hasMore: false, error: null }
+    ];
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    await act(async () => await Promise.resolve());
+
+    expect(pageCalls).toHaveLength(3);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowLeft" }
+    );
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" }),
+      { key: "ArrowLeft" }
+    );
+    await act(async () => await Promise.resolve());
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "uses pointer direction for local Skip without creating identity",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    const gestureSurface = view.container.querySelector<HTMLElement>(
+      "[data-sip-gesture-surface]"
+    );
+    expect(gestureSurface).toBeTruthy();
+
+    fireEvent.pointerDown(gestureSurface!, {
+      button: 0,
+      clientX: 200,
+      clientY: 200,
+      isPrimary: true,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(gestureSurface!, {
+      clientX: 80,
+      clientY: 200,
+      isPrimary: true,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(gestureSurface!, {
+      clientX: 80,
+      clientY: 200,
+      isPrimary: true,
+      pointerId: 1
+    });
+    await act(async () => await Promise.resolve());
+
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+    expect(auth.signInAnonymously).not.toHaveBeenCalled();
+  }
+);
+
+test.serial("keeps metadata touch scrolling out of Sip actions", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  const details = view.getByText(firstMoment.caption);
+
+  fireEvent.pointerDown(details, {
+    button: 0,
+    clientX: 200,
+    clientY: 200,
+    isPrimary: true,
+    pointerId: 1
+  });
+  fireEvent.pointerMove(details, {
+    clientX: 200,
+    clientY: 80,
+    isPrimary: true,
+    pointerId: 1
+  });
+  fireEvent.pointerUp(details, {
+    clientX: 200,
+    clientY: 80,
+    isPrimary: true,
+    pointerId: 1
+  });
+
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
+  expect(rpcCalls).toHaveLength(0);
+});
+
+test.serial(
+  "ignores an action completion from an exited Sip session",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    deferRpc = true;
+
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowRight" }
+    );
+    await act(async () => await Promise.resolve());
+    expect(pendingRpc).toBeTruthy();
+
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    pendingRpc!();
+    await act(async () => await Promise.resolve());
+
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "shows a visible retryable error when a Sip action fails",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    failRpc = true;
+
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowRight" }
+    );
+    await act(async () => await Promise.resolve());
+
+    expect(view.getByRole("alert").textContent).toContain("could not be saved");
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "keeps help keyboard-accessible and Escape returns focus",
+  async () => {
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    const helpTrigger = view.getByRole("button", {
+      name: "How Sip Mode works"
+    });
+    fireEvent.click(helpTrigger);
+    await act(async () => await Promise.resolve());
+    expect(view.getByRole("dialog", { name: "Sip Mode help" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Close Sip Mode help" })).toBe(
+      document.activeElement as HTMLElement
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => await Promise.resolve());
+    expect(view.queryByRole("dialog", { name: "Sip Mode help" })).toBeNull();
+    expect(helpTrigger).toBe(document.activeElement as HTMLElement);
+  }
+);
+
+test.serial("restores focus to the Sip Mode trigger after exit", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  const trigger = view.getByRole("button", { name: "Sip Mode" });
+  fireEvent.click(trigger);
+  fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 1" }), {
+    key: "Escape"
+  });
+  await act(async () => await Promise.resolve());
+
+  expect(view.getByRole("button", { name: "Sip Mode" })).toBe(
+    document.activeElement as HTMLElement
+  );
+});
+
+test.serial(
+  "moves focus into the terminal state after the final action",
+  async () => {
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      {
+        key: "ArrowLeft"
+      }
+    );
+    await act(async () => await Promise.resolve());
+
+    const backButton = view.getByRole("button", { name: "Back to Gallery" });
+    expect(backButton).toBe(document.activeElement as HTMLElement);
+    fireEvent.keyDown(backButton, { key: "Escape" });
+    await act(async () => await Promise.resolve());
+    expect(view.getByText("What’s Auckland sipping? 🧋")).toBeTruthy();
+  }
+);
+
+test.serial("lets Escape exit from the Sip chrome controls", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  fireEvent.keyDown(view.getByRole("button", { name: "Exit" }), {
+    key: "Escape"
+  });
+  await act(async () => await Promise.resolve());
+
+  expect(view.getByText("What’s Auckland sipping? 🧋")).toBeTruthy();
+});
+
+test("resolves Sip Mode directions only past the intended axis threshold", () => {
+  expect(resolveSipAction(-100, 0, 400, 600)).toBe("skip");
+  expect(resolveSipAction(100, 0, 400, 600)).toBe("like");
+  expect(resolveSipAction(0, -100, 400, 600)).toBe("must_try");
+  expect(resolveSipAction(50, 0, 400, 600)).toBeNull();
+  expect(resolveSipAction(100, -100, 400, 600)).toBeNull();
+  expect(resolveSipAction(0, 100, 400, 600)).toBeNull();
+});
