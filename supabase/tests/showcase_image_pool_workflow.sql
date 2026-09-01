@@ -162,8 +162,10 @@ begin
     raise exception 'repeated showcase import was not idempotent';
   end if;
 
+  execute 'reset role';
   insert into public.product_images (product_id, image_id, sort_order, is_primary)
   values (first_product_id, showcase_image_id, 9, false);
+  execute 'set local role service_role';
 
   select result.image_id, result.assigned
   into assigned_image_id, assigned
