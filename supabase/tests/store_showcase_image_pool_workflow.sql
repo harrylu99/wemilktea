@@ -1,5 +1,7 @@
 begin;
 
+select plan(1);
+
 do $$
 <<workflow>>
 declare
@@ -267,5 +269,8 @@ begin
   execute 'reset role';
 end;
 $$;
+
+select pass('Store showcase image pool workflow completed');
+select * from finish();
 
 rollback;
