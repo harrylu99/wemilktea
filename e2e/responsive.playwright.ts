@@ -16,7 +16,7 @@ const publicRoutes = [
 
 async function waitForPublicPage(page: Page) {
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("header")).toBeVisible();
+  await expect(page.locator("header").first()).toBeVisible();
 }
 
 test.describe("public responsive smoke", () => {
@@ -34,6 +34,52 @@ test.describe("public responsive smoke", () => {
         dimensions.scrollWidth,
         `${route} overflows horizontally`
       ).toBeLessThanOrEqual(dimensions.clientWidth);
+    }
+  });
+
+  test("Moments Share composer stays usable across responsive sizes", async ({
+    page
+  }) => {
+    await page.goto("/moments");
+    await waitForPublicPage(page);
+    const trigger = page.getByRole("button", { name: "Share your moment" });
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Share your moment" });
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Share", exact: true })
+    ).toBeVisible();
+    await expect(dialog.locator('input[type="file"]')).toHaveCount(1);
+
+    if ((await page.evaluate(() => window.innerWidth)) < 768) {
+      await dialog
+        .getByRole("button", { name: "Add drink or store details" })
+        .click();
+      await expect(dialog.getByRole("combobox").first()).toBeVisible();
+      const geometry = await dialog.evaluate((node) => ({
+        clientWidth: node.clientWidth,
+        scrollWidth: node.scrollWidth,
+        scrollHeight: node.scrollHeight,
+        clientHeight: node.clientHeight
+      }));
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+      expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
+    } else {
+      const photoSection = dialog.getByTestId("share-photo-section");
+      const detailsSection = dialog.getByTestId("share-details-section");
+      const dialogRect = await dialog.boundingBox();
+      const photoRect = await photoSection.boundingBox();
+      const detailsRect = await detailsSection.boundingBox();
+
+      expect(dialogRect).not.toBeNull();
+      expect(photoRect).not.toBeNull();
+      expect(detailsRect).not.toBeNull();
+      if (!dialogRect || !photoRect || !detailsRect) return;
+      expect(detailsRect.x).toBeGreaterThan(photoRect.x);
+      expect(Math.abs(detailsRect.y - photoRect.y)).toBeLessThanOrEqual(24);
+      expect(detailsRect.x + detailsRect.width).toBeLessThanOrEqual(
+        dialogRect.x + dialogRect.width
+      );
     }
   });
 
