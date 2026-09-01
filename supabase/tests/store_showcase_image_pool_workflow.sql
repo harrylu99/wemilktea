@@ -146,9 +146,11 @@ begin
     raise exception 'Repeated Store showcase import was not idempotent';
   end if;
 
+  execute 'reset role';
   update public.store_showcase_image_pool
   set is_active = false
   where provider = 'pexels' and external_photo_id = 'wm77-cross-pool';
+  execute 'set local role service_role';
   begin
     perform public.assign_showcase_image_to_location(location_id, first_image_id);
     raise exception 'inactive Store showcase image was assignable';
@@ -156,9 +158,11 @@ begin
     when others then
       if sqlerrm <> 'store_showcase_image_not_available' then raise; end if;
   end;
+  execute 'reset role';
   update public.store_showcase_image_pool
   set is_active = true
   where provider = 'pexels' and external_photo_id = 'wm77-cross-pool';
+  execute 'set local role service_role';
 
   select result.image_id, result.assigned
   into assigned_image_id, assigned
@@ -174,6 +178,7 @@ begin
     raise exception 'Repeated Store showcase assignment was not idempotent';
   end if;
 
+  execute 'reset role';
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -219,13 +224,16 @@ begin
     'bubble tea counter',
     1::smallint
   ) as result;
+  execute 'reset role';
   if second_image_id is null or created is not true then
     raise exception 'Second Store showcase image was not created';
   end if;
 
+  execute 'set local role service_role';
   select result.image_id, result.assigned
   into assigned_image_id, assigned
   from public.assign_showcase_image_to_location(location_id, second_image_id) as result;
+  execute 'reset role';
   if assigned_image_id <> first_image_id or assigned is not false
     or exists (
       select 1 from public.location_images
