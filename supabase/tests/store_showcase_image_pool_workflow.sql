@@ -75,7 +75,7 @@ begin
       'pexels', 'wm77-denied', 'showcase/pexels/wm77-denied.jpg',
       'https://www.pexels.com/photo/wm77-denied/',
       'Photo by Example via Pexels', 'Bubble tea shop interior',
-      'image/jpeg', 1024, 1200, 800, 'bubble tea shop', 0
+      'image/jpeg', 1024, 1200, 800, 'bubble tea shop', 0::smallint
     );
     raise exception 'authenticated user imported Store showcase image';
   exception
@@ -100,7 +100,7 @@ begin
     1200,
     800,
     'milk tea',
-    0
+    0::smallint
   ) as result;
   if first_image_id is null or created is not true then
     raise exception 'Product showcase source was not created';
@@ -120,7 +120,7 @@ begin
     1200,
     800,
     'bubble tea shop',
-    0
+    0::smallint
   ) as result;
   if assigned_image_id <> first_image_id or created is not true then
     raise exception 'Store pool did not reuse the Product showcase asset';
@@ -140,7 +140,7 @@ begin
     1200,
     800,
     'bubble tea shop',
-    0
+    0::smallint
   ) as result;
   if assigned_image_id <> first_image_id or created is not false then
     raise exception 'Repeated Store showcase import was not idempotent';
@@ -217,7 +217,7 @@ begin
     1200,
     800,
     'bubble tea counter',
-    1
+    1::smallint
   ) as result;
   if second_image_id is null or created is not true then
     raise exception 'Second Store showcase image was not created';

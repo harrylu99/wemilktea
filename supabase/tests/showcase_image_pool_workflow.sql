@@ -79,7 +79,7 @@ begin
       1200,
       800,
       'milk tea',
-      0
+      0::smallint
     );
     raise exception 'ordinary authenticated user imported showcase image';
   exception
@@ -135,7 +135,7 @@ begin
     1200,
     800,
     'milk tea',
-    0
+    0::smallint
   ) as result;
   if showcase_image_id is null or created is not true then
     raise exception 'showcase image was not created';
@@ -156,7 +156,7 @@ begin
     1200,
     800,
     'milk tea',
-    0
+    0::smallint
   ) as result;
   if assigned_image_id <> showcase_image_id or created is not false then
     raise exception 'repeated showcase import was not idempotent';
