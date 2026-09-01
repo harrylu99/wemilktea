@@ -88,7 +88,10 @@ let rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 let stateLookups: string[] = [];
 let failUpload = false;
 let ambiguousUpload = false;
+let holdUpload = false;
+let releaseUpload: (() => void) | null = null;
 let uploadAttempts = 0;
+let uploadedPostIds: string[] = [];
 let searchResult = { drinks: [], stores: [] };
 let ownMomentState = {
   status: "draft",
@@ -132,13 +135,18 @@ mock.module("../moments-image-normalization", () => ({
 }));
 mock.module("../moments-image-upload", () => ({
   MomentImageUploadError: upload.MomentImageUploadError,
-  uploadMomentImage: async (
-    ...args: Parameters<typeof upload.uploadMomentImage>
-  ) => {
+  uploadMomentImage: async (postId: string) => {
     uploadAttempts += 1;
+    uploadedPostIds.push(postId);
+    if (holdUpload) {
+      await new Promise<void>((resolve) => {
+        releaseUpload = resolve;
+      });
+      releaseUpload = null;
+    }
     if (ambiguousUpload) throw new Error("network timeout");
     if (failUpload) throw new upload.MomentImageUploadError("failed");
-    return upload.uploadMomentImage(...args);
+    return upload.uploadMomentImage();
   }
 }));
 mock.module("../discovery/data", () => ({
@@ -176,7 +184,10 @@ beforeEach(() => {
   stateLookups = [];
   failUpload = false;
   ambiguousUpload = false;
+  holdUpload = false;
+  releaseUpload = null;
   uploadAttempts = 0;
+  uploadedPostIds = [];
   searchResult = { drinks: [], stores: [] };
   draftId = "77777777-7777-4777-8777-777777777777";
   ownMomentState = {
@@ -383,6 +394,65 @@ test("canonical selection abandons a failed draft before the next retry", async 
     rpcCalls.filter((call) => call.name === "create_community_post_draft")
   ).toHaveLength(2);
   expect(uploadAttempts).toBe(2);
+});
+
+test("freezes form mutations while upload finalization is pending", async () => {
+  searchResult = {
+    drinks: [
+      { id: "drink-id", name: "Matcha Cloud", brandSlug: "brand-a" }
+    ] as never,
+    stores: []
+  };
+  const view = renderComposer();
+  selectFile(view);
+  await waitFor(() =>
+    expect(view.getByAltText("Selected Moment preview")).toBeTruthy()
+  );
+  fireEvent.click(
+    view.getByRole("button", { name: /Add drink or store details/ })
+  );
+  const drink = view.getByRole("combobox", {
+    name: /What are you drinking/
+  });
+  fireEvent.change(drink, { target: { value: "Matcha" } });
+  await waitFor(() => expect(view.getByRole("option")).toBeTruthy());
+  const openOption = view.getByRole("option");
+
+  fireEvent.click(view.getByRole("button", { name: /Add your name/ }));
+  const caption = view.getByRole("textbox", { name: /Caption/ });
+  const displayName = view.getByRole("textbox", { name: /Your name/ });
+  holdUpload = true;
+  fireEvent.click(view.getByRole("button", { name: "Share" }));
+
+  await waitFor(() =>
+    expect(view.getByRole("button", { name: "Sharing…" })).toBeTruthy()
+  );
+  expect(caption).toHaveProperty("disabled", true);
+  expect(displayName).toHaveProperty("disabled", true);
+  expect(drink).toHaveProperty("disabled", true);
+  expect(
+    view.getByRole("button", { name: /Hide drink or store details/ })
+  ).toHaveProperty("disabled", true);
+  expect(view.getByRole("button", { name: /Hide your name/ })).toHaveProperty(
+    "disabled",
+    true
+  );
+  expect(view.queryByRole("option")).toBeNull();
+
+  fireEvent.change(caption, { target: { value: "changed during upload" } });
+  fireEvent.click(openOption);
+  expect(
+    rpcCalls.some((call) => call.name === "delete_own_community_post")
+  ).toBe(false);
+
+  releaseUpload?.();
+  await waitFor(() =>
+    expect(view.getByText("Your Moment is live 🧋")).toBeTruthy()
+  );
+  expect(
+    rpcCalls.some((call) => call.name === "delete_own_community_post")
+  ).toBe(false);
+  expect(uploadedPostIds[0]).toBe(draftId);
 });
 
 test("uses a listbox option as the combobox active descendant", async () => {

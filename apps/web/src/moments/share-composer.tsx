@@ -145,7 +145,7 @@ function MetadataCombobox({
     return () => window.clearTimeout(timer);
   }, [expanded, kind, value]);
 
-  const showOptions = expanded && options.length > 0;
+  const showOptions = !disabled && expanded && options.length > 0;
 
   return (
     <div className="grid gap-1.5">
@@ -295,6 +295,8 @@ export function ShareMomentComposer({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const submittingRef = useRef(false);
+  submittingRef.current = submitting;
 
   const signature = formSignature({
     caption,
@@ -339,7 +341,7 @@ export function ShareMomentComposer({
   };
 
   const close = () => {
-    if (submitting) return;
+    if (submittingRef.current) return;
     if (draft && !success) abandonDraft();
     reset();
     onClose();
@@ -403,6 +405,7 @@ export function ShareMomentComposer({
     value: string,
     clearSelection: () => void
   ) => {
+    if (submittingRef.current) return;
     if (draft) abandonDraft();
     setter(value);
     clearSelection();
@@ -411,7 +414,7 @@ export function ShareMomentComposer({
   };
 
   const handleFile = async (file: File | undefined) => {
-    if (!file || submitting) return;
+    if (!file || submittingRef.current) return;
     if (draft) abandonDraft();
     setError(null);
     setFieldError(null);
@@ -499,6 +502,7 @@ export function ShareMomentComposer({
     kind: "drink" | "store",
     nextSelection: Selection
   ) => {
+    if (submittingRef.current) return;
     const currentValue = kind === "drink" ? product : location;
     const currentSelection =
       kind === "drink" ? productSelection : locationSelection;
@@ -545,7 +549,7 @@ export function ShareMomentComposer({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submittingRef.current) return;
     setFieldError(null);
     setError(null);
     const validationError = validate();
@@ -635,6 +639,7 @@ export function ShareMomentComposer({
             disabled={!normalized || submitting}
             type="button"
             onClick={() => {
+              if (submittingRef.current) return;
               if (draft) abandonDraft();
               setNormalized(null);
               revokePreview();
@@ -664,6 +669,7 @@ export function ShareMomentComposer({
           Caption · optional
           <textarea
             className="min-h-20 resize-y rounded-lg border border-border bg-card p-3 text-base font-normal text-foreground"
+            disabled={submitting}
             id="moment-caption"
             maxLength={MAX_CAPTION_LENGTH}
             placeholder="Say something..."
@@ -676,8 +682,11 @@ export function ShareMomentComposer({
         </label>
         <button
           className="min-h-11 rounded-lg bg-accent px-3 text-left text-xs font-medium text-primary"
+          disabled={submitting}
           type="button"
-          onClick={() => setDetailsOpen((value) => !value)}
+          onClick={() => {
+            if (!submittingRef.current) setDetailsOpen((value) => !value);
+          }}
         >
           {detailsOpen
             ? "− Hide drink or store details"
@@ -717,8 +726,11 @@ export function ShareMomentComposer({
         ) : null}
         <button
           className="min-h-11 rounded-lg px-1 text-left text-xs font-medium text-foreground hover:bg-accent"
+          disabled={submitting}
           type="button"
-          onClick={() => setNameOpen((value) => !value)}
+          onClick={() => {
+            if (!submittingRef.current) setNameOpen((value) => !value);
+          }}
         >
           {nameOpen ? "− Hide your name" : "+ Add your name"}
         </button>
@@ -730,6 +742,7 @@ export function ShareMomentComposer({
             Your name · optional
             <input
               className="h-12 rounded-lg border border-border bg-card px-3 text-base font-normal text-foreground"
+              disabled={submitting}
               id="moment-display-name"
               maxLength={MAX_DISPLAY_NAME_LENGTH}
               ref={displayNameRef}
