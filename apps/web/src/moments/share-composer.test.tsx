@@ -85,9 +85,16 @@ const upload = {
 
 let draftId = "77777777-7777-4777-8777-777777777777";
 let rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+let stateLookups: string[] = [];
 let failUpload = false;
+let ambiguousUpload = false;
 let uploadAttempts = 0;
 let searchResult = { drinks: [], stores: [] };
+let ownMomentState = {
+  status: "draft",
+  image_asset_id: null as string | null,
+  deleted_at: null as string | null
+};
 const supabaseMock = {
   auth: {
     getSession: mock(async () => ({ data: { session: null }, error: null })),
@@ -104,12 +111,12 @@ const supabaseMock = {
   }),
   from: () => ({
     select: () => ({
-      eq: () => ({
-        maybeSingle: async () => ({
-          data: { status: "draft", image_asset_id: null, deleted_at: null },
-          error: null
-        })
-      })
+      eq: (_column: string, value: string) => {
+        stateLookups.push(value);
+        return {
+          maybeSingle: async () => ({ data: ownMomentState, error: null })
+        };
+      }
     })
   })
 };
@@ -129,6 +136,7 @@ mock.module("../moments-image-upload", () => ({
     ...args: Parameters<typeof upload.uploadMomentImage>
   ) => {
     uploadAttempts += 1;
+    if (ambiguousUpload) throw new Error("network timeout");
     if (failUpload) throw new upload.MomentImageUploadError("failed");
     return upload.uploadMomentImage(...args);
   }
@@ -165,10 +173,17 @@ function selectFile(view: ReturnType<typeof render>) {
 beforeEach(() => {
   installBrowserGlobals();
   rpcCalls = [];
+  stateLookups = [];
   failUpload = false;
+  ambiguousUpload = false;
   uploadAttempts = 0;
   searchResult = { drinks: [], stores: [] };
   draftId = "77777777-7777-4777-8777-777777777777";
+  ownMomentState = {
+    status: "draft",
+    image_asset_id: null,
+    deleted_at: null
+  };
   identity.ensurePublicWriteIdentity.mockClear();
   normalization.normalizeMomentImage.mockClear();
   upload.uploadMomentImage.mockClear();
@@ -212,6 +227,7 @@ test("supports the photo-only happy path and activates through WM-109", async ()
   await waitFor(() =>
     expect(view.getByText("Your Moment is live 🧋")).toBeTruthy()
   );
+  expect(view.getByRole("status").getAttribute("aria-live")).toBe("polite");
 
   expect(identity.ensurePublicWriteIdentity).toHaveBeenCalledTimes(1);
   expect(rpcCalls).toEqual([
@@ -228,6 +244,31 @@ test("supports the photo-only happy path and activates through WM-109", async ()
     }
   ]);
   expect(upload.uploadMomentImage).toHaveBeenCalledTimes(1);
+});
+
+test("treats a first-attempt active post as success after an ambiguous upload error", async () => {
+  const view = renderComposer();
+  selectFile(view);
+  await waitFor(() =>
+    expect(view.getByAltText("Selected Moment preview")).toBeTruthy()
+  );
+  ambiguousUpload = true;
+  ownMomentState = {
+    status: "active",
+    image_asset_id: "88888888-8888-4888-8888-888888888888",
+    deleted_at: null
+  };
+
+  fireEvent.click(view.getByRole("button", { name: "Share" }));
+  await waitFor(() =>
+    expect(view.getByText("Your Moment is live 🧋")).toBeTruthy()
+  );
+
+  expect(stateLookups).toEqual([draftId]);
+  fireEvent.click(view.getByRole("button", { name: "Done" }));
+  expect(
+    rpcCalls.some((call) => call.name === "delete_own_community_post")
+  ).toBe(false);
 });
 
 test("does not abandon a Moment when closing its success state", async () => {
@@ -271,7 +312,7 @@ test("maps canonical selections and free text without creating catalogue records
     }
   );
   await waitFor(() => expect(view.getByRole("option")).toBeTruthy());
-  fireEvent.click(view.getByRole("option").querySelector("button")!);
+  fireEvent.click(view.getByRole("option"));
   fireEvent.change(
     view.getByRole("combobox", { name: /Where did you get it/ }),
     {
@@ -294,6 +335,128 @@ test("maps canonical selections and free text without creating catalogue records
       p_product_text: null
     }
   });
+});
+
+test("canonical selection abandons a failed draft before the next retry", async () => {
+  searchResult = {
+    drinks: [
+      { id: "drink-id", name: "Matcha Cloud", brandSlug: "brand-a" }
+    ] as never,
+    stores: []
+  };
+  const view = renderComposer();
+  selectFile(view);
+  await waitFor(() =>
+    expect(view.getByAltText("Selected Moment preview")).toBeTruthy()
+  );
+  failUpload = true;
+  fireEvent.click(view.getByRole("button", { name: "Share" }));
+  await waitFor(() =>
+    expect(
+      view.getByText("Your photo could not be uploaded. Try again.")
+    ).toBeTruthy()
+  );
+
+  fireEvent.click(
+    view.getByRole("button", { name: /Add drink or store details/ })
+  );
+  const drink = view.getByRole("combobox", {
+    name: /What are you drinking/
+  });
+  fireEvent.change(drink, { target: { value: "Matcha" } });
+  await waitFor(() => expect(view.getByRole("option")).toBeTruthy());
+  fireEvent.click(view.getByRole("option"));
+
+  expect(
+    rpcCalls.filter((call) => call.name === "delete_own_community_post")
+  ).toHaveLength(1);
+  expect(
+    rpcCalls.find((call) => call.name === "delete_own_community_post")?.args
+  ).toEqual({ p_post_id: draftId });
+
+  failUpload = false;
+  fireEvent.click(view.getByRole("button", { name: "Share" }));
+  await waitFor(() =>
+    expect(view.getByText("Your Moment is live 🧋")).toBeTruthy()
+  );
+  expect(
+    rpcCalls.filter((call) => call.name === "create_community_post_draft")
+  ).toHaveLength(2);
+  expect(uploadAttempts).toBe(2);
+});
+
+test("uses a listbox option as the combobox active descendant", async () => {
+  searchResult = {
+    drinks: [
+      { id: "drink-id", name: "Matcha Cloud", brandSlug: "brand-a" }
+    ] as never,
+    stores: []
+  };
+  const view = renderComposer();
+  fireEvent.click(
+    view.getByRole("button", { name: /Add drink or store details/ })
+  );
+  const drink = view.getByRole("combobox", {
+    name: /What are you drinking/
+  });
+  fireEvent.change(drink, { target: { value: "Matcha" } });
+  await waitFor(() => expect(view.getByRole("option")).toBeTruthy());
+  fireEvent.keyDown(drink, { key: "ArrowDown" });
+
+  const activeId = drink.getAttribute("aria-activedescendant");
+  expect(activeId).toBeTruthy();
+  expect(
+    view.container.querySelector(`[id="${activeId}"]`)?.getAttribute("role")
+  ).toBe("option");
+  fireEvent.keyDown(drink, { key: "Enter" });
+  expect(
+    view.getByText("Canonical Matcha Cloud · Drink selected.")
+  ).toBeTruthy();
+});
+
+test("focuses the Drink combobox for a canonical brand mismatch", async () => {
+  searchResult = {
+    drinks: [
+      { id: "drink-id", name: "Matcha Cloud", brandSlug: "brand-a" }
+    ] as never,
+    stores: [
+      { id: "store-id", displayName: "Tea Shop", brandSlug: "brand-b" }
+    ] as never
+  };
+  const view = renderComposer();
+  selectFile(view);
+  await waitFor(() =>
+    expect(view.getByAltText("Selected Moment preview")).toBeTruthy()
+  );
+  fireEvent.click(
+    view.getByRole("button", { name: /Add drink or store details/ })
+  );
+  const drink = view.getByRole("combobox", {
+    name: /What are you drinking/
+  });
+  const drinkFocus = mock(() => undefined);
+  Object.defineProperty(drink, "focus", {
+    configurable: true,
+    value: drinkFocus
+  });
+  const store = view.getByRole("combobox", {
+    name: /Where did you get it/
+  });
+  fireEvent.change(drink, { target: { value: "Matcha" } });
+  await waitFor(() => expect(view.getByRole("option")).toBeTruthy());
+  fireEvent.click(view.getByRole("option"));
+  fireEvent.change(store, { target: { value: "Tea" } });
+  await waitFor(() => expect(view.getByRole("option")).toBeTruthy());
+  fireEvent.click(view.getByRole("option"));
+
+  fireEvent.click(view.getByRole("button", { name: "Share" }));
+  expect(
+    await view.findByText(
+      "Choose a Store and Drink from the same brand, or use free text for one of them."
+    )
+  ).toBeTruthy();
+  await act(async () => undefined);
+  expect(drinkFocus).toHaveBeenCalled();
 });
 
 test("reuses the same owned draft after a retryable upload failure", async () => {

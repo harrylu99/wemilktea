@@ -105,6 +105,22 @@ test.describe("public accessibility", () => {
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
   });
+
+  test("Moments Share composer focuses the photo control on validation", async ({
+    page
+  }) => {
+    await page.goto("/moments");
+    await waitForPublicPage(page);
+    await page.getByRole("button", { name: "Share your moment" }).click();
+    const dialog = page.getByRole("dialog", { name: "Share your moment" });
+    await dialog.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(
+      dialog.getByText("Add a photo to share your Moment.")
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Add a photo" })
+    ).toBeFocused();
+  });
 });
 
 test("public routes expose meaningful document titles", async ({ page }) => {

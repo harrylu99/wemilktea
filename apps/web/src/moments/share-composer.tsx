@@ -40,6 +40,11 @@ type OwnMomentState = {
 
 type NormalizedMomentImage = Awaited<ReturnType<typeof normalizeMomentImage>>;
 
+type ValidationError = {
+  message: string;
+  target: "photo" | "caption" | "drink" | "store" | "display-name";
+};
+
 const MAX_CAPTION_LENGTH = 280;
 const MAX_CATALOGUE_TEXT_LENGTH = 160;
 const MAX_DISPLAY_NAME_LENGTH = 40;
@@ -105,7 +110,8 @@ function MetadataCombobox({
   selection,
   onChange,
   onSelect,
-  disabled
+  disabled,
+  inputRef
 }: {
   kind: "drink" | "store";
   label: string;
@@ -114,6 +120,7 @@ function MetadataCombobox({
   onChange: (value: string) => void;
   onSelect: (selection: Selection) => void;
   disabled: boolean;
+  inputRef: RefObject<HTMLInputElement | null>;
 }) {
   const inputId = useId();
   const listId = `${inputId}-options`;
@@ -156,6 +163,8 @@ function MetadataCombobox({
         className="h-12 rounded-lg border border-border bg-card px-3 text-base text-foreground"
         disabled={disabled}
         id={inputId}
+        maxLength={MAX_CATALOGUE_TEXT_LENGTH}
+        ref={inputRef}
         role="combobox"
         value={value}
         onBlur={() => window.setTimeout(() => setExpanded(false), 120)}
@@ -205,24 +214,20 @@ function MetadataCombobox({
           {options.map((option, index) => (
             <li
               key={option.id}
-              role="option"
               aria-selected={index === activeIndex}
+              className={`min-h-11 cursor-pointer rounded-md px-3 py-2 text-sm ${index === activeIndex ? "bg-accent" : "hover:bg-accent"}`}
+              id={`${listId}-${index}`}
+              role="option"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onSelect(option);
+                setExpanded(false);
+              }}
             >
-              <button
-                className={`min-h-11 w-full rounded-md px-3 py-2 text-left text-sm ${index === activeIndex ? "bg-accent" : "hover:bg-accent"}`}
-                id={`${listId}-${index}`}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  onSelect(option);
-                  setExpanded(false);
-                }}
-              >
-                <span className="block break-words">{option.label}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {option.brandSlug}
-                </span>
-              </button>
+              <span className="block break-words">{option.label}</span>
+              <span className="block text-xs text-muted-foreground">
+                {option.brandSlug}
+              </span>
             </li>
           ))}
         </ul>
@@ -262,6 +267,11 @@ export function ShareMomentComposer({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoPickerRef = useRef<HTMLButtonElement>(null);
+  const captionRef = useRef<HTMLTextAreaElement>(null);
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const locationInputRef = useRef<HTMLInputElement>(null);
+  const displayNameRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
   const closeRef = useRef<() => void>(() => undefined);
   const [normalized, setNormalized] = useState<NormalizedMomentImage | null>(
@@ -423,24 +433,90 @@ export function ShareMomentComposer({
     }
   };
 
-  const validate = () => {
-    if (!normalized) return "Add a photo to share your Moment.";
+  const validate = (): ValidationError | null => {
+    if (!normalized)
+      return {
+        message: "Add a photo to share your Moment.",
+        target: "photo"
+      };
     if (caption.length > MAX_CAPTION_LENGTH)
-      return "Caption must be 280 characters or fewer.";
+      return {
+        message: "Caption must be 280 characters or fewer.",
+        target: "caption"
+      };
     if (location.length > MAX_CATALOGUE_TEXT_LENGTH)
-      return "Store text must be 160 characters or fewer.";
+      return {
+        message: "Store text must be 160 characters or fewer.",
+        target: "store"
+      };
     if (product.length > MAX_CATALOGUE_TEXT_LENGTH)
-      return "Drink text must be 160 characters or fewer.";
+      return {
+        message: "Drink text must be 160 characters or fewer.",
+        target: "drink"
+      };
     if (displayName.length > MAX_DISPLAY_NAME_LENGTH)
-      return "Your name must be 40 characters or fewer.";
+      return {
+        message: "Your name must be 40 characters or fewer.",
+        target: "display-name"
+      };
     if (
       locationSelection &&
       productSelection &&
       locationSelection.brandSlug !== productSelection.brandSlug
-    ) {
-      return "Choose a Store and Drink from the same brand, or use free text for one of them.";
-    }
+    )
+      return {
+        message:
+          "Choose a Store and Drink from the same brand, or use free text for one of them.",
+        target: "drink"
+      };
     return null;
+  };
+
+  const focusValidationTarget = (target: ValidationError["target"]) => {
+    if (target === "photo") {
+      photoPickerRef.current?.focus();
+      return;
+    }
+    if (target === "caption") {
+      captionRef.current?.focus();
+      return;
+    }
+    if (target === "display-name") {
+      setNameOpen(true);
+      window.requestAnimationFrame(() => displayNameRef.current?.focus());
+      return;
+    }
+    setDetailsOpen(true);
+    window.requestAnimationFrame(() => {
+      (target === "drink"
+        ? productInputRef
+        : locationInputRef
+      ).current?.focus();
+    });
+  };
+
+  const commitSelection = (
+    kind: "drink" | "store",
+    nextSelection: Selection
+  ) => {
+    const currentValue = kind === "drink" ? product : location;
+    const currentSelection =
+      kind === "drink" ? productSelection : locationSelection;
+    if (
+      currentValue !== nextSelection.label ||
+      currentSelection?.id !== nextSelection.id
+    ) {
+      if (draft) abandonDraft();
+      setFieldError(null);
+      setError(null);
+    }
+    if (kind === "drink") {
+      setProduct(nextSelection.label);
+      setProductSelection(nextSelection);
+    } else {
+      setLocation(nextSelection.label);
+      setLocationSelection(nextSelection);
+    }
   };
 
   const createDraft = async () => {
@@ -474,19 +550,23 @@ export function ShareMomentComposer({
     setError(null);
     const validationError = validate();
     if (validationError) {
-      setFieldError(validationError);
+      setFieldError(validationError.message);
+      focusValidationTarget(validationError.target);
       return;
     }
     setSubmitting(true);
+    let attemptedPostId: string | null = null;
     try {
-      const postId =
+      attemptedPostId =
         draft?.signature === signature ? draft.id : await createDraft();
       if (!normalized) throw new Error("Add a photo to share your Moment.");
-      await uploadMomentImage(postId, normalized);
+      await uploadMomentImage(attemptedPostId, normalized);
       setSuccess(true);
       onSuccess();
     } catch (reason) {
-      const state = draft ? await loadOwnMomentState(draft.id) : null;
+      const state = attemptedPostId
+        ? await loadOwnMomentState(attemptedPostId)
+        : null;
       if (
         state?.status === "active" &&
         state.imageAssetId &&
@@ -500,6 +580,9 @@ export function ShareMomentComposer({
           "This draft is no longer available. Please try sharing again."
         );
       } else {
+        if (attemptedPostId) {
+          setDraft({ id: attemptedPostId, signature });
+        }
         setError(
           reason instanceof MomentImageUploadError
             ? "Your photo could not be uploaded. Try again."
@@ -514,8 +597,11 @@ export function ShareMomentComposer({
   };
 
   const content = (
-    <form className="grid gap-6" onSubmit={submit}>
-      <div className="grid gap-3">
+    <form
+      className="grid gap-6 sm:grid sm:grid-cols-2 sm:items-start sm:gap-6"
+      onSubmit={submit}
+    >
+      <div className="grid gap-3" data-testid="share-photo-section">
         <div className="relative grid min-h-44 place-items-center overflow-hidden rounded-xl bg-accent sm:min-h-72">
           {previewUrl ? (
             <img
@@ -525,6 +611,7 @@ export function ShareMomentComposer({
             />
           ) : (
             <button
+              ref={photoPickerRef}
               className="min-h-44 w-full rounded-xl text-sm font-medium text-primary sm:min-h-72"
               disabled={submitting}
               type="button"
@@ -569,7 +656,7 @@ export function ShareMomentComposer({
           onChange={(event) => void handleFile(event.target.files?.[0])}
         />
       </div>
-      <div className="grid gap-4">
+      <div className="grid gap-4" data-testid="share-details-section">
         <label
           className="grid gap-1.5 text-xs font-medium"
           htmlFor="moment-caption"
@@ -580,6 +667,7 @@ export function ShareMomentComposer({
             id="moment-caption"
             maxLength={MAX_CAPTION_LENGTH}
             placeholder="Say something..."
+            ref={captionRef}
             value={caption}
             onChange={(event) =>
               setChangedValue(setCaption, event.target.value, () => undefined)
@@ -601,6 +689,7 @@ export function ShareMomentComposer({
               disabled={submitting}
               kind="drink"
               label="What are you drinking?"
+              inputRef={productInputRef}
               selection={productSelection}
               value={product}
               onChange={(value) =>
@@ -608,15 +697,13 @@ export function ShareMomentComposer({
                   setProductSelection(null)
                 )
               }
-              onSelect={(value) => {
-                setProduct(value.label);
-                setProductSelection(value);
-              }}
+              onSelect={(value) => commitSelection("drink", value)}
             />
             <MetadataCombobox
               disabled={submitting}
               kind="store"
               label="Where did you get it?"
+              inputRef={locationInputRef}
               selection={locationSelection}
               value={location}
               onChange={(value) =>
@@ -624,10 +711,7 @@ export function ShareMomentComposer({
                   setLocationSelection(null)
                 )
               }
-              onSelect={(value) => {
-                setLocation(value.label);
-                setLocationSelection(value);
-              }}
+              onSelect={(value) => commitSelection("store", value)}
             />
           </div>
         ) : null}
@@ -648,6 +732,7 @@ export function ShareMomentComposer({
               className="h-12 rounded-lg border border-border bg-card px-3 text-base font-normal text-foreground"
               id="moment-display-name"
               maxLength={MAX_DISPLAY_NAME_LENGTH}
+              ref={displayNameRef}
               value={displayName}
               onChange={(event) =>
                 setChangedValue(
@@ -709,7 +794,11 @@ export function ShareMomentComposer({
           </button>
         </div>
         {success ? (
-          <div className="grid min-h-80 place-items-center gap-5 p-8 text-center">
+          <div
+            aria-live="polite"
+            className="grid min-h-80 place-items-center gap-5 p-8 text-center"
+            role="status"
+          >
             <div>
               <p className="text-xl font-semibold">Your Moment is live 🧋</p>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -727,9 +816,7 @@ export function ShareMomentComposer({
         ) : (
           <div className="bg-background p-5 sm:p-8">
             <div className="rounded-[20px] border border-border bg-card p-5 sm:p-6">
-              <div className="sm:grid sm:grid-cols-2 sm:items-start sm:gap-6">
-                {content}
-              </div>
+              {content}
             </div>
           </div>
         )}

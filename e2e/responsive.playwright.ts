@@ -65,7 +65,21 @@ test.describe("public responsive smoke", () => {
       expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
       expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
     } else {
-      await expect(dialog.locator("div.sm\\:grid-cols-2")).toHaveCount(1);
+      const photoSection = dialog.getByTestId("share-photo-section");
+      const detailsSection = dialog.getByTestId("share-details-section");
+      const dialogRect = await dialog.boundingBox();
+      const photoRect = await photoSection.boundingBox();
+      const detailsRect = await detailsSection.boundingBox();
+
+      expect(dialogRect).not.toBeNull();
+      expect(photoRect).not.toBeNull();
+      expect(detailsRect).not.toBeNull();
+      if (!dialogRect || !photoRect || !detailsRect) return;
+      expect(detailsRect.x).toBeGreaterThan(photoRect.x);
+      expect(Math.abs(detailsRect.y - photoRect.y)).toBeLessThanOrEqual(24);
+      expect(detailsRect.x + detailsRect.width).toBeLessThanOrEqual(
+        dialogRect.x + dialogRect.width
+      );
     }
   });
 
