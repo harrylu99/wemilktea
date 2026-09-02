@@ -44,13 +44,26 @@ base. The following facts were observed:
 - Local `supabase start`: BLOCKED by missing Docker/Podman.
 - Local Moments SQL workflows: NOT RUN because the local database could not be started.
 - `supabase db lint --local --schema public --fail-on error`: NOT RUN for the same reason.
-- `supabase migration list`: BLOCKED because no access token was supplied.
+- `supabase migration list`: BLOCKED in the CLI because no access token was supplied.
 - `supabase db push --linked --dry-run`: NOT RUN because the production project could not be linked without credentials.
-- Production mutations: NONE.
+- Direct production mutations by this Phase A execution: NONE.
 
-The migration delta below is therefore an **expected, unverified candidate
-delta from the team-lead handoff**, not a live dry-run result. A production
-operator must refresh it immediately before any later rollout authorization.
+Separate connected-management/API inspection performed read-only by the team
+lead confirmed the production diagnosis:
+
+- production migration history ends at
+  `20260829131842_wm106_preserve_combined_public_search_semantics`;
+- `community_posts`, `community_post_reports`,
+  `list_public_community_posts`, `moderate_community_post`, and
+  `resolve_community_post_report` are absent;
+- `community-image-storage` is not present in the production Edge Function
+  list.
+
+This confirms the Moments rollout gap. It does not replace the CLI migration
+history and `db push --linked --dry-run` gates, which remain unexecuted here.
+The migration delta below is the expected candidate delta after that observed
+production head, not a live CLI dry-run result. A production operator must
+refresh it immediately before any later rollout authorization.
 
 Expected candidate delta if production remains at
 `20260829131842_wm106_preserve_combined_public_search_semantics`:
@@ -96,8 +109,8 @@ The reviewed production path requires the following components and names:
 
 - Supabase Edge Function: `community-image-storage`
 - Cloudflare Worker: `moments-image-verifier`
-- Worker bindings: `BUCKET`, `IMAGES`
-- Worker verifier token: `VERIFY_TOKEN`
+- Worker configuration and bindings: `MOMENTS_APP_ORIGIN`,
+  `MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET`, `VERIFY_TOKEN`, `BUCKET`, and `IMAGES`
 - Edge Function secrets/configuration: `MOMENTS_APP_ORIGIN`,
   `MOMENTS_IMAGE_UPLOAD_URL`, `MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET`,
   `MOMENTS_IMAGE_VERIFIER_URL`, `MOMENTS_IMAGE_VERIFIER_TOKEN`,
@@ -108,6 +121,15 @@ The reviewed production path requires the following components and names:
 
 No value for any secret, token, password, sitekey, R2 credential, or service
 role is stored in this document.
+
+The verifier Wrangler configuration currently contains
+`MOMENTS_APP_ORIGIN: configure-at-deploy` and
+`bucket_name: configure-at-deploy`. These placeholders are an explicit
+production NO-GO. Before any authorized Worker deployment, replace or
+override them with approved production values and configure the Worker-only
+`VERIFY_TOKEN` plus the shared `MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET`. The
+`IMAGES` and `BUCKET` bindings must resolve to the approved production
+resources.
 
 ## Release wiring in this Phase A PR
 
@@ -128,6 +150,21 @@ still:
 The deployment documentation now lists four production Edge Functions. This
 Phase A PR does not modify any function source, migration, Worker source,
 Auth setting, secret, binding, R2 object, or production environment.
+
+## Cloudflare branch-build safety incident — release NO-GO
+
+The live Cloudflare PR comment for this head reported a successful branch build
+for Worker `admin` under a `/workers/services/view/admin/production/builds/...`
+path. The repository’s documented non-production target is `admin-dev`, which
+requires the `--env dev` Wrangler command; production is the top-level
+`admin` configuration without that flag. The comment did not provide a
+non-production Admin preview URL.
+
+This is recorded as a release-safety incident and a NO-GO signal. It was not a
+deployment command executed by this Phase A work. Do not attempt Cloudflare
+remediation from this branch. The team lead must independently investigate and
+correct/confirm the Workers Builds target before any Ready-for-review or
+production authorization decision.
 
 ## Future production rollout order — not authorized in Phase A
 
@@ -159,7 +196,7 @@ SUPABASE_TELEMETRY_DISABLED=1 supabase db push --linked
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy community-image-storage \
   --project-ref "$SUPABASE_PROJECT_REF" \
   --use-api
-wrangler deploy workers/moments-image-verifier
+npx wrangler deploy --config workers/moments-image-verifier/wrangler.jsonc
 ```
 
 ## Future acceptance and smoke tests
@@ -208,5 +245,7 @@ These checks belong to the later authorized rollout, not this PR:
 
 This document and the accompanying workflow/documentation changes prepare the
 release path. They do not prove that production is rolled out: local database
-validation and live production dry-run evidence remain blocked in the current
-environment, and no production mutation was performed.
+validation and live production CLI dry-run evidence remain blocked in the
+current environment. Direct production mutations by this Phase A execution
+were NONE; the separate Cloudflare branch-build safety incident above remains
+an unresolved release NO-GO for the team lead.

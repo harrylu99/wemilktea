@@ -22,8 +22,10 @@ Reviewed Edge Function changes merged into `main` are deployed by
 `.github/workflows/supabase-functions-deploy.yml`. The workflow is limited to
 changes under `supabase/functions/**` or `supabase/config.toml`, so frontend-
 only changes do not start a Supabase deployment. It always deploys the four
-production functions together because `_shared/admin-auth.ts` is shared by all
-four functions and each function owns its deployment dependency map:
+production functions together. The existing Admin-oriented functions share
+`_shared/admin-auth.ts`; `community-image-storage` uses
+`_shared/moments-upload-token.ts`, and each function owns its deployment
+dependency map:
 
 ```text
 merge to main
@@ -470,6 +472,8 @@ SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy store-discovery \
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy candidate-google-detail \
   --project-ref tqdxmotcpogyvzdvgopi --use-api
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy image-storage \
+  --project-ref tqdxmotcpogyvzdvgopi --use-api
+SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy community-image-storage \
   --project-ref tqdxmotcpogyvzdvgopi --use-api
 ```
 
