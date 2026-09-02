@@ -74,6 +74,14 @@ begin
     perform set_config('request.jwt.claim.sub', owner_id::text, true);
   end loop;
 
+  execute 'reset role';
+  update public.community_posts
+  set created_at = now() - interval '2 hours'
+  where owner_user_id = owner_id
+    and created_at >= now() - interval '1 hour';
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+
   begin
     perform public.create_community_post_draft('WM-115 daily blocked');
     raise exception 'daily draft quota was not enforced';
