@@ -124,6 +124,21 @@ test.serial("cancel and Escape close without confirming", () => {
   expect(secondView.queryByRole("dialog")).toBeNull();
 });
 
+test.serial("Escape does not bubble beyond the confirmation dialog", () => {
+  const bubbledEscape = mock(() => {});
+  window.addEventListener("keydown", bubbledEscape);
+
+  try {
+    const view = render(<TestDialog />);
+    fireEvent.keyDown(view.getByRole("dialog"), { key: "Escape" });
+
+    expect(view.queryByRole("dialog")).toBeNull();
+    expect(bubbledEscape).not.toHaveBeenCalled();
+  } finally {
+    window.removeEventListener("keydown", bubbledEscape);
+  }
+});
+
 test.serial(
   "confirm enters pending state and prevents duplicate clicks",
   () => {
