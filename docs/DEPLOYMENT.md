@@ -21,9 +21,9 @@ changes are applied by reviewed migrations only.
 Reviewed Edge Function changes merged into `main` are deployed by
 `.github/workflows/supabase-functions-deploy.yml`. The workflow is limited to
 changes under `supabase/functions/**` or `supabase/config.toml`, so frontend-
-only changes do not start a Supabase deployment. It always deploys the three
+only changes do not start a Supabase deployment. It always deploys the four
 production functions together because `_shared/admin-auth.ts` is shared by all
-three functions and each function owns its deployment dependency map:
+four functions and each function owns its deployment dependency map:
 
 ```text
 merge to main
@@ -32,6 +32,7 @@ merge to main
 → deploy store-discovery
 → deploy candidate-google-detail
 → deploy image-storage
+→ deploy community-image-storage
 ```
 
 The workflow explicitly targets production project ref
