@@ -5,7 +5,8 @@ export const browserEnvironmentSchema = z
   .object({
     VITE_SUPABASE_URL: z.string().url().optional(),
     VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
-    VITE_GOOGLE_MAPS_BROWSER_KEY: z.string().min(1).optional()
+    VITE_GOOGLE_MAPS_BROWSER_KEY: z.string().min(1).optional(),
+    VITE_TURNSTILE_SITE_KEY: z.string().min(1).optional()
   })
   .refine(
     ({ VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY }) =>

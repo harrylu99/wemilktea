@@ -171,6 +171,9 @@ mock.module("../lib/supabase", () => ({
   supabase: supabaseMock,
   supabaseConfigurationError: null
 }));
+mock.module("../turnstile", () => ({
+  getWebTurnstileToken: async () => "test-turnstile-token"
+}));
 mock.module("./data", () => ({
   loadOwnMomentIds: async () => ownIds,
   loadPublicMomentsPage: async (cursor: unknown) => {

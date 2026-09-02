@@ -14,7 +14,8 @@
     "paths": {
       "@wemilktea/domain": ["./packages/domain/src"],
       "@wemilktea/validation": ["./packages/validation/src"],
-      "@wemilktea/config": ["./packages/config/src"]
+      "@wemilktea/config": ["./packages/config/src"],
+      "@wemilktea/turnstile": ["./packages/turnstile/src"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,

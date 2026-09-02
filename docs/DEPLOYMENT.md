@@ -169,6 +169,7 @@ VITE_R2_PUBLIC_BASE_URL
 VITE_GOOGLE_MAPS_BROWSER_KEY
 VITE_PUBLIC_SITE_URL
 VITE_PUBLIC_NO_INDEX
+VITE_TURNSTILE_SITE_KEY
 ```
 
 Admin (`apps/admin`):
@@ -177,6 +178,7 @@ Admin (`apps/admin`):
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
 VITE_R2_PUBLIC_BASE_URL
+VITE_TURNSTILE_SITE_KEY
 ```
 
 The Maps key must be restricted by HTTP referrer to the final public origin

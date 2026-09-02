@@ -25,6 +25,7 @@
       "dependencies": {
         "@supabase/supabase-js": "^2.57.4",
         "@wemilktea/config": "workspace:*",
+        "@wemilktea/turnstile": "workspace:*",
         "@wemilktea/validation": "workspace:*",
         "react": "^19.1.1",
         "react-dom": "^19.1.1",
@@ -50,6 +51,7 @@
       "dependencies": {
         "@supabase/supabase-js": "^2.57.4",
         "@wemilktea/config": "workspace:*",
+        "@wemilktea/turnstile": "workspace:*",
         "@wemilktea/validation": "workspace:*",
         "react": "^19.1.1",
         "react-dom": "^19.1.1",
@@ -73,6 +75,10 @@
     },
     "packages/domain": {
       "name": "@wemilktea/domain",
+      "version": "0.0.0",
+    },
+    "packages/turnstile": {
+      "name": "@wemilktea/turnstile",
       "version": "0.0.0",
     },
     "packages/validation": {
@@ -617,6 +623,8 @@
     "@wemilktea/config": ["@wemilktea/config@workspace:packages/config"],
 
     "@wemilktea/domain": ["@wemilktea/domain@workspace:packages/domain"],
+
+    "@wemilktea/turnstile": ["@wemilktea/turnstile@workspace:packages/turnstile"],
 
     "@wemilktea/validation": ["@wemilktea/validation@workspace:packages/validation"],
 

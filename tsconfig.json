@@ -5,6 +5,7 @@
     { "path": "./apps/admin" },
     { "path": "./packages/domain" },
     { "path": "./packages/validation" },
-    { "path": "./packages/config" }
+    { "path": "./packages/config" },
+    { "path": "./packages/turnstile" }
   ]
 }

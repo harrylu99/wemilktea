@@ -1,4 +1,5 @@
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
+import { getWebTurnstileToken } from "../turnstile";
 
 let identityPromise: ReturnType<typeof ensurePublicWriteIdentity> | null = null;
 
@@ -20,7 +21,19 @@ async function createOrReuseIdentity(): Promise<PublicWriteIdentityResult> {
     return { userId: sessionData.session.user.id, error: null };
   }
 
-  const { data, error } = await supabase.auth.signInAnonymously();
+  let captchaToken: string;
+  try {
+    captchaToken = await getWebTurnstileToken();
+  } catch {
+    return { userId: null, error: "captcha_unavailable" };
+  }
+  if (!captchaToken.trim()) {
+    return { userId: null, error: "captcha_unavailable" };
+  }
+
+  const { data, error } = await supabase.auth.signInAnonymously({
+    options: { captchaToken }
+  });
   if (error || !data.user) {
     return { userId: null, error: error?.message ?? "identity_unavailable" };
   }
