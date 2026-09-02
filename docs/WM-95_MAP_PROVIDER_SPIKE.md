@@ -118,9 +118,13 @@ guarantee, or attribution policy by itself.
 - **Advantages:** managed vector styles and tiles with a documented MapLibre
   path; commercial plans and an SLA tier are available.
 - **Risks:** the current free plan is non-commercial/R&D only. The published
-  Flex plan is USD $25/month and meters sessions and requests separately; this
-  is not directly comparable with a provider billing only map loads. It adds a
-  commercial account, token, quota, and provider dependency.
+  Flex plan is USD $30/month with 25,000 sessions and 500,000 API requests
+  included; extra sessions are $2.50 per 1,000 and extra API requests are
+  $0.15 per 1,000. MapTiler's own SDK JS uses session-based tracking, while
+  direct third-party SDK usage such as MapLibre can be request-sensitive. The
+  session example therefore must not be treated as a guaranteed direct-
+  MapLibre cost. It adds a commercial account, token, quota, and provider
+  dependency.
 - **Assessment:** credible future candidate, but no v1.4 migration trigger.
 
 ### Stadia Maps
@@ -189,16 +193,19 @@ These are directional published-list-price comparisons, not a forecast. They
 assume only the stated map-load/session volume, USD pricing, no taxes, no other
 SKUs, and no account-specific credits:
 
-| Approx. monthly map initializations |                 Google Dynamic Maps* |      Mapbox web map loads* |                        MapTiler Flex sessions-only* |                    Stadia standard vector tile usage* |
-| ----------------------------------: | -----------------------------------: | -------------------------: | --------------------------------------------------: | ----------------------------------------------------: |
-|                               1,000 |           $0 within listed free tier | $0 within listed free tier |                                    $25 minimum plan | 1 credit per requested tile; within listed 1M credits |
-|                              10,000 |           $0 within listed free tier | $0 within listed free tier |                                    $25 minimum plan |                             tile count, not map count |
-|                              50,000 | about $280 for 40,000 billable loads | $0 within listed free tier | about $75 if 50,000 sessions and no request overage |                             tile count, not map count |
+| Approx. monthly map initializations |                 Google Dynamic Maps* |      Mapbox web map loads* |                                            MapTiler Flex sessions-only* |                    Stadia standard vector tile usage* |
+| ----------------------------------: | -----------------------------------: | -------------------------: | ----------------------------------------------------------------------: | ----------------------------------------------------: |
+|                               1,000 |           $0 within listed free tier | $0 within listed free tier |                                                        $30 minimum plan | 1 credit per requested tile; within listed 1M credits |
+|                              10,000 |           $0 within listed free tier | $0 within listed free tier |                                                        $30 minimum plan |                             tile count, not map count |
+|                              50,000 | about $280 for 40,000 billable loads | $0 within listed free tier | $92.50 session-model example; direct MapLibre cost is request-sensitive |                             tile count, not map count |
 
 \* Google and Mapbox meter map-load events under their own definitions;
-MapTiler meters sessions and requests; Stadia meters tile/API credits. The
-figures are therefore not apples-to-apples. They are useful only to show that
-provider selection cannot be made from renderer licensing alone.
+MapTiler's own SDK JS can use sessions while direct third-party SDK usage can
+be request-sensitive; Stadia meters tile/API credits. The $92.50 MapTiler
+figure is only a session-model example: $30 plus 25,000 additional sessions at
+$2.50 per 1,000, not a guaranteed direct-MapLibre cost. The figures are
+therefore not apples-to-apples and are useful only to show that provider
+selection cannot be made from renderer licensing alone.
 
 ## 7. Accessibility and performance risks
 
