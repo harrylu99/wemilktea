@@ -11,6 +11,7 @@ import {
   fetchUnresolvedReportCount,
   UNRESOLVED_REPORT_COUNT_CHANGED_EVENT
 } from "./moments-data";
+import { createReportCountRefresher } from "./report-count";
 
 const CandidateQueuePage = lazy(() =>
   import("./candidates").then((module) => ({
@@ -303,15 +304,12 @@ function AdminShell() {
   >(null);
 
   useEffect(() => {
-    let isCurrent = true;
+    const reportCountRefresher = createReportCountRefresher(
+      fetchUnresolvedReportCount,
+      setUnresolvedReportCount
+    );
     const refreshReportCount = () => {
-      void fetchUnresolvedReportCount()
-        .then((count) => {
-          if (isCurrent) setUnresolvedReportCount(count);
-        })
-        .catch(() => {
-          if (isCurrent) setUnresolvedReportCount(null);
-        });
+      void reportCountRefresher.refresh();
     };
 
     refreshReportCount();
@@ -320,7 +318,7 @@ function AdminShell() {
       refreshReportCount
     );
     return () => {
-      isCurrent = false;
+      reportCountRefresher.dispose();
       window.removeEventListener(
         UNRESOLVED_REPORT_COUNT_CHANGED_EVENT,
         refreshReportCount

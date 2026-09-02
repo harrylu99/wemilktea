@@ -143,11 +143,13 @@ function focusableElements(container: HTMLElement) {
 function MomentRow({
   moment,
   view,
+  isPending,
   onInspect,
   onModerate
 }: {
   moment: AdminMoment;
   view: MomentView;
+  isPending: boolean;
   onInspect: (button: HTMLButtonElement) => void;
   onModerate: (
     moment: AdminMoment,
@@ -201,6 +203,7 @@ function MomentRow({
           {view === "recent" ? (
             <button
               className="min-h-11 rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground"
+              disabled={isPending}
               type="button"
               onClick={() => onModerate(moment, "hidden")}
             >
@@ -209,6 +212,7 @@ function MomentRow({
           ) : (
             <button
               className="min-h-11 rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground"
+              disabled={isPending}
               type="button"
               onClick={() => onModerate(moment, "active")}
             >
@@ -217,6 +221,7 @@ function MomentRow({
           )}
           <button
             className="min-h-11 rounded-md border border-destructive px-3 py-2 text-sm font-medium text-destructive"
+            disabled={isPending}
             type="button"
             onClick={() => onModerate(moment, "removed")}
           >
@@ -497,6 +502,9 @@ export function MomentsPage() {
   const [removeReason, setRemoveReason] = useState("");
   const inspectTriggerRef = useRef<HTMLButtonElement | null>(null);
   const loadGenerationRef = useRef(0);
+  const currentViewRef = useRef(view);
+  const pendingActionRef = useRef<string | null>(null);
+  currentViewRef.current = view;
 
   const load = useCallback(async () => {
     const generation = ++loadGenerationRef.current;
@@ -533,9 +541,13 @@ export function MomentsPage() {
     requestAnimationFrame(() => inspectTriggerRef.current?.focus());
   }, []);
 
-  const refreshAfterMutation = useCallback(async () => {
-    await load();
-  }, [load]);
+  const refreshAfterMutation = useCallback(
+    async (mutationView: MomentView) => {
+      if (mutationView !== currentViewRef.current) return;
+      await load();
+    },
+    [load]
+  );
 
   const runModeration = useCallback(
     async (
@@ -544,6 +556,8 @@ export function MomentsPage() {
       reason: string | null = null
     ) => {
       const actionKey = `${moment.id}:${status}`;
+      if (pendingActionRef.current) return;
+      pendingActionRef.current = actionKey;
       setPendingAction(actionKey);
       setFeedbackMessage(null);
       try {
@@ -558,7 +572,7 @@ export function MomentsPage() {
         setFeedbackMessage(
           `${status === "active" ? "Moment restored" : status === "hidden" ? "Moment hidden" : "Moment removed"}.`
         );
-        await refreshAfterMutation();
+        await refreshAfterMutation(view);
       } catch (error) {
         setFeedbackMessage(
           error instanceof Error
@@ -566,14 +580,18 @@ export function MomentsPage() {
             : "The Moment could not be updated."
         );
       } finally {
-        setPendingAction(null);
+        if (pendingActionRef.current === actionKey) {
+          pendingActionRef.current = null;
+          setPendingAction(null);
+        }
       }
     },
-    [closeDrawer, refreshAfterMutation, selectedMoment]
+    [closeDrawer, refreshAfterMutation, selectedMoment, view]
   );
 
   const handleModerate = useCallback(
     (moment: AdminMoment, status: "active" | "hidden" | "removed") => {
+      if (pendingActionRef.current) return;
       if (status === "removed") {
         setRemoveTarget(moment);
         setRemoveReason("");
@@ -586,7 +604,10 @@ export function MomentsPage() {
 
   const handleResolveReport = useCallback(
     async (report: MomentReport, status: "actioned" | "dismissed") => {
-      setPendingAction(`report:${report.id}`);
+      const actionKey = `report:${report.id}`;
+      if (pendingActionRef.current) return;
+      pendingActionRef.current = actionKey;
+      setPendingAction(actionKey);
       setFeedbackMessage(null);
       try {
         await resolveMomentReport(report.id, status);
@@ -597,7 +618,7 @@ export function MomentsPage() {
             ? "Report marked actioned."
             : "Report dismissed."
         );
-        await refreshAfterMutation();
+        await refreshAfterMutation(view);
       } catch (error) {
         setFeedbackMessage(
           error instanceof Error
@@ -605,10 +626,13 @@ export function MomentsPage() {
             : "The report could not be updated."
         );
       } finally {
-        setPendingAction(null);
+        if (pendingActionRef.current === actionKey) {
+          pendingActionRef.current = null;
+          setPendingAction(null);
+        }
       }
     },
-    [closeDrawer, refreshAfterMutation]
+    [closeDrawer, refreshAfterMutation, view]
   );
 
   const selectedIsPending = useMemo(
@@ -719,6 +743,7 @@ export function MomentsPage() {
               key={moment.id}
               moment={moment}
               view={view}
+              isPending={pendingAction !== null}
               onInspect={(button) => {
                 inspectTriggerRef.current = button;
                 setSelectedMoment(moment);

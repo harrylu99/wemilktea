@@ -309,6 +309,52 @@ test.serial("contains keyboard focus inside the Moment drawer", async () => {
 });
 
 test.serial(
+  "prevents duplicate row moderation while an action is pending",
+  async () => {
+    let releaseModeration!: () => void;
+    const moderationPromise = new Promise<void>((resolve) => {
+      releaseModeration = resolve;
+    });
+    moderateMomentMock.mockImplementationOnce(() => moderationPromise);
+
+    const view = renderMoments();
+    fireEvent.click(await view.findByRole("tab", { name: "Recent" }));
+    const hideButton = await view.findByRole("button", { name: "Hide" });
+    fireEvent.click(hideButton);
+    fireEvent.click(hideButton);
+
+    expect(moderateMomentMock).toHaveBeenCalledTimes(1);
+    releaseModeration();
+    await waitFor(() => expect(view.getByText("Moment hidden.")).toBeTruthy());
+  }
+);
+
+test.serial(
+  "does not refresh an old view after switching tabs during moderation",
+  async () => {
+    let releaseModeration!: () => void;
+    const moderationPromise = new Promise<void>((resolve) => {
+      releaseModeration = resolve;
+    });
+    moderateMomentMock.mockImplementationOnce(() => moderationPromise);
+
+    const view = renderMoments();
+    fireEvent.click(await view.findByRole("tab", { name: "Recent" }));
+    expect(await view.findByText("Recent response")).toBeTruthy();
+    fireEvent.click(view.getByRole("button", { name: "Hide" }));
+
+    fireEvent.click(view.getByRole("tab", { name: "Hidden" }));
+    expect(await view.findByText("Hidden Moments")).toBeTruthy();
+    expect(await view.findByText("Brown sugar pearls")).toBeTruthy();
+
+    releaseModeration();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(view.queryByText("Recent response")).toBeNull();
+    expect(view.getByText("Brown sugar pearls")).toBeTruthy();
+  }
+);
+
+test.serial(
   "notifies the shell after successful report resolution",
   async () => {
     const listener = mock(() => {});
