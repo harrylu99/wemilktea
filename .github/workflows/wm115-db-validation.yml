@@ -40,6 +40,7 @@ jobs:
       - name: Check out the validation branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Set up Supabase CLI
@@ -52,6 +53,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "VALIDATED_COMMIT_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           echo "WORKFLOW_RUN_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           supabase --version
 
@@ -83,7 +85,7 @@ jobs:
 
           source "$RUNNER_TEMP/wm115-supabase-status.env"
           test -n "${DB_URL:-}"
-          echo "Local Supabase started for commit $GITHUB_SHA"
+          echo "Local Supabase started for commit ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
 
       - name: Run WM-107, WM-109, and WM-115 SQL workflows
         shell: bash
