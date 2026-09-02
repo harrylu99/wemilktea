@@ -506,27 +506,42 @@ export function MomentsPage() {
   const pendingActionRef = useRef<string | null>(null);
   currentViewRef.current = view;
 
-  const load = useCallback(async () => {
+  const loadView = useCallback(async (targetView: MomentView) => {
     const generation = ++loadGenerationRef.current;
     setIsLoading(true);
     try {
-      const nextMoments = await fetchMoments(view);
-      if (generation !== loadGenerationRef.current) return;
+      const nextMoments = await fetchMoments(targetView);
+      if (
+        generation !== loadGenerationRef.current ||
+        targetView !== currentViewRef.current
+      ) {
+        return;
+      }
       setMoments(nextMoments);
       setErrorMessage(null);
     } catch (error) {
-      if (generation !== loadGenerationRef.current) return;
+      if (
+        generation !== loadGenerationRef.current ||
+        targetView !== currentViewRef.current
+      ) {
+        return;
+      }
       setErrorMessage(
         error instanceof Error ? error.message : "Moments could not be loaded."
       );
     } finally {
-      if (generation === loadGenerationRef.current) setIsLoading(false);
+      if (
+        generation === loadGenerationRef.current &&
+        targetView === currentViewRef.current
+      ) {
+        setIsLoading(false);
+      }
     }
-  }, [view]);
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadView(view);
+  }, [loadView, view]);
 
   const changeView = (nextView: MomentView) => {
     if (nextView === "reported") {
@@ -541,13 +556,9 @@ export function MomentsPage() {
     requestAnimationFrame(() => inspectTriggerRef.current?.focus());
   }, []);
 
-  const refreshAfterMutation = useCallback(
-    async (mutationView: MomentView) => {
-      if (mutationView !== currentViewRef.current) return;
-      await load();
-    },
-    [load]
-  );
+  const refreshAfterMutation = useCallback(async () => {
+    await loadView(currentViewRef.current);
+  }, [loadView]);
 
   const runModeration = useCallback(
     async (
@@ -572,7 +583,7 @@ export function MomentsPage() {
         setFeedbackMessage(
           `${status === "active" ? "Moment restored" : status === "hidden" ? "Moment hidden" : "Moment removed"}.`
         );
-        await refreshAfterMutation(view);
+        await refreshAfterMutation();
       } catch (error) {
         setFeedbackMessage(
           error instanceof Error
@@ -586,7 +597,7 @@ export function MomentsPage() {
         }
       }
     },
-    [closeDrawer, refreshAfterMutation, selectedMoment, view]
+    [closeDrawer, refreshAfterMutation, selectedMoment]
   );
 
   const handleModerate = useCallback(
@@ -618,7 +629,7 @@ export function MomentsPage() {
             ? "Report marked actioned."
             : "Report dismissed."
         );
-        await refreshAfterMutation(view);
+        await refreshAfterMutation();
       } catch (error) {
         setFeedbackMessage(
           error instanceof Error
@@ -632,7 +643,7 @@ export function MomentsPage() {
         }
       }
     },
-    [closeDrawer, refreshAfterMutation, view]
+    [closeDrawer, refreshAfterMutation]
   );
 
   const selectedIsPending = useMemo(
@@ -716,7 +727,7 @@ export function MomentsPage() {
           <button
             className="mt-3 rounded-md border border-border px-3 py-2 text-sm font-medium"
             type="button"
-            onClick={() => void load()}
+            onClick={() => void loadView(view)}
           >
             Retry
           </button>

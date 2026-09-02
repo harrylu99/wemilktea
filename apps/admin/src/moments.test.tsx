@@ -111,15 +111,21 @@ const recentMoment = {
   caption: "Recent response",
   reports: []
 } as const;
+const refreshedHiddenMoment = {
+  ...hiddenMoment,
+  caption: "Fresh hidden response"
+} as const;
 
 const unresolvedReportCountChangedEvent =
   "wemilktea:unresolved-report-count-changed";
 
+let hiddenFetchCount = 0;
 const fetchMomentsMock = mock(
   async (view: "reported" | "recent" | "hidden") => {
     if (view === "reported") return [activeMoment];
     if (view === "recent") return [recentMoment];
-    return [hiddenMoment];
+    hiddenFetchCount += 1;
+    return [hiddenFetchCount > 1 ? refreshedHiddenMoment : hiddenMoment];
   }
 );
 const moderateMomentMock = mock(async () => {});
@@ -149,6 +155,7 @@ function renderMoments() {
 beforeEach(() => {
   installBrowserGlobals();
   fetchMomentsMock.mockClear();
+  hiddenFetchCount = 0;
   moderateMomentMock.mockClear();
   resolveMomentReportMock.mockClear();
 });
@@ -330,7 +337,7 @@ test.serial(
 );
 
 test.serial(
-  "does not refresh an old view after switching tabs during moderation",
+  "refreshes the current view after switching tabs during moderation",
   async () => {
     let releaseModeration!: () => void;
     const moderationPromise = new Promise<void>((resolve) => {
@@ -348,9 +355,8 @@ test.serial(
     expect(await view.findByText("Brown sugar pearls")).toBeTruthy();
 
     releaseModeration();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await view.findByText("Fresh hidden response")).toBeTruthy();
     expect(view.queryByText("Recent response")).toBeNull();
-    expect(view.getByText("Brown sugar pearls")).toBeTruthy();
   }
 );
 
