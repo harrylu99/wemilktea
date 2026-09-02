@@ -158,6 +158,15 @@ begin
       raise exception 'valid daily upload authorization was rejected';
     end if;
   end loop;
+
+  execute 'reset role';
+  update private.community_post_upload_authorizations
+  set created_at = now() - interval '2 hours'
+  where owner_user_id = upload_owner_id
+    and created_at >= now() - interval '1 hour';
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', upload_owner_id::text, true);
+
   begin
     perform public.consume_community_image_upload_authorization(post_ids[13]);
     raise exception 'daily upload quota was not enforced';
