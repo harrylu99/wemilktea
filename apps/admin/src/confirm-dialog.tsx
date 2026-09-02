@@ -61,6 +61,7 @@ export function ConfirmDialog({
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       if (!isPending) onCancel();
       return;
     }

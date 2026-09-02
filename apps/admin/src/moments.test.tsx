@@ -106,11 +106,19 @@ const hiddenMoment = {
   reports: [],
   moderationReason: null
 } as const;
+const recentMoment = {
+  ...activeMoment,
+  caption: "Recent response",
+  reports: []
+} as const;
+
+const unresolvedReportCountChangedEvent =
+  "wemilktea:unresolved-report-count-changed";
 
 const fetchMomentsMock = mock(
   async (view: "reported" | "recent" | "hidden") => {
     if (view === "reported") return [activeMoment];
-    if (view === "recent") return [activeMoment];
+    if (view === "recent") return [recentMoment];
     return [hiddenMoment];
   }
 );
@@ -122,7 +130,8 @@ mock.module("./moments-data", () => ({
   moderateMoment: moderateMomentMock,
   normalizeMomentView: (value: string | null) =>
     value === "recent" || value === "hidden" ? value : "reported",
-  resolveMomentReport: resolveMomentReportMock
+  resolveMomentReport: resolveMomentReportMock,
+  UNRESOLVED_REPORT_COUNT_CHANGED_EVENT: unresolvedReportCountChangedEvent
 }));
 
 const { MomentsPage } = await import("./moments");
@@ -249,5 +258,132 @@ test.serial(
         "Unsafe content"
       )
     );
+  }
+);
+
+test.serial(
+  "nested confirmation closes without closing the Moment drawer",
+  async () => {
+    const view = renderMoments();
+
+    fireEvent.click(await view.findByRole("tab", { name: "Recent" }));
+    fireEvent.click(await view.findByRole("button", { name: "Inspect" }));
+    const drawer = await view.findByRole("dialog");
+    const removeTrigger = within(drawer).getByRole("button", {
+      name: "Remove"
+    });
+    removeTrigger.focus();
+    fireEvent.click(removeTrigger);
+
+    const confirmDialog = await view.findByRole("dialog", {
+      name: "Remove this Moment?"
+    });
+    fireEvent.click(
+      within(confirmDialog).getByRole("button", { name: "Cancel" })
+    );
+
+    expect(
+      view.queryByRole("dialog", { name: "Remove this Moment?" })
+    ).toBeNull();
+    expect(view.getByRole("dialog", { name: "Moment details" })).toBeTruthy();
+    expect(document.activeElement).toBe(removeTrigger);
+  }
+);
+
+test.serial("contains keyboard focus inside the Moment drawer", async () => {
+  const view = renderMoments();
+
+  fireEvent.click(await view.findByRole("tab", { name: "Recent" }));
+  fireEvent.click(await view.findByRole("button", { name: "Inspect" }));
+  const drawer = await view.findByRole("dialog");
+  const buttons = within(drawer).getAllByRole("button");
+  const firstButton = buttons[0];
+  const lastButton = buttons[buttons.length - 1]!;
+
+  await waitFor(() => expect(document.activeElement).toBe(firstButton));
+  fireEvent.keyDown(firstButton, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(lastButton);
+
+  fireEvent.keyDown(lastButton, { key: "Tab" });
+  expect(document.activeElement).toBe(firstButton);
+});
+
+test.serial(
+  "notifies the shell after successful report resolution",
+  async () => {
+    const listener = mock(() => {});
+    window.addEventListener(unresolvedReportCountChangedEvent, listener);
+
+    try {
+      const view = renderMoments();
+      fireEvent.click(await view.findByRole("button", { name: /Inspect/ }));
+      const drawer = await view.findByRole("dialog");
+      fireEvent.click(
+        within(drawer).getAllByRole("button", { name: "Dismiss" })[0]
+      );
+
+      await waitFor(() => {
+        expect(resolveMomentReportMock).toHaveBeenCalledWith(
+          "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "dismissed"
+        );
+        expect(listener).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      window.removeEventListener(unresolvedReportCountChangedEvent, listener);
+    }
+  }
+);
+
+test.serial(
+  "does not notify the shell when report resolution fails",
+  async () => {
+    const listener = mock(() => {});
+    resolveMomentReportMock.mockImplementationOnce(async () => {
+      throw new Error("Report resolution failed");
+    });
+    window.addEventListener(unresolvedReportCountChangedEvent, listener);
+
+    try {
+      const view = renderMoments();
+      fireEvent.click(await view.findByRole("button", { name: /Inspect/ }));
+      const drawer = await view.findByRole("dialog");
+      fireEvent.click(
+        within(drawer).getAllByRole("button", { name: "Dismiss" })[0]
+      );
+
+      await waitFor(() =>
+        expect(view.getByText("Report resolution failed")).toBeTruthy()
+      );
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(unresolvedReportCountChangedEvent, listener);
+    }
+  }
+);
+
+test.serial(
+  "ignores stale responses after switching Moment views",
+  async () => {
+    let releaseReported!: (moments: (typeof activeMoment)[]) => void;
+    let releaseRecent!: (moments: (typeof recentMoment)[]) => void;
+    const reportedPromise = new Promise<(typeof activeMoment)[]>((resolve) => {
+      releaseReported = resolve;
+    });
+    const recentPromise = new Promise<(typeof recentMoment)[]>((resolve) => {
+      releaseRecent = resolve;
+    });
+    fetchMomentsMock.mockImplementationOnce(() => reportedPromise);
+    fetchMomentsMock.mockImplementationOnce(() => recentPromise);
+
+    const view = renderMoments();
+    fireEvent.click(await view.findByRole("tab", { name: "Recent" }));
+    await waitFor(() => expect(fetchMomentsMock).toHaveBeenCalledTimes(2));
+
+    releaseRecent([recentMoment]);
+    expect(await view.findByText("Recent response")).toBeTruthy();
+    releaseReported([activeMoment]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(view.queryByText("Brown sugar pearls")).toBeNull();
   }
 );

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { useSearchParams } from "react-router-dom";
 import { managedImageUrl } from "./image-storage";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -7,6 +14,7 @@ import {
   moderateMoment,
   normalizeMomentView,
   resolveMomentReport,
+  UNRESOLVED_REPORT_COUNT_CHANGED_EVENT,
   type AdminMoment,
   type MomentReport,
   type MomentStatus,
@@ -124,6 +132,14 @@ function LoadingState() {
   );
 }
 
+function focusableElements(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  );
+}
+
 function MomentRow({
   moment,
   view,
@@ -233,13 +249,21 @@ function DetailDrawer({
     status: "actioned" | "dismissed"
   ) => void;
 }) {
+  const drawerRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerTitleId = `moment-drawer-title-${moment.id}`;
 
   useEffect(() => {
     closeButtonRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isPending) {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (
+        event.key === "Escape" &&
+        !isPending &&
+        drawerRef.current &&
+        event.target instanceof Node &&
+        drawerRef.current.contains(event.target)
+      ) {
         event.preventDefault();
         onClose();
       }
@@ -247,6 +271,33 @@ function DetailDrawer({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPending, onClose]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!isPending) onClose();
+      return;
+    }
+
+    if (event.key !== "Tab" || !drawerRef.current) return;
+
+    const elements = focusableElements(drawerRef.current);
+    if (elements.length === 0) {
+      event.preventDefault();
+      drawerRef.current.focus();
+      return;
+    }
+
+    const first = elements[0];
+    const last = elements[elements.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const showReportControls = sourceView === "reported";
   return (
@@ -258,10 +309,13 @@ function DetailDrawer({
       }}
     >
       <aside
+        ref={drawerRef}
         aria-labelledby={drawerTitleId}
         aria-modal="true"
         className="ml-auto flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl"
         role="dialog"
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
@@ -442,18 +496,23 @@ export function MomentsPage() {
   const [removeTarget, setRemoveTarget] = useState<AdminMoment | null>(null);
   const [removeReason, setRemoveReason] = useState("");
   const inspectTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const loadGenerationRef = useRef(0);
 
   const load = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     setIsLoading(true);
     try {
-      setMoments(await fetchMoments(view));
+      const nextMoments = await fetchMoments(view);
+      if (generation !== loadGenerationRef.current) return;
+      setMoments(nextMoments);
       setErrorMessage(null);
     } catch (error) {
+      if (generation !== loadGenerationRef.current) return;
       setErrorMessage(
         error instanceof Error ? error.message : "Moments could not be loaded."
       );
     } finally {
-      setIsLoading(false);
+      if (generation === loadGenerationRef.current) setIsLoading(false);
     }
   }, [view]);
 
@@ -532,6 +591,7 @@ export function MomentsPage() {
       try {
         await resolveMomentReport(report.id, status);
         closeDrawer();
+        window.dispatchEvent(new Event(UNRESOLVED_REPORT_COUNT_CHANGED_EVENT));
         setFeedbackMessage(
           status === "actioned"
             ? "Report marked actioned."

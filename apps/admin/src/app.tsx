@@ -7,7 +7,10 @@ import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { LoadingRegion, Skeleton } from "./loading";
 import { AdminRouteScroll } from "./route-scroll";
 import { AdminSeo } from "./seo";
-import { fetchUnresolvedReportCount } from "./moments-data";
+import {
+  fetchUnresolvedReportCount,
+  UNRESOLVED_REPORT_COUNT_CHANGED_EVENT
+} from "./moments-data";
 
 const CandidateQueuePage = lazy(() =>
   import("./candidates").then((module) => ({
@@ -301,15 +304,27 @@ function AdminShell() {
 
   useEffect(() => {
     let isCurrent = true;
-    void fetchUnresolvedReportCount()
-      .then((count) => {
-        if (isCurrent) setUnresolvedReportCount(count);
-      })
-      .catch(() => {
-        if (isCurrent) setUnresolvedReportCount(null);
-      });
+    const refreshReportCount = () => {
+      void fetchUnresolvedReportCount()
+        .then((count) => {
+          if (isCurrent) setUnresolvedReportCount(count);
+        })
+        .catch(() => {
+          if (isCurrent) setUnresolvedReportCount(null);
+        });
+    };
+
+    refreshReportCount();
+    window.addEventListener(
+      UNRESOLVED_REPORT_COUNT_CHANGED_EVENT,
+      refreshReportCount
+    );
     return () => {
       isCurrent = false;
+      window.removeEventListener(
+        UNRESOLVED_REPORT_COUNT_CHANGED_EVENT,
+        refreshReportCount
+      );
     };
   }, []);
 

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
 
 export const ADMIN_MOMENTS_PAGE_SIZE = 100;
+export const UNRESOLVED_REPORT_COUNT_CHANGED_EVENT =
+  "wemilktea:unresolved-report-count-changed";
 
 export const momentViews = ["reported", "recent", "hidden"] as const;
 export type MomentView = (typeof momentViews)[number];
