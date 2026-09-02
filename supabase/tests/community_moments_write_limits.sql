@@ -205,6 +205,8 @@ begin
 end;
 $$;
 
+reset role;
+
 select pass('WM-115 Moments write limits and ownership');
 select ok(
   has_schema_privilege('authenticated', 'private', 'USAGE') = false,
