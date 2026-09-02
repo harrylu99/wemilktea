@@ -193,30 +193,39 @@ Deno.serve(async (request) => {
   const serviceClient = createServiceClient(environment.data);
 
   if (parsed.data.action === "authorize") {
-    const { data: post, error } = await user.client
-      .from("community_posts")
-      .select("id")
-      .eq("id", parsed.data.postId)
-      .eq("owner_user_id", user.userId)
-      .eq("status", "draft")
-      .is("deleted_at", null)
-      .is("image_asset_id", null)
-      .maybeSingle();
-    if (error || !post)
+    const { error } = await user.client.rpc(
+      "consume_community_image_upload_authorization",
+      { p_post_id: parsed.data.postId }
+    );
+    if (error) {
+      const isQuotaExceeded = [
+        "upload_hourly_limit",
+        "upload_daily_limit",
+        "post_upload_limit"
+      ].includes(error.message);
       return response(
-        { error: "This Moment is not uploadable." },
-        403,
+        {
+          error: isQuotaExceeded
+            ? "The Moments upload limit has been reached. Please try again later."
+            : "This Moment is not uploadable."
+        },
+        isQuotaExceeded ? 429 : 403,
         headers
       );
+    }
 
     const uploadId = crypto.randomUUID();
-    const quarantineKey = buildQuarantineKey(user.userId, post.id, uploadId);
+    const quarantineKey = buildQuarantineKey(
+      user.userId,
+      parsed.data.postId,
+      uploadId
+    );
     const uploadToken = await createMomentsUploadToken(
       {
         v: momentsUploadTokenVersion,
         purpose: momentsUploadTokenPurpose,
         ownerUserId: user.userId,
-        postId: post.id,
+        postId: parsed.data.postId,
         uploadId,
         quarantineKey,
         expiresAt: Math.floor(Date.now() / 1000) + uploadExpirySeconds

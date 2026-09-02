@@ -91,11 +91,17 @@ VITE_SUPABASE_ANON_KEY=
 VITE_PUBLIC_SITE_URL=
 VITE_GOOGLE_MAPS_BROWSER_KEY=
 VITE_R2_PUBLIC_BASE_URL=
+VITE_TURNSTILE_SITE_KEY=
 ```
 
 `supabase/functions/.env.example` lists server-only values for local function development. Do not put Supabase service-role credentials, Google Places keys, or R2 credentials in a Vite environment file or commit their values.
 
-The admin browser flow needs no additional environment variables. See [Admin authentication](docs/ADMIN_AUTH.md) for the Supabase Auth configuration, first-admin procedure, and database authorization model.
+`VITE_TURNSTILE_SITE_KEY` is the public Cloudflare Turnstile site key required
+by the first-write Moments identity flow and Admin password login when Supabase
+Auth CAPTCHA is enabled. The Turnstile secret is configured only in Supabase
+Auth; see [Moments production readiness](docs/WM-115_MOMENTS_PRODUCTION_READINESS.md)
+for the rollout order. See [Admin authentication](docs/ADMIN_AUTH.md) for the
+first-admin procedure and database authorization model.
 
 Google Places discovery is configured only for the server-side Edge Function. See [Google Places discovery](docs/GOOGLE_PLACES_DISCOVERY.md) for its local variables, deployment setup, API usage boundary, and required policy checks.
 

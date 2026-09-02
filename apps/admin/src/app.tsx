@@ -12,6 +12,7 @@ import {
   UNRESOLVED_REPORT_COUNT_CHANGED_EVENT
 } from "./moments-data";
 import { createReportCountRefresher } from "./report-count";
+import { signInAdmin } from "./auth-login";
 
 const CandidateQueuePage = lazy(() =>
   import("./candidates").then((module) => ({
@@ -172,17 +173,16 @@ function LoginPage() {
     }
 
     setIsSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    const { error } = await signInAdmin(supabase, email, password);
     setIsSubmitting(false);
 
     if (error) {
       setErrorMessage(
         error.message.toLowerCase().includes("invalid login")
           ? "Incorrect email or password."
-          : "We could not sign you in. Please check your connection and try again."
+          : error.message === "captcha_unavailable"
+            ? "The security check is unavailable. Please try again."
+            : "We could not sign you in. Please check your connection and try again."
       );
     }
   };

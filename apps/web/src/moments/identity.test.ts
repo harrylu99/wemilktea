@@ -2,6 +2,7 @@ import { afterEach, expect, mock, test } from "bun:test";
 
 let currentSessionUser: { id: string } | null = null;
 let anonymousSignInCalls = 0;
+let turnstileShouldFail = false;
 
 const auth = {
   getSession: mock(async () => ({
@@ -20,6 +21,12 @@ mock.module("../lib/supabase", () => ({
   supabase: { auth },
   supabaseConfigurationError: null
 }));
+mock.module("../turnstile", () => ({
+  getWebTurnstileToken: mock(async () => {
+    if (turnstileShouldFail) throw new Error("turnstile_failed");
+    return "turnstile-token";
+  })
+}));
 
 const { ensurePublicWriteIdentity } = await import("./identity");
 
@@ -28,6 +35,7 @@ afterEach(() => {
   anonymousSignInCalls = 0;
   auth.getSession.mockClear();
   auth.signInAnonymously.mockClear();
+  turnstileShouldFail = false;
 });
 
 test("reuses a current session without creating anonymous Auth", async () => {
@@ -50,4 +58,21 @@ test("deduplicates concurrent identity creation", async () => {
 
   expect(first).toEqual(second);
   expect(anonymousSignInCalls).toBe(1);
+});
+
+test("passes the Turnstile token before creating an anonymous identity", async () => {
+  await ensurePublicWriteIdentity();
+
+  expect(auth.signInAnonymously).toHaveBeenCalledWith({
+    options: { captchaToken: "turnstile-token" }
+  });
+});
+
+test("fails closed when Turnstile cannot provide a token", async () => {
+  turnstileShouldFail = true;
+
+  const result = await ensurePublicWriteIdentity();
+
+  expect(result).toEqual({ userId: null, error: "captcha_unavailable" });
+  expect(auth.signInAnonymously).not.toHaveBeenCalled();
 });
