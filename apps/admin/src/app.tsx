@@ -1,5 +1,5 @@
 import { applicationMetadata } from "@wemilktea/config";
-import { FormEvent, lazy, Suspense, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useAdminAuth } from "./auth-context";
 import { AdminAuthProvider } from "./auth-provider";
@@ -7,6 +7,7 @@ import { supabase, supabaseConfigurationError } from "./lib/supabase";
 import { LoadingRegion, Skeleton } from "./loading";
 import { AdminRouteScroll } from "./route-scroll";
 import { AdminSeo } from "./seo";
+import { fetchUnresolvedReportCount } from "./moments-data";
 
 const CandidateQueuePage = lazy(() =>
   import("./candidates").then((module) => ({
@@ -49,6 +50,9 @@ const ProductCategoriesPage = lazy(() =>
     default: module.ProductCategoriesPage
   }))
 );
+const MomentsPage = lazy(() =>
+  import("./moments").then((module) => ({ default: module.MomentsPage }))
+);
 
 function RouteLoading() {
   return (
@@ -64,7 +68,8 @@ const navigation = [
   ["Stores", "/stores"],
   ["Candidates", "/candidates"],
   ["Submissions", "/submissions"],
-  ["Products", "/products"]
+  ["Products", "/products"],
+  ["Moments", "/moments"]
 ] as const;
 
 function LoadingState() {
@@ -290,6 +295,23 @@ function UnauthorizedPage() {
 function AdminShell() {
   const { signOut, state } = useAdminAuth();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unresolvedReportCount, setUnresolvedReportCount] = useState<
+    number | null
+  >(null);
+
+  useEffect(() => {
+    let isCurrent = true;
+    void fetchUnresolvedReportCount()
+      .then((count) => {
+        if (isCurrent) setUnresolvedReportCount(count);
+      })
+      .catch(() => {
+        if (isCurrent) setUnresolvedReportCount(null);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   const handleSignOut = async () => {
     setErrorMessage(await signOut());
@@ -330,7 +352,17 @@ function AdminShell() {
               key={to}
               to={to}
             >
-              {label}
+              <span>{label}</span>
+              {to === "/moments" &&
+              unresolvedReportCount !== null &&
+              unresolvedReportCount > 0 ? (
+                <span
+                  aria-label={`${unresolvedReportCount} unresolved reports`}
+                  className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive"
+                >
+                  {unresolvedReportCount}
+                </span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
@@ -451,6 +483,14 @@ export function App() {
                 element={
                   <Suspense fallback={<RouteLoading />}>
                     <ProductManagementPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/moments"
+                element={
+                  <Suspense fallback={<RouteLoading />}>
+                    <MomentsPage />
                   </Suspense>
                 }
               />

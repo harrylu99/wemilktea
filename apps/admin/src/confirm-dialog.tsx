@@ -10,6 +10,10 @@ type ConfirmDialogProps = {
   isPending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  reason?: string;
+  reasonLabel?: string;
+  reasonPlaceholder?: string;
+  onReasonChange?: (value: string) => void;
 };
 
 function focusableElements(dialog: HTMLDivElement) {
@@ -28,7 +32,11 @@ export function ConfirmDialog({
   pendingLabel,
   isPending,
   onCancel,
-  onConfirm
+  onConfirm,
+  reason = "",
+  reasonLabel,
+  reasonPlaceholder = "",
+  onReasonChange
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
@@ -98,6 +106,23 @@ export function ConfirmDialog({
         >
           {description}
         </p>
+        {onReasonChange ? (
+          <label
+            className="mt-4 block text-sm font-medium"
+            htmlFor="confirm-dialog-reason"
+          >
+            {reasonLabel ?? "Reason"}
+            <textarea
+              aria-label={reasonLabel ?? "Reason"}
+              className="mt-1 min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={isPending}
+              id="confirm-dialog-reason"
+              placeholder={reasonPlaceholder}
+              value={reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+            />
+          </label>
+        ) : null}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             ref={cancelButtonRef}
