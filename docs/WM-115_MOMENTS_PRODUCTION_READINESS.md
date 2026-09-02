@@ -7,9 +7,9 @@ record.
 ## Decision summary
 
 Supabase anonymous Auth CAPTCHA protection is required before public Moments
-writes are enabled in production. The Web and Admin applications now obtain an
-invisible Cloudflare Turnstile token and pass it to the relevant Supabase Auth
-call. A missing, expired, failed, or misconfigured challenge fails closed.
+writes are enabled in production. The Web and Admin applications now obtain a
+Cloudflare Turnstile token and pass it to the relevant Supabase Auth call. A
+missing, expired, failed, or misconfigured challenge fails closed.
 
 One-time CAPTCHA is not sufficient by itself: one authenticated anonymous
 identity could otherwise create unlimited durable drafts and upload
@@ -21,7 +21,8 @@ capabilities. WM-115 therefore adds explicit Moments-only server-side limits:
   new draft attempt;
 - upload authorizations: 6 in a rolling hour, 12 in a rolling 24 hours, and 3
   per post;
-- upload-accounting retention: 24 hours, cleaned opportunistically;
+- upload-accounting quota window: 24 hours, with opportunistic cleanup of
+  owner-scoped old rows (not a guarantee of physical retention);
 - no new limits for Like, Must Try, or Report in this ticket;
 - no scheduler, queue, Redis, KV, Durable Object, or generalized abuse service.
 
@@ -34,8 +35,10 @@ environment-configurable for V1.4.
 
 `packages/turnstile/src/index.ts` is a small dependency-free wrapper around
 the official Turnstile browser API. It loads the explicit-render script,
-creates an invisible widget, returns one token, and removes the widget after
-success or failure.
+renders a widget with `execution: "execute"`, requests one token against the
+container target, and removes the widget after success or failure. The
+sitekey's Cloudflare dashboard Widget Mode must be set to Invisible; the
+JavaScript API does not use `size: "invisible"`.
 
 `apps/web/src/moments/identity.ts` preserves lazy identity creation:
 
@@ -53,6 +56,13 @@ The public site key is configured with `VITE_TURNSTILE_SITE_KEY` in each
 browser app. The Turnstile secret is never a browser variable, repository
 value, database value, or response field; it is configured only in Supabase
 Auth by an operator.
+
+Web and Admin use the same Supabase Auth CAPTCHA configuration and must use
+sitekeys whose allowed hostnames cover the intended production Web and Admin
+origins. Sitekey and secret values are environment/configuration values only;
+none are committed here. Before release, the Privacy Policy must reference
+Cloudflare's official Turnstile Privacy Addendum. Legal copy is intentionally
+not authored by this engineering ticket.
 
 ### Server-side write limits
 
@@ -155,7 +165,9 @@ uniqueness and ownership controls and receive no new arbitrary thresholds.
 
 Empty drafts are cleaned only when that owner attempts another draft. The R2
 lifecycle remains the abandoned-quarantine backstop. There is no scheduled
-cleanup service.
+cleanup service: dormant anonymous identities can leave old accounting rows
+until another applicable owner-scoped cleanup runs, and Supabase does not
+automatically remove anonymous Auth users.
 
 Finalized images attached to owner-deleted or Admin-removed Moments remain
 available for moderation/audit under the existing behavior. No irreversible
@@ -173,4 +185,7 @@ and are already represented by their separate tickets.
 - [Supabase CAPTCHA](https://supabase.com/docs/guides/auth/auth-captcha)
 - [Supabase Database Functions](https://supabase.com/docs/guides/database/functions)
 - [Cloudflare Turnstile client-side rendering](https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/)
+- [Cloudflare Turnstile widget configurations](https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/widget-configurations/)
+- [Cloudflare Turnstile testing](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
+- [Cloudflare Turnstile Privacy Addendum](https://www.cloudflare.com/turnstile-privacy-policy/)
 - [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/)

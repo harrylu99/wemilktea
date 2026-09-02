@@ -1,21 +1,22 @@
 const turnstileScriptUrl =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const tokenTimeoutMs = 30_000;
+const scriptLoadTimeoutMs = 10_000;
 
 type TurnstileWidgetId = string | number;
 
 export type TurnstileApi = {
   render: (
-    container: HTMLElement,
+    container: HTMLElement | string,
     options: {
       sitekey: string;
-      size: "invisible";
+      execution: "execute";
       callback: (token: string) => void;
-      "error-callback": () => void;
+      "error-callback": (errorCode?: string) => void;
       "expired-callback": () => void;
     }
   ) => TurnstileWidgetId;
-  execute: (widgetId: TurnstileWidgetId) => void;
+  execute: (container: HTMLElement | string) => void;
   remove: (widgetId: TurnstileWidgetId) => void;
 };
 
@@ -39,14 +40,21 @@ function loadTurnstile(): Promise<TurnstileApi> {
       `script[src="${turnstileScriptUrl}"]`
     );
     const script = existingScript ?? document.createElement("script");
+    const timeout = window.setTimeout(() => {
+      reject(new Error("turnstile_unavailable"));
+    }, scriptLoadTimeoutMs);
     const finish = () => {
+      window.clearTimeout(timeout);
       if (window.turnstile) resolve(window.turnstile);
       else reject(new Error("turnstile_unavailable"));
     };
     script.addEventListener("load", finish, { once: true });
     script.addEventListener(
       "error",
-      () => reject(new Error("turnstile_unavailable")),
+      () => {
+        window.clearTimeout(timeout);
+        reject(new Error("turnstile_unavailable"));
+      },
       { once: true }
     );
     if (!existingScript) {
@@ -72,22 +80,26 @@ export async function getTurnstileToken(siteKey: string): Promise<string> {
 
   return new Promise<string>((resolve, reject) => {
     let widgetId: TurnstileWidgetId | null = null;
-    const timeout = window.setTimeout(() => {
+    let settled = false;
+    const removeWidget = () => {
       if (widgetId !== null) api.remove(widgetId);
       container.remove();
-      reject(new Error("turnstile_timeout"));
+    };
+    const timeout = window.setTimeout(() => {
+      finish(() => reject(new Error("turnstile_timeout")));
     }, tokenTimeoutMs);
     const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(timeout);
-      if (widgetId !== null) api.remove(widgetId);
-      container.remove();
+      removeWidget();
       callback();
     };
 
     try {
       widgetId = api.render(container, {
         sitekey: siteKey,
-        size: "invisible",
+        execution: "execute",
         callback: (token) =>
           finish(() =>
             token.trim()
@@ -99,7 +111,7 @@ export async function getTurnstileToken(siteKey: string): Promise<string> {
         "expired-callback": () =>
           finish(() => reject(new Error("turnstile_expired")))
       });
-      api.execute(widgetId);
+      api.execute(container);
     } catch (error) {
       finish(() =>
         reject(error instanceof Error ? error : new Error("turnstile_failed"))
