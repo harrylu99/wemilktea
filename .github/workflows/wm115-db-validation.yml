@@ -11,6 +11,16 @@ on:
       - supabase/tests/community_moments_workflow.sql
       - supabase/tests/community_moments_upload_workflow.sql
       - supabase/tests/community_moments_write_limits.sql
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/wm115-db-validation.yml
+      - supabase/config.toml
+      - supabase/migrations/**
+      - supabase/tests/community_moments_workflow.sql
+      - supabase/tests/community_moments_upload_workflow.sql
+      - supabase/tests/community_moments_write_limits.sql
   workflow_dispatch:
 
 permissions:
