@@ -6,6 +6,8 @@ const browserWindow = new GlobalWindow();
 const testWindow = browserWindow as unknown as Window;
 const originalWindow = globalThis.window;
 const originalDocument = globalThis.document;
+const scriptSelector =
+  'script[src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"]';
 let renderOptions: Parameters<NonNullable<Window["turnstile"]>["render"]>[1];
 let renderContainer: Parameters<NonNullable<Window["turnstile"]>["render"]>[0];
 let renderOutcome: "success" | "empty" | "error" | "expired" = "success";
@@ -53,6 +55,9 @@ beforeEach(() => {
   renderOptions = undefined as never;
   renderContainer = undefined as never;
   document.body.replaceChildren();
+  document.head
+    .querySelectorAll(scriptSelector)
+    .forEach((script) => script.remove());
 });
 
 afterAll(() => {
@@ -99,16 +104,32 @@ test("rejects a missing site key before loading Turnstile", async () => {
   expect(turnstile.render).not.toHaveBeenCalled();
 });
 
-test("rejects when the Turnstile script fails to load", async () => {
+test("retries after a failed Turnstile script load", async () => {
   testWindow.turnstile = undefined;
-  const script = document.createElement("script");
-  script.src =
+  const firstScript = document.createElement("script");
+  firstScript.src =
     "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-  document.head.append(script);
+  document.head.append(firstScript);
+  const firstPromise = getTurnstileToken("site-key");
+  firstScript.dispatchEvent(
+    new browserWindow.Event("error") as unknown as Event
+  );
 
-  const promise = getTurnstileToken("site-key");
-  script.dispatchEvent(new browserWindow.Event("error") as unknown as Event);
+  await expect(firstPromise).rejects.toThrow("turnstile_unavailable");
+  expect(document.querySelectorAll(scriptSelector)).toHaveLength(0);
 
-  await expect(promise).rejects.toThrow("turnstile_unavailable");
+  const secondScript = document.createElement("script");
+  secondScript.src =
+    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  document.head.append(secondScript);
+  const secondPromise = getTurnstileToken("site-key");
+  testWindow.turnstile = turnstile;
+  secondScript.dispatchEvent(
+    new browserWindow.Event("load") as unknown as Event
+  );
+
+  await expect(secondPromise).resolves.toBe("valid-turnstile-token");
+  expect(turnstile.render).toHaveBeenCalledTimes(1);
+  expect(turnstile.remove).toHaveBeenCalledWith("widget-1");
   expect(document.body.children).toHaveLength(0);
 });

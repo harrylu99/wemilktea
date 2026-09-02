@@ -57,12 +57,15 @@ browser app. The Turnstile secret is never a browser variable, repository
 value, database value, or response field; it is configured only in Supabase
 Auth by an operator.
 
-Web and Admin use the same Supabase Auth CAPTCHA configuration and must use
-sitekeys whose allowed hostnames cover the intended production Web and Admin
-origins. Sitekey and secret values are environment/configuration values only;
-none are committed here. Before release, the Privacy Policy must reference
-Cloudflare's official Turnstile Privacy Addendum. Legal copy is intentionally
-not authored by this engineering ticket.
+Web and Admin must use the same production Turnstile widget/sitekey for the
+shared Supabase Auth project. That one widget must be configured with Widget
+Mode = Invisible and allowed hostnames for both intended production Web and
+Admin origins. Its corresponding widget secret is the secret configured in
+Supabase Auth CAPTCHA protection; separate production sitekeys are not
+intended for this shared Auth configuration. Sitekey and secret values are
+configuration values only and none are committed here. Before release, the
+Privacy Policy must reference Cloudflare's official Turnstile Privacy
+Addendum. Legal copy is intentionally not authored by this engineering ticket.
 
 ### Server-side write limits
 
@@ -125,7 +128,8 @@ anonymous Moments writes, an operator must complete this order:
 
 1. Deploy CAPTCHA-capable Web and Admin builds with the real public
    `VITE_TURNSTILE_SITE_KEY`.
-2. Configure the Turnstile widget and allowed production hostnames.
+2. Configure the single shared production Turnstile widget as Invisible and
+   allow both intended Web and Admin production hostnames.
 3. Configure the Turnstile secret in Supabase Auth CAPTCHA protection.
 4. Verify existing Admin email/password sign-in, including a fresh login and
    session restoration.

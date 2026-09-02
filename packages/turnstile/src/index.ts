@@ -40,23 +40,32 @@ function loadTurnstile(): Promise<TurnstileApi> {
       `script[src="${turnstileScriptUrl}"]`
     );
     const script = existingScript ?? document.createElement("script");
-    const timeout = window.setTimeout(() => {
-      reject(new Error("turnstile_unavailable"));
-    }, scriptLoadTimeoutMs);
-    const finish = () => {
+    let settled = false;
+    const cleanup = () => {
       window.clearTimeout(timeout);
-      if (window.turnstile) resolve(window.turnstile);
-      else reject(new Error("turnstile_unavailable"));
+      script.removeEventListener("load", finish);
+      script.removeEventListener("error", fail);
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      script.remove();
+      reject(new Error("turnstile_unavailable"));
+    };
+    const finish = () => {
+      if (settled) return;
+      if (!window.turnstile) {
+        fail();
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(window.turnstile);
     };
     script.addEventListener("load", finish, { once: true });
-    script.addEventListener(
-      "error",
-      () => {
-        window.clearTimeout(timeout);
-        reject(new Error("turnstile_unavailable"));
-      },
-      { once: true }
-    );
+    script.addEventListener("error", fail, { once: true });
+    const timeout = window.setTimeout(fail, scriptLoadTimeoutMs);
     if (!existingScript) {
       script.async = true;
       script.src = turnstileScriptUrl;
