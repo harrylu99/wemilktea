@@ -53,6 +53,8 @@ import { shouldScrollToTop } from "./route-scroll";
 import { useDismissiblePopover } from "./use-dismissible-popover";
 import { useDebouncedValue } from "./use-debounced-value";
 import { MomentsPage } from "./moments/page";
+import { FilterButtonLabel } from "./filter-button-label";
+import { summarizeFilterLabels } from "./filter-summary";
 
 const googleMapsBrowserKey =
   typeof import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY === "string"
@@ -567,6 +569,10 @@ export function StoresPage() {
   const brandSlug = searchParams.get("brand") ?? "";
   const suburb = searchParams.get("area") ?? "";
   const nearMe = searchParams.get("near") === "1";
+  const selectedStoreFilterSummary = summarizeFilterLabels([
+    suburb,
+    filterBrands.find(([slug]) => slug === brandSlug)?.[1] ?? ""
+  ]);
   const loadRequestIdRef = useRef(0);
   const lastWrittenQueryRef = useRef<string | null>(null);
   const syncingQueryRef = useRef<string | null>(null);
@@ -939,11 +945,15 @@ export function StoresPage() {
               ref={filtersButtonRef}
               aria-controls="store-filters-popover"
               aria-expanded={filtersOpen}
-              className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
+              aria-label={`Filters${brandSlug || suburb ? ` · ${selectedStoreFilterSummary || "active"}` : ""}`}
+              className={`inline-flex h-11 max-w-full cursor-pointer items-center rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
               type="button"
               onClick={() => setFiltersOpen((open) => !open)}
             >
-              Filters{brandSlug || suburb ? " · active" : ""}
+              <FilterButtonLabel
+                active={Boolean(brandSlug || suburb)}
+                summary={selectedStoreFilterSummary}
+              />
             </button>
             {filtersOpen ? (
               <div

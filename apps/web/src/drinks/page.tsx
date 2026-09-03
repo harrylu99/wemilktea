@@ -22,6 +22,8 @@ import {
 } from "./pagination";
 import { useDismissiblePopover } from "../use-dismissible-popover";
 import { useDebouncedValue } from "../use-debounced-value";
+import { FilterButtonLabel } from "../filter-button-label";
+import { summarizeFilterLabels } from "../filter-summary";
 
 function DrinkImage({ drink, index }: { drink: PublicDrink; index: number }) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -151,6 +153,9 @@ export function DrinksPage() {
   const debouncedQuery = useDebouncedValue(searchInput);
   const query = syncingQueryRef.current ?? debouncedQuery;
   const categorySlug = searchParams.get("category") ?? "";
+  const selectedDrinkFilterSummary = summarizeFilterLabels([
+    categories.find((category) => category.slug === categorySlug)?.name ?? ""
+  ]);
   const pageParam = searchParams.get("page");
   const requestedPage = parsePageParam(pageParam);
   const loadPage = clampPageToOffset(requestedPage, DRINKS_PAGE_SIZE);
@@ -359,11 +364,15 @@ export function DrinksPage() {
             ref={filtersButtonRef}
             aria-controls="drink-filters-popover"
             aria-expanded={filtersOpen}
-            className={`h-11 cursor-pointer rounded-xl border border-border px-4 text-xs font-semibold ${categorySlug ? "bg-accent text-primary" : "bg-card"}`}
+            aria-label={`Filters${categorySlug ? ` · ${selectedDrinkFilterSummary || "active"}` : ""}`}
+            className={`inline-flex h-11 max-w-full cursor-pointer items-center rounded-xl border border-border px-4 text-xs font-semibold ${categorySlug ? "bg-accent text-primary" : "bg-card"}`}
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
           >
-            Filters{categorySlug ? " · active" : ""}
+            <FilterButtonLabel
+              active={Boolean(categorySlug)}
+              summary={selectedDrinkFilterSummary}
+            />
           </button>
           {filtersOpen ? (
             <div
