@@ -151,20 +151,18 @@ The deployment documentation now lists four production Edge Functions. This
 Phase A PR does not modify any function source, migration, Worker source,
 Auth setting, secret, binding, R2 object, or production environment.
 
-## Cloudflare branch-build safety incident — release NO-GO
+## Cloudflare branch-build safety — resolved by WM-122
 
-The live Cloudflare PR comment for this head reported a successful branch build
-for Worker `admin` under a `/workers/services/view/admin/production/builds/...`
-path. The repository’s documented non-production target is `admin-dev`, which
-requires the `--env dev` Wrangler command; production is the top-level
-`admin` configuration without that flag. The comment did not provide a
-non-production Admin preview URL.
+WM-122 confirmed that non-main Admin builds had been deploying to the
+production `admin` Worker. It contained the issue by changing non-main Admin
+builds to preview-only `wrangler versions upload` behavior and restoring
+production Admin to the reviewed-main version
+`bc8ce8fd-5eb4-49ac-a183-b0d833cfd704`. Web was independently verified as
+already preview-only for non-main builds; its production remains the reviewed-
+main version `ad695961-c5f7-43c3-af52-fd3a125fec6a`.
 
-This is recorded as a release-safety incident and a NO-GO signal. It was not a
-deployment command executed by this Phase A work. Do not attempt Cloudflare
-remediation from this branch. The team lead must independently investigate and
-correct/confirm the Workers Builds target before any Ready-for-review or
-production authorization decision.
+Cloudflare branch-build safety is therefore no longer blocking WM-120. This
+Phase A work does not authorize further Cloudflare changes or deployments.
 
 ## Future production rollout order — not authorized in Phase A
 
@@ -247,5 +245,6 @@ This document and the accompanying workflow/documentation changes prepare the
 release path. They do not prove that production is rolled out: local database
 validation and live production CLI dry-run evidence remain blocked in the
 current environment. Direct production mutations by this Phase A execution
-were NONE; the separate Cloudflare branch-build safety incident above remains
-an unresolved release NO-GO for the team lead.
+were NONE. WM-122 branch-build safety is contained and is no longer a WM-120
+release NO-GO; the Moments production migration and function rollout remain
+unexecuted and require separate authorization.
