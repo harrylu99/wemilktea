@@ -228,6 +228,8 @@ Deno.serve(async (request) => {
         postId: parsed.data.postId,
         uploadId,
         quarantineKey,
+        sourceContentType: parsed.data.sourceContentType,
+        normalization: parsed.data.normalization,
         expiresAt: Math.floor(Date.now() / 1000) + uploadExpirySeconds
       },
       environment.data.MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET
@@ -237,7 +239,8 @@ Deno.serve(async (request) => {
         uploadUrl: `${environment.data.MOMENTS_IMAGE_UPLOAD_URL.replace(/\/+$/, "")}/upload`,
         uploadToken,
         quarantineKey,
-        contentType: "image/webp",
+        contentType: parsed.data.sourceContentType,
+        normalization: parsed.data.normalization,
         expiresIn: uploadExpirySeconds,
         maxBytes: maxImageBytes
       },

@@ -1,18 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import {
   createMomentsUploadToken,
+  legacyMomentsUploadTokenVersion,
   verifyMomentsUploadToken
 } from "../../supabase/functions/_shared/moments-upload-token";
 
 const secret = "token-test-secret";
 const claims = {
-  v: 1 as const,
+  v: 2 as const,
   purpose: "moments-image-upload" as const,
   ownerUserId: "11111111-1111-4111-8111-111111111111",
   postId: "22222222-2222-4222-8222-222222222222",
   uploadId: "33333333-3333-4333-8333-333333333333",
   quarantineKey:
     "community-quarantine/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333.webp",
+  sourceContentType: "image/webp" as const,
+  normalization: "browser" as const,
   expiresAt: 2_000_000_000
 };
 
@@ -49,5 +52,22 @@ describe("Moments upload capability", () => {
         secret
       )
     ).toBeNull();
+  });
+
+  test("keeps an already-issued v1 WebP capability on the strict browser path", async () => {
+    const legacyClaims = {
+      v: legacyMomentsUploadTokenVersion,
+      purpose: "moments-image-upload" as const,
+      ownerUserId: claims.ownerUserId,
+      postId: claims.postId,
+      uploadId: claims.uploadId,
+      quarantineKey: claims.quarantineKey,
+      expiresAt: claims.expiresAt
+    };
+    const token = await createMomentsUploadToken(legacyClaims, secret);
+
+    expect(
+      await verifyMomentsUploadToken(token, secret, 1_999_999_999)
+    ).toEqual(legacyClaims);
   });
 });

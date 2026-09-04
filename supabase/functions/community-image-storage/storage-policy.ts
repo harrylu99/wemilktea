@@ -1,13 +1,37 @@
 import { z } from "zod";
+import {
+  momentsUploadNormalizations,
+  momentsUploadSourceContentTypes
+} from "../_shared/moments-upload-token.ts";
 
-export const communityImageRequestSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("authorize"), postId: z.string().uuid() }),
-  z.object({
-    action: z.literal("finalize"),
-    postId: z.string().uuid(),
-    quarantineKey: z.string().min(1).max(300)
-  })
-]);
+export const communityImageRequestSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      action: z.literal("authorize"),
+      postId: z.string().uuid(),
+      sourceContentType: z
+        .enum(momentsUploadSourceContentTypes)
+        .default("image/webp"),
+      normalization: z.enum(momentsUploadNormalizations).default("browser")
+    }),
+    z.object({
+      action: z.literal("finalize"),
+      postId: z.string().uuid(),
+      quarantineKey: z.string().min(1).max(300)
+    })
+  ])
+  .superRefine((request, context) => {
+    if (
+      request.action === "authorize" &&
+      request.normalization === "browser" &&
+      request.sourceContentType !== "image/webp"
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Browser normalization must upload WebP."
+      });
+    }
+  });
 
 const uuid =
   "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";

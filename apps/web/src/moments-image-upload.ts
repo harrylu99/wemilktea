@@ -1,13 +1,18 @@
 import { supabase, supabaseConfigurationError } from "./lib/supabase";
-import type { normalizeMomentImage } from "./moments-image-normalization";
+import type {
+  MomentImageSourceContentType,
+  normalizeMomentImage
+} from "./moments-image-normalization";
 
 type NormalizedMomentImage = Awaited<ReturnType<typeof normalizeMomentImage>>;
+type MomentImageNormalization = NormalizedMomentImage["normalization"];
 
 type UploadAuthorization = {
   uploadUrl: string;
   uploadToken: string;
   quarantineKey: string;
-  contentType: "image/webp";
+  contentType: MomentImageSourceContentType;
+  normalization: MomentImageNormalization;
   expiresIn: number;
   maxBytes: number;
 };
@@ -45,7 +50,11 @@ function isUploadAuthorization(value: unknown): value is UploadAuthorization {
     typeof response.uploadUrl === "string" &&
     typeof response.uploadToken === "string" &&
     typeof response.quarantineKey === "string" &&
-    response.contentType === "image/webp" &&
+    ["image/jpeg", "image/png", "image/webp"].includes(
+      response.contentType ?? ""
+    ) &&
+    (response.normalization === "browser" ||
+      response.normalization === "server") &&
     typeof response.expiresIn === "number" &&
     typeof response.maxBytes === "number"
   );
@@ -73,10 +82,21 @@ export async function uploadMomentImage(
   const authorization = await client.functions.invoke(
     "community-image-storage",
     {
-      body: { action: "authorize", postId }
+      body: {
+        action: "authorize",
+        postId,
+        sourceContentType: normalized.contentType,
+        normalization: normalized.normalization
+      }
     }
   );
   if (authorization.error || !isUploadAuthorization(authorization.data)) {
+    throw new MomentImageUploadError("Upload authorization was not available.");
+  }
+  if (
+    authorization.data.contentType !== normalized.contentType ||
+    authorization.data.normalization !== normalized.normalization
+  ) {
     throw new MomentImageUploadError("Upload authorization was not available.");
   }
 

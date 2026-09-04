@@ -61,14 +61,30 @@ const identity = {
 const normalizedFile = new File(["normalized"], "moment.webp", {
   type: "image/webp"
 });
+const fallbackFile = new File(["source"], "moment.jpg", {
+  type: "image/jpeg"
+});
+let useServerNormalization = false;
 const normalization = {
-  normalizeMomentImage: mock(async () => ({
-    file: normalizedFile,
-    width: 2048,
-    height: 1536,
-    byteSize: normalizedFile.size,
-    contentType: "image/webp" as const
-  }))
+  normalizeMomentImage: mock(async () =>
+    useServerNormalization
+      ? {
+          normalization: "server" as const,
+          file: fallbackFile,
+          width: 2048,
+          height: 1536,
+          byteSize: fallbackFile.size,
+          contentType: "image/jpeg" as const
+        }
+      : {
+          normalization: "browser" as const,
+          file: normalizedFile,
+          width: 2048,
+          height: 1536,
+          byteSize: normalizedFile.size,
+          contentType: "image/webp" as const
+        }
+  )
 };
 const upload = {
   uploadMomentImage: mock(async () => ({
@@ -185,6 +201,7 @@ beforeEach(() => {
   failUpload = false;
   ambiguousUpload = false;
   holdUpload = false;
+  useServerNormalization = false;
   releaseUpload = null;
   uploadAttempts = 0;
   uploadedPostIds = [];
@@ -254,6 +271,23 @@ test("supports the photo-only happy path and activates through WM-109", async ()
       }
     }
   ]);
+  expect(upload.uploadMomentImage).toHaveBeenCalledTimes(1);
+});
+
+test("previews and submits a valid server-normalization fallback", async () => {
+  useServerNormalization = true;
+  const view = renderComposer();
+  selectFile(view);
+  await waitFor(() =>
+    expect(view.getByAltText("Selected Moment preview")).toBeTruthy()
+  );
+
+  fireEvent.click(view.getByRole("button", { name: "Share" }));
+  await waitFor(() =>
+    expect(view.getByText("Your Moment is live 🧋")).toBeTruthy()
+  );
+
+  expect(normalization.normalizeMomentImage).toHaveBeenCalledTimes(1);
   expect(upload.uploadMomentImage).toHaveBeenCalledTimes(1);
 });
 

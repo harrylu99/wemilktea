@@ -7,6 +7,33 @@ export const momentsImageProcessingConfig = {
   outputType: "image/webp"
 } as const;
 
+export const momentImageSourceContentTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+] as const;
+
+export type MomentImageSourceContentType =
+  (typeof momentImageSourceContentTypes)[number];
+
+export type NormalizedMomentImage =
+  | {
+      normalization: "browser";
+      file: File;
+      width: number;
+      height: number;
+      byteSize: number;
+      contentType: "image/webp";
+    }
+  | {
+      normalization: "server";
+      file: File;
+      width: number;
+      height: number;
+      byteSize: number;
+      contentType: MomentImageSourceContentType;
+    };
+
 export class MomentImageError extends Error {
   constructor(message: string) {
     super(message);
@@ -15,6 +42,9 @@ export class MomentImageError extends Error {
 }
 
 type ImageHeader = { width: number; height: number };
+type DetectedMomentImage = ImageHeader & {
+  contentType: MomentImageSourceContentType;
+};
 
 const jpegStartOfFrameMarkers = new Set([
   0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf
@@ -87,6 +117,13 @@ function readWebpHeader(bytes: Uint8Array): ImageHeader | null {
 }
 
 export function readMomentImageHeader(bytes: Uint8Array): ImageHeader | null {
+  const image = readDetectedMomentImage(bytes);
+  return image ? { width: image.width, height: image.height } : null;
+}
+
+function readDetectedMomentImage(
+  bytes: Uint8Array
+): DetectedMomentImage | null {
   if (
     bytes.length >= 8 &&
     bytes[0] === 0x89 &&
@@ -94,9 +131,16 @@ export function readMomentImageHeader(bytes: Uint8Array): ImageHeader | null {
     bytes.length >= 24
   ) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    return { width: view.getUint32(16), height: view.getUint32(20) };
+    return {
+      width: view.getUint32(16),
+      height: view.getUint32(20),
+      contentType: "image/png"
+    };
   }
-  return readJpegHeader(bytes) ?? readWebpHeader(bytes);
+  const jpeg = readJpegHeader(bytes);
+  if (jpeg) return { ...jpeg, contentType: "image/jpeg" };
+  const webp = readWebpHeader(bytes);
+  return webp ? { ...webp, contentType: "image/webp" } : null;
 }
 
 export function outputDimensions(width: number, height: number) {
@@ -122,6 +166,24 @@ function assertSafeDimensions(width: number, height: number, label: string) {
   }
 }
 
+function createMomentCanvas(width: number, height: number) {
+  const canvas =
+    typeof OffscreenCanvas === "function"
+      ? new OffscreenCanvas(width, height)
+      : typeof document === "undefined"
+        ? null
+        : document.createElement("canvas");
+  if (!canvas) return null;
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function canvasContext(canvas: HTMLCanvasElement | OffscreenCanvas) {
+  return canvas.getContext("2d") as
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+}
+
 async function canvasBlob(canvas: HTMLCanvasElement | OffscreenCanvas) {
   if ("convertToBlob" in canvas)
     return canvas.convertToBlob({
@@ -142,54 +204,128 @@ async function canvasBlob(canvas: HTMLCanvasElement | OffscreenCanvas) {
   });
 }
 
-export async function normalizeMomentImage(file: File) {
+async function canEncodeMomentImageAsWebp() {
+  const canvas = createMomentCanvas(1, 1);
+  if (!canvas || !canvasContext(canvas)) return false;
+  try {
+    const blob = await canvasBlob(canvas);
+    return blob.type === momentsImageProcessingConfig.outputType;
+  } catch {
+    return false;
+  }
+}
+
+async function decodeFallbackImage(file: File) {
+  if (typeof Image !== "function")
+    throw new MomentImageError("The browser cannot decode this image.");
+  const url = URL.createObjectURL(file);
+  try {
+    const dimensions = await new Promise<ImageHeader>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () =>
+        resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      image.onerror = () =>
+        reject(
+          new MomentImageError(
+            "The selected file could not be decoded as an image."
+          )
+        );
+      image.src = url;
+    });
+    assertSafeDimensions(dimensions.width, dimensions.height, "Decoded image");
+    return dimensions;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function serverNormalizedImage(
+  file: File,
+  source: DetectedMomentImage,
+  dimensions: ImageHeader
+): NormalizedMomentImage {
+  return {
+    normalization: "server",
+    file,
+    width: dimensions.width,
+    height: dimensions.height,
+    byteSize: file.size,
+    contentType: source.contentType
+  };
+}
+
+async function fallbackToServerNormalization(
+  file: File,
+  source: DetectedMomentImage
+) {
+  const dimensions = await decodeFallbackImage(file);
+  // Keep the validated source bytes intact: the Worker applies EXIF orientation
+  // once while it transcodes the fallback candidate to final WebP.
+  return serverNormalizedImage(file, source, dimensions);
+}
+
+export async function normalizeMomentImage(
+  file: File
+): Promise<NormalizedMomentImage> {
   if (file.size < 1 || file.size > momentsImageProcessingConfig.maxSourceBytes)
     throw new MomentImageError("Images must be smaller than 10 MB.");
-  const header = readMomentImageHeader(
+  const source = readDetectedMomentImage(
     new Uint8Array(await file.arrayBuffer())
   );
-  if (!header)
+  if (!source)
     throw new MomentImageError("Choose a valid JPEG, PNG, or WebP image.");
-  assertSafeDimensions(header.width, header.height, "Source image");
+  assertSafeDimensions(source.width, source.height, "Source image");
+
+  if (!(await canEncodeMomentImageAsWebp()))
+    return fallbackToServerNormalization(file, source);
+  if (typeof createImageBitmap !== "function")
+    return fallbackToServerNormalization(file, source);
 
   let bitmap: ImageBitmap | null = null;
   try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    try {
+      bitmap = await createImageBitmap(file, {
+        imageOrientation: "from-image"
+      });
+    } catch {
+      return fallbackToServerNormalization(file, source);
+    }
     assertSafeDimensions(bitmap.width, bitmap.height, "Decoded image");
     const dimensions = outputDimensions(bitmap.width, bitmap.height);
-    const canvas =
-      typeof OffscreenCanvas === "function"
-        ? new OffscreenCanvas(dimensions.width, dimensions.height)
-        : document.createElement("canvas");
-    canvas.width = dimensions.width;
-    canvas.height = dimensions.height;
-    const context = canvas.getContext("2d") as
-      CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-    if (!context)
-      throw new MomentImageError("The browser cannot render this image.");
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(bitmap, 0, 0, dimensions.width, dimensions.height);
-    const blob = await canvasBlob(canvas);
-    if (blob.type !== momentsImageProcessingConfig.outputType)
-      throw new MomentImageError(
-        "This browser cannot encode normalized WebP images."
-      );
-    const normalizedFile = new File([blob], "moment.webp", {
-      type: momentsImageProcessingConfig.outputType
-    });
-    return {
-      file: normalizedFile,
-      width: dimensions.width,
-      height: dimensions.height,
-      byteSize: normalizedFile.size,
-      contentType: momentsImageProcessingConfig.outputType
-    } as const;
-  } catch (error) {
-    if (error instanceof MomentImageError) throw error;
-    throw new MomentImageError(
-      "The selected file could not be decoded as an image."
-    );
+    const canvas = createMomentCanvas(dimensions.width, dimensions.height);
+    const context = canvas ? canvasContext(canvas) : null;
+    if (!canvas || !context)
+      return serverNormalizedImage(file, source, {
+        width: bitmap.width,
+        height: bitmap.height
+      });
+    try {
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(bitmap, 0, 0, dimensions.width, dimensions.height);
+      const blob = await canvasBlob(canvas);
+      if (blob.type !== momentsImageProcessingConfig.outputType)
+        return serverNormalizedImage(file, source, {
+          width: bitmap.width,
+          height: bitmap.height
+        });
+      const normalizedFile = new File([blob], "moment.webp", {
+        type: momentsImageProcessingConfig.outputType
+      });
+      return {
+        normalization: "browser",
+        file: normalizedFile,
+        width: dimensions.width,
+        height: dimensions.height,
+        byteSize: normalizedFile.size,
+        contentType: momentsImageProcessingConfig.outputType
+      };
+    } catch {
+      return serverNormalizedImage(file, source, {
+        width: bitmap.width,
+        height: bitmap.height
+      });
+    }
   } finally {
     bitmap?.close();
   }
