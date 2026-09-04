@@ -204,6 +204,47 @@ test.serial(
   }
 );
 
+test.serial(
+  "shows the selected Drink category and clears it without changing filtering",
+  async () => {
+    const view = renderDrinks({
+      initialEntries: ["/drinks?category=milk-tea"]
+    });
+
+    expect(await view.findByText("Oolong Milk Tea")).toBeTruthy();
+    expect(drinkCalls[0]?.categorySlug).toBe("milk-tea");
+    expect(
+      view.getByRole("button", { name: "Filters · Milk Tea" })
+    ).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Filters · Milk Tea" }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Milk Tea" }));
+      await Promise.resolve();
+    });
+
+    expect(view.getByRole("button", { name: "Filters" })).toBeTruthy();
+  }
+);
+
+test.serial(
+  "shows the selected category URL value when categories are unavailable",
+  async () => {
+    nextCategoryResults = [{ data: null, error: "query_failed" }];
+    const view = renderDrinks({
+      initialEntries: ["/drinks?category=milk-tea"]
+    });
+
+    expect(await view.findByText("Oolong Milk Tea")).toBeTruthy();
+    expect(
+      view.getByRole("button", { name: "Filters · milk-tea" })
+    ).toBeTruthy();
+  }
+);
+
 test.serial("retries a failed Drinks request without remounting", async () => {
   nextDrinkResults = [
     { data: null, totalResults: 0, error: "query_failed" },

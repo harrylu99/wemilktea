@@ -236,6 +236,57 @@ test.serial(
 );
 
 test.serial(
+  "shows selected Store filter values and clears them without changing filtering",
+  async () => {
+    const view = renderStores(["/stores?area=Albany&brand=gong-cha"]);
+
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    expect(storeCalls[0]).toEqual({
+      brandSlug: "gong-cha",
+      query: "",
+      suburb: "Albany"
+    });
+    expect(
+      view.getByRole("button", { name: "Filters · Albany, Gong cha" })
+    ).toBeTruthy();
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Filters · Albany, Gong cha" })
+    );
+    fireEvent.click(view.getByRole("button", { name: "Clear filters" }));
+
+    expect(view.getByRole("button", { name: "Filters" })).toBeTruthy();
+  }
+);
+
+test.serial("bounds long Store filter labels visually", async () => {
+  const longArea = "A very long Auckland North Shore neighbourhood name";
+  nextFacetResults = [{ data: { brands: [], areas: [longArea] }, error: null }];
+  const view = renderStores([`/stores?area=${encodeURIComponent(longArea)}`]);
+
+  expect(await view.findByText(store.displayName)).toBeTruthy();
+  const filtersButton = view.getByRole("button", {
+    name: `Filters · ${longArea}`
+  });
+  expect(filtersButton.querySelector("[title]")?.getAttribute("title")).toBe(
+    longArea
+  );
+});
+
+test.serial(
+  "shows the selected brand URL value when store filters are unavailable",
+  async () => {
+    nextFacetResults = [{ data: null, error: "query_failed" }];
+    const view = renderStores(["/stores?brand=gong-cha"]);
+
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    expect(
+      view.getByRole("button", { name: "Filters · gong-cha" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
   "keeps Store results usable and retries failed facets independently",
   async () => {
     nextFacetResults = [{ data: null, error: "query_failed" }, facetSuccess];
