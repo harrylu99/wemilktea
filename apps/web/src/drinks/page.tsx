@@ -154,7 +154,8 @@ export function DrinksPage() {
   const query = syncingQueryRef.current ?? debouncedQuery;
   const categorySlug = searchParams.get("category") ?? "";
   const selectedDrinkFilterSummary = summarizeFilterLabels([
-    categories.find((category) => category.slug === categorySlug)?.name ?? ""
+    categories.find((category) => category.slug === categorySlug)?.name ??
+      categorySlug
   ]);
   const pageParam = searchParams.get("page");
   const requestedPage = parsePageParam(pageParam);
@@ -364,7 +365,7 @@ export function DrinksPage() {
             ref={filtersButtonRef}
             aria-controls="drink-filters-popover"
             aria-expanded={filtersOpen}
-            aria-label={`Filters${categorySlug ? ` · ${selectedDrinkFilterSummary || "active"}` : ""}`}
+            aria-label={`Filters${selectedDrinkFilterSummary ? ` · ${selectedDrinkFilterSummary}` : ""}`}
             className={`inline-flex h-11 max-w-full cursor-pointer items-center rounded-xl border border-border px-4 text-xs font-semibold ${categorySlug ? "bg-accent text-primary" : "bg-card"}`}
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}

@@ -230,6 +230,21 @@ test.serial(
   }
 );
 
+test.serial(
+  "shows the selected category URL value when categories are unavailable",
+  async () => {
+    nextCategoryResults = [{ data: null, error: "query_failed" }];
+    const view = renderDrinks({
+      initialEntries: ["/drinks?category=milk-tea"]
+    });
+
+    expect(await view.findByText("Oolong Milk Tea")).toBeTruthy();
+    expect(
+      view.getByRole("button", { name: "Filters · milk-tea" })
+    ).toBeTruthy();
+  }
+);
+
 test.serial("retries a failed Drinks request without remounting", async () => {
   nextDrinkResults = [
     { data: null, totalResults: 0, error: "query_failed" },

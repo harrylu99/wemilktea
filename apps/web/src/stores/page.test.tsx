@@ -274,6 +274,19 @@ test.serial("bounds long Store filter labels visually", async () => {
 });
 
 test.serial(
+  "shows the selected brand URL value when store filters are unavailable",
+  async () => {
+    nextFacetResults = [{ data: null, error: "query_failed" }];
+    const view = renderStores(["/stores?brand=gong-cha"]);
+
+    expect(await view.findByText(store.displayName)).toBeTruthy();
+    expect(
+      view.getByRole("button", { name: "Filters · gong-cha" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
   "keeps Store results usable and retries failed facets independently",
   async () => {
     nextFacetResults = [{ data: null, error: "query_failed" }, facetSuccess];

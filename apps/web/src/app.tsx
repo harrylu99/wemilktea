@@ -571,7 +571,7 @@ export function StoresPage() {
   const nearMe = searchParams.get("near") === "1";
   const selectedStoreFilterSummary = summarizeFilterLabels([
     suburb,
-    filterBrands.find(([slug]) => slug === brandSlug)?.[1] ?? ""
+    filterBrands.find(([slug]) => slug === brandSlug)?.[1] ?? brandSlug
   ]);
   const loadRequestIdRef = useRef(0);
   const lastWrittenQueryRef = useRef<string | null>(null);
@@ -945,7 +945,7 @@ export function StoresPage() {
               ref={filtersButtonRef}
               aria-controls="store-filters-popover"
               aria-expanded={filtersOpen}
-              aria-label={`Filters${brandSlug || suburb ? ` · ${selectedStoreFilterSummary || "active"}` : ""}`}
+              aria-label={`Filters${selectedStoreFilterSummary ? ` · ${selectedStoreFilterSummary}` : ""}`}
               className={`inline-flex h-11 max-w-full cursor-pointer items-center rounded-xl border border-border px-4 text-xs font-semibold ${brandSlug || suburb ? "bg-accent text-primary" : "bg-card"}`}
               type="button"
               onClick={() => setFiltersOpen((open) => !open)}
