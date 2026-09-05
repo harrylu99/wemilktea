@@ -37,6 +37,30 @@ export type CurrentMomentsUploadTokenClaims = MomentsUploadTokenBase & {
 export type MomentsUploadTokenClaims =
   LegacyMomentsUploadTokenClaims | CurrentMomentsUploadTokenClaims;
 
+export type MomentsUploadTokenAuthorizationInput = MomentsUploadTokenBase & {
+  sourceContentType: MomentsUploadSourceContentType;
+  normalization: MomentsUploadNormalization;
+};
+
+export function createMomentsUploadTokenAuthorizationClaims(
+  input: MomentsUploadTokenAuthorizationInput
+): MomentsUploadTokenClaims {
+  if (input.normalization === "browser") {
+    if (input.sourceContentType !== "image/webp")
+      throw new Error("Browser normalization must upload WebP.");
+    return {
+      v: legacyMomentsUploadTokenVersion,
+      purpose: input.purpose,
+      ownerUserId: input.ownerUserId,
+      postId: input.postId,
+      uploadId: input.uploadId,
+      quarantineKey: input.quarantineKey,
+      expiresAt: input.expiresAt
+    };
+  }
+  return { v: momentsUploadTokenVersion, ...input };
+}
+
 function encode(value: string | Uint8Array) {
   const bytes =
     typeof value === "string" ? new TextEncoder().encode(value) : value;

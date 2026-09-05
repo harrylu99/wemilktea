@@ -326,7 +326,7 @@ describe("Moments image verifier", () => {
     expect(changed.status).toBe(412);
   });
 
-  test("bounds uploads before R2 and accepts a valid capability", async () => {
+  test("accepts a legacy v1 capability as browser-normalized WebP", async () => {
     const environment = createEnvironment(webpBytes(), {}, false);
     const valid = await worker.fetch(
       new Request("https://verifier.example/upload", {
@@ -399,6 +399,40 @@ describe("Moments image verifier", () => {
       width: 2048,
       height: 1536
     });
+  });
+
+  test("rejects a v2 browser capability for a non-WebP source", async () => {
+    const environment = createEnvironment(webpBytes(), {}, false);
+    const invalidMode = await createMomentsUploadToken(
+      {
+        v: 2,
+        purpose: "moments-image-upload",
+        ownerUserId: ownerId,
+        postId,
+        uploadId,
+        quarantineKey: sourceKey,
+        sourceContentType: "image/jpeg",
+        normalization: "browser",
+        expiresAt: Math.floor(Date.now() / 1000) + 60
+      },
+      uploadTokenSecret
+    );
+    const response = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${invalidMode}`,
+          "Content-Type": "image/jpeg",
+          Origin: "https://moments.example"
+        },
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_upload_mode" });
+    expect(environment.puts).toEqual([]);
   });
 
   test("rejects corrupt, mismatched, and oversized fallback sources before quarantine", async () => {

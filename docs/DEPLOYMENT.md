@@ -13,10 +13,6 @@ preflight → reviewed Supabase migrations/RLS → Edge Functions → R2/Maps/Au
 → frontend builds → Workers deploy → integration checks → smoke tests → GO/NO-GO
 ```
 
-For the Moments v2 upload capability, the verifier Worker is an explicit
-exception: deploy the v2-capable Worker before `community-image-storage`, then
-deploy the Web client.
-
 Do not run a local reset against a production project. Production schema
 changes are applied by reviewed migrations only.
 
@@ -25,11 +21,11 @@ changes are applied by reviewed migrations only.
 Reviewed Edge Function changes merged into `main` are deployed by
 `.github/workflows/supabase-functions-deploy.yml`. The workflow is limited to
 changes under `supabase/functions/**` or `supabase/config.toml`, so frontend-
-only changes do not start a Supabase deployment. It deploys the three general
+only changes do not start a Supabase deployment. It always deploys the four
 production functions together. The existing Admin-oriented functions share
 `_shared/admin-auth.ts`; `community-image-storage` uses
-`_shared/moments-upload-token.ts` and is deliberately deployed manually with
-its verifier Worker:
+`_shared/moments-upload-token.ts`, and each function owns its deployment
+dependency map:
 
 ```text
 merge to main
@@ -38,6 +34,7 @@ merge to main
 → deploy store-discovery
 → deploy candidate-google-detail
 → deploy image-storage
+→ deploy community-image-storage
 ```
 
 The workflow explicitly targets production project ref
@@ -465,13 +462,9 @@ the documented trusted procedure in [Admin authentication](ADMIN_AUTH.md).
 ## Edge Functions
 
 Edge Functions are normally deployed by the path-filtered GitHub Actions
-workflow after a reviewed merge to `main`. `community-image-storage` is
-excluded from that workflow and must be deployed only as part of a separately
-approved Moments rollout: first deploy the v2-capable verifier Worker, then
-the Edge Function, then the Web client. If CI is unavailable, deploy only the
-functions present in the repository and required for the release from a clean
-reviewed checkout. See [the Moments production rollout](WM-120_MOMENTS_PRODUCTION_ROLLOUT.md)
-for the separately authorized `community-image-storage` sequence:
+workflow after a reviewed merge to `main`. If CI is unavailable, deploy only
+the functions present in the repository and required for the release from a
+clean reviewed checkout:
 
 ```sh
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy store-discovery \
@@ -479,6 +472,8 @@ SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy store-discovery \
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy candidate-google-detail \
   --project-ref tqdxmotcpogyvzdvgopi --use-api
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy image-storage \
+  --project-ref tqdxmotcpogyvzdvgopi --use-api
+SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy community-image-storage \
   --project-ref tqdxmotcpogyvzdvgopi --use-api
 ```
 

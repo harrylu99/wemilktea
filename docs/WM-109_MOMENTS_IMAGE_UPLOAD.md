@@ -111,9 +111,9 @@ cleaned up. Owner delete remains the existing soft delete for moderation/audit;
 hidden or removed Moments retain a referenced final object until a later
 retention policy explicitly permits deletion.
 
-The production Edge Function and verifier Worker are separate rollout steps;
-the production Supabase deployment workflow intentionally does not deploy
-`community-image-storage` automatically when this PR is merged. Configure and
-deploy it only as part of the separately approved production rollout. For the
-v2 upload capability, deploy the Worker (which accepts legacy v1 WebP tokens)
-before the Edge Function starts minting v2 tokens, then deploy the Web client.
+The production workflow deploys `community-image-storage` automatically with
+the other Edge Functions after reviewed changes merge to `main`.
+Browser-normalized WebP authorization continues to issue legacy v1
+capabilities, so it remains compatible with the existing verifier during the
+separate Worker rollout. Server-normalization fallback authorization issues v2
+capabilities; deploy the v2-capable Worker before the matching Web client.

@@ -10,9 +10,9 @@ import {
   parseOwnedQuarantineKey
 } from "./storage-policy.ts";
 import {
+  createMomentsUploadTokenAuthorizationClaims,
   createMomentsUploadToken,
-  momentsUploadTokenPurpose,
-  momentsUploadTokenVersion
+  momentsUploadTokenPurpose
 } from "../_shared/moments-upload-token.ts";
 import { verifyAndPromote, shouldDeleteQuarantine } from "./verification.ts";
 
@@ -221,8 +221,7 @@ Deno.serve(async (request) => {
       uploadId
     );
     const uploadToken = await createMomentsUploadToken(
-      {
-        v: momentsUploadTokenVersion,
+      createMomentsUploadTokenAuthorizationClaims({
         purpose: momentsUploadTokenPurpose,
         ownerUserId: user.userId,
         postId: parsed.data.postId,
@@ -231,7 +230,7 @@ Deno.serve(async (request) => {
         sourceContentType: parsed.data.sourceContentType,
         normalization: parsed.data.normalization,
         expiresAt: Math.floor(Date.now() / 1000) + uploadExpirySeconds
-      },
+      }),
       environment.data.MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET
     );
     return response(

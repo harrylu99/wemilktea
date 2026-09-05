@@ -131,28 +131,25 @@ override them with approved production values and configure the Worker-only
 `IMAGES` and `BUCKET` bindings must resolve to the approved production
 resources.
 
-## Release wiring
+## Release wiring in this Phase A PR
 
-The reviewed `.github/workflows/supabase-functions-deploy.yml` deliberately
-excludes `community-image-storage`; it must be deployed manually with the
-verifier Worker. The workflow still:
+The reviewed `.github/workflows/supabase-functions-deploy.yml` now includes
+`community-image-storage` after the existing `image-storage` step. The workflow
+still:
 
 - runs only for `main` pushes or guarded manual dispatch;
 - uses the `production` Environment;
 - targets `tqdxmotcpogyvzdvgopi` through `SUPABASE_PROJECT_REF`;
 - uses Supabase CLI `2.113.0`;
 - grants only `contents: read`;
-- uses `--use-api` and the explicit project ref for its three automatic
-  functions;
+- uses `--use-api` and the explicit project ref;
 - does not set secrets or run database migrations;
 - does not deploy from pull-request branches;
 - retains `cancel-in-progress: false`.
 
-The deployment documentation lists three automatically deployed production
-Edge Functions; `community-image-storage` remains a separately approved,
-coordinated rollout. This Phase A PR does not modify any function source,
-migration, Worker source, Auth setting, secret, binding, R2 object, or
-production environment.
+The deployment documentation now lists four production Edge Functions. This
+Phase A PR does not modify any function source, migration, Worker source,
+Auth setting, secret, binding, R2 object, or production environment.
 
 ## Cloudflare branch-build safety — resolved by WM-122
 
@@ -181,24 +178,23 @@ The following is the operator plan for a later, separately authorized release:
 4. Verify existing Admin sign-in and session restoration before migration.
 5. Apply the approved missing migrations in chronological order.
 6. Verify the tables, RPCs, PostgREST exposure, RLS, and public feed contract.
-7. Deploy and verify `moments-image-verifier` with the required R2 bindings and
+7. Deploy `community-image-storage` from reviewed merged `main`.
+8. Deploy and verify `moments-image-verifier` with the required R2 bindings and
    server-only token.
-8. Deploy `community-image-storage` from reviewed merged `main`.
-9. Deploy the matching Web client from reviewed merged `main`.
-10. Verify anonymous Auth and first-write CAPTCHA behavior without making
-    anonymous browsing create an identity.
-11. Run controlled Public Web and Admin smoke tests.
-12. Record GO/NO-GO and recovery actions; only then mark WM-120 Done.
+9. Verify anonymous Auth and first-write CAPTCHA behavior without making
+   anonymous browsing create an identity.
+10. Run controlled Public Web and Admin smoke tests.
+11. Record GO/NO-GO and recovery actions; only then mark WM-120 Done.
 
 The mutating commands below are shown only to make the future runbook explicit.
 They are **NOT AUTHORIZED IN PHASE A**:
 
 ```sh
 SUPABASE_TELEMETRY_DISABLED=1 supabase db push --linked
-npx wrangler deploy --config workers/moments-image-verifier/wrangler.jsonc
 SUPABASE_TELEMETRY_DISABLED=1 supabase functions deploy community-image-storage \
   --project-ref "$SUPABASE_PROJECT_REF" \
   --use-api
+npx wrangler deploy --config workers/moments-image-verifier/wrangler.jsonc
 ```
 
 ## Future acceptance and smoke tests
