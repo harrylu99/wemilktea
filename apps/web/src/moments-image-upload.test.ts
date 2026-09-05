@@ -6,6 +6,7 @@ const authorizationCalls: Array<Record<string, unknown>> = [];
 const fetchCalls: Array<{ url: string; init: RequestInit | undefined }> = [];
 const originalFetch = globalThis.fetch;
 let authorizationOverrides: Record<string, unknown> = {};
+let omitAuthorizationNormalization = false;
 
 const supabaseMock = {
   functions: {
@@ -13,17 +14,21 @@ const supabaseMock = {
       async (_name: string, options: { body: Record<string, unknown> }) => {
         authorizationCalls.push(options.body);
         if (options.body.action === "authorize") {
+          const data: Record<string, unknown> = {
+            uploadUrl: "https://upload.example/upload",
+            uploadToken: "upload-token",
+            quarantineKey: "community-quarantine/owner/post/upload.webp",
+            contentType: options.body.sourceContentType,
+            normalization: options.body.normalization,
+            expiresIn: 600,
+            maxBytes: 10 * 1024 * 1024,
+            ...authorizationOverrides
+          };
+          if (omitAuthorizationNormalization) {
+            delete data.normalization;
+          }
           return {
-            data: {
-              uploadUrl: "https://upload.example/upload",
-              uploadToken: "upload-token",
-              quarantineKey: "community-quarantine/owner/post/upload.webp",
-              contentType: options.body.sourceContentType,
-              normalization: options.body.normalization,
-              expiresIn: 600,
-              maxBytes: 10 * 1024 * 1024,
-              ...authorizationOverrides
-            },
+            data,
             error: null
           };
         }
@@ -56,6 +61,7 @@ afterEach(() => {
   authorizationCalls.splice(0);
   fetchCalls.splice(0);
   authorizationOverrides = {};
+  omitAuthorizationNormalization = false;
   globalThis.fetch = originalFetch;
   supabaseMock.functions.invoke.mockClear();
 });
@@ -104,6 +110,34 @@ test("keeps browser-normalized uploads on the exact WebP contract", async () => 
   });
 });
 
+test("accepts a legacy WebP authorization response without normalization", async () => {
+  installUploadFetch();
+  omitAuthorizationNormalization = true;
+  const file = new File(["webp"], "moment.webp", { type: "image/webp" });
+  const normalized: NormalizedMomentImage = {
+    normalization: "browser",
+    file,
+    width: 300,
+    height: 400,
+    byteSize: file.size,
+    contentType: "image/webp"
+  };
+
+  await expect(uploadMomentImage(postId, normalized)).resolves.toMatchObject({
+    contentType: "image/webp"
+  });
+  expect(authorizationCalls[0]).toEqual({
+    action: "authorize",
+    postId,
+    sourceContentType: "image/webp",
+    normalization: "browser"
+  });
+  expect(fetchCalls[0]?.init?.headers).toEqual({
+    Authorization: "Bearer upload-token",
+    "Content-Type": "image/webp"
+  });
+});
+
 test("uploads a server-normalization fallback with its detected source MIME", async () => {
   installUploadFetch();
   const file = new File(["jpeg bytes"], "moment.jpg", { type: "image/jpeg" });
@@ -136,6 +170,25 @@ test("uploads a server-normalization fallback with its detected source MIME", as
 test("does not upload when authorization changes the signed source contract", async () => {
   installUploadFetch();
   authorizationOverrides = { contentType: "image/webp" };
+  const file = new File(["jpeg bytes"], "moment.jpg", { type: "image/jpeg" });
+  const normalized: NormalizedMomentImage = {
+    normalization: "server",
+    file,
+    width: 300,
+    height: 400,
+    byteSize: file.size,
+    contentType: "image/jpeg"
+  };
+
+  await expect(uploadMomentImage(postId, normalized)).rejects.toBeInstanceOf(
+    MomentImageUploadError
+  );
+  expect(fetchCalls).toEqual([]);
+});
+
+test("does not infer browser normalization for a fallback source", async () => {
+  installUploadFetch();
+  omitAuthorizationNormalization = true;
   const file = new File(["jpeg bytes"], "moment.jpg", { type: "image/jpeg" });
   const normalized: NormalizedMomentImage = {
     normalization: "server",

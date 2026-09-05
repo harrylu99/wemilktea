@@ -12,7 +12,7 @@ type UploadAuthorization = {
   uploadToken: string;
   quarantineKey: string;
   contentType: MomentImageSourceContentType;
-  normalization: MomentImageNormalization;
+  normalization?: MomentImageNormalization;
   expiresIn: number;
   maxBytes: number;
 };
@@ -43,7 +43,10 @@ function getClient() {
   return supabase;
 }
 
-function isUploadAuthorization(value: unknown): value is UploadAuthorization {
+function isUploadAuthorization(
+  value: unknown,
+  normalized: NormalizedMomentImage
+): value is UploadAuthorization {
   if (!value || typeof value !== "object") return false;
   const response = value as Partial<UploadAuthorization>;
   return (
@@ -54,7 +57,11 @@ function isUploadAuthorization(value: unknown): value is UploadAuthorization {
       response.contentType ?? ""
     ) &&
     (response.normalization === "browser" ||
-      response.normalization === "server") &&
+      response.normalization === "server" ||
+      (response.normalization === undefined &&
+        response.contentType === "image/webp" &&
+        normalized.normalization === "browser" &&
+        normalized.contentType === "image/webp")) &&
     typeof response.expiresIn === "number" &&
     typeof response.maxBytes === "number"
   );
@@ -90,12 +97,17 @@ export async function uploadMomentImage(
       }
     }
   );
-  if (authorization.error || !isUploadAuthorization(authorization.data)) {
+  if (
+    authorization.error ||
+    !isUploadAuthorization(authorization.data, normalized)
+  ) {
     throw new MomentImageUploadError("Upload authorization was not available.");
   }
+  const authorizationNormalization =
+    authorization.data.normalization ?? "browser";
   if (
     authorization.data.contentType !== normalized.contentType ||
-    authorization.data.normalization !== normalized.normalization
+    authorizationNormalization !== normalized.normalization
   ) {
     throw new MomentImageUploadError("Upload authorization was not available.");
   }
