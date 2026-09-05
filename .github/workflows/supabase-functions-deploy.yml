@@ -63,8 +63,5 @@ jobs:
           --project-ref "$SUPABASE_PROJECT_REF"
           --use-api
 
-      - name: Deploy community-image-storage
-        run: >-
-          supabase functions deploy community-image-storage
-          --project-ref "$SUPABASE_PROJECT_REF"
-          --use-api
+      # community-image-storage is deployed manually with the verifier Worker
+      # so the Worker accepts v2 upload tokens before they are minted.
