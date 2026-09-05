@@ -110,13 +110,30 @@ function createEnvironment(
           }
         : null;
     },
-    async put(key: string, value: ArrayBuffer) {
+    async put(
+      key: string,
+      value: ArrayBuffer,
+      options?: {
+        onlyIf?: { etagDoesNotMatch?: string; etagMatches?: string };
+      }
+    ) {
       puts.push(key);
       putValues.push(value);
-      if (objects.has(key)) return null;
+      const current = objects.get(key);
+      if (options?.onlyIf?.etagDoesNotMatch === "*" && current) return null;
+      if (
+        options?.onlyIf?.etagMatches &&
+        options.onlyIf.etagMatches !== current?.etag
+      )
+        return null;
+      if (!options?.onlyIf?.etagMatches && current) return null;
       const stored = new Uint8Array(value);
-      objects.set(key, { bytes: stored, etag: "final-etag" });
-      return { key, size: stored.byteLength, etag: "final-etag" };
+      const etag = stored.byteLength === 0 ? "reservation-etag" : "final-etag";
+      objects.set(key, { bytes: stored, etag });
+      return { key, size: stored.byteLength, etag };
+    },
+    async delete(key: string) {
+      objects.delete(key);
     }
   };
   return {
@@ -133,6 +150,7 @@ function createEnvironment(
     },
     MOMENTS_APP_ORIGIN: "https://moments.example",
     MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET: uploadTokenSecret,
+    objects,
     puts,
     putValues
   };
@@ -377,8 +395,9 @@ describe("Moments image verifier", () => {
     );
 
     expect(upload.status).toBe(200);
-    expect(environment.puts).toEqual([sourceKey]);
-    expect(Array.from(new Uint8Array(environment.putValues[0]))).toEqual(
+    expect(environment.puts).toEqual([sourceKey, sourceKey]);
+    expect(Array.from(new Uint8Array(environment.putValues[0]))).toEqual([]);
+    expect(Array.from(new Uint8Array(environment.putValues[1]))).toEqual(
       Array.from(webpBytes())
     );
     expect(transformCalls).toEqual([
@@ -399,6 +418,38 @@ describe("Moments image verifier", () => {
       width: 2048,
       height: 1536
     });
+  });
+
+  test("rejects a replayed fallback capability before transforming it again", async () => {
+    const { environment, transformCalls } = serverNormalizationEnvironment();
+    const authorization = await serverNormalizationToken();
+    const headers = {
+      Authorization: `Bearer ${authorization}`,
+      "Content-Type": "image/jpeg",
+      Origin: "https://moments.example"
+    };
+
+    const first = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers,
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+    const replay = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers,
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toEqual({ error: "upload_already_exists" });
+    expect(transformCalls).toHaveLength(1);
   });
 
   test("rejects a v2 browser capability for a non-WebP source", async () => {
@@ -466,7 +517,8 @@ describe("Moments image verifier", () => {
       environment as never
     );
     expect(oversized.status).toBe(400);
-    expect(environment.puts).toEqual([]);
+    expect(environment.puts).toEqual([sourceKey]);
+    expect(environment.objects.has(sourceKey)).toBeFalse();
 
     const mismatchedSource = serverNormalizationEnvironment({ format: "png" });
     const mismatchedSourceResponse = await worker.fetch(
@@ -482,7 +534,8 @@ describe("Moments image verifier", () => {
       mismatchedSource.environment as never
     );
     expect(mismatchedSourceResponse.status).toBe(400);
-    expect(mismatchedSource.environment.puts).toEqual([]);
+    expect(mismatchedSource.environment.puts).toEqual([sourceKey]);
+    expect(mismatchedSource.environment.objects.has(sourceKey)).toBeFalse();
   });
 
   test("accepts bounded bodies and rejects actual oversized streams", async () => {

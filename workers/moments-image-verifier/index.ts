@@ -385,34 +385,57 @@ export default {
       if ("error" in body)
         return json({ error: body.error }, body.status, headers);
       let normalizedBytes = body.bytes;
+      let object: R2Object | null;
       if (input.normalization === "browser") {
         const webp = inspectWebp(body.bytes);
         if (!webp.valid) return json({ error: webp.reason }, 400, headers);
-      } else {
-        if (!hasExpectedSourceContainer(body.bytes, input.sourceContentType))
-          return json({ error: "invalid_source_container" }, 400, headers);
-        const transformed = await normalizeFallbackSource(
-          body.bytes,
-          input.sourceContentType,
-          env.IMAGES
-        );
-        if (!transformed)
-          return json({ error: "source_normalization_failed" }, 400, headers);
-        normalizedBytes = transformed;
-      }
-
-      const object = await env.BUCKET.put(
-        claims.quarantineKey,
-        normalizedBytes,
-        {
+        object = await env.BUCKET.put(claims.quarantineKey, normalizedBytes, {
           onlyIf: { etagDoesNotMatch: "*" },
           httpMetadata: { contentType: "image/webp" },
           customMetadata: {
             purpose: momentsUploadTokenPurpose,
             uploadId: claims.uploadId
           }
+        });
+      } else {
+        if (!hasExpectedSourceContainer(body.bytes, input.sourceContentType))
+          return json({ error: "invalid_source_container" }, 400, headers);
+
+        const reservation = await env.BUCKET.put(
+          claims.quarantineKey,
+          new Uint8Array(),
+          {
+            onlyIf: { etagDoesNotMatch: "*" },
+            httpMetadata: { contentType: "application/octet-stream" },
+            customMetadata: {
+              purpose: momentsUploadTokenPurpose,
+              uploadId: claims.uploadId
+            }
+          }
+        );
+        if (!reservation)
+          return json({ error: "upload_already_exists" }, 409, headers);
+
+        const transformed = await normalizeFallbackSource(
+          body.bytes,
+          input.sourceContentType,
+          env.IMAGES
+        );
+        if (!transformed) {
+          await env.BUCKET.delete(claims.quarantineKey);
+          return json({ error: "source_normalization_failed" }, 400, headers);
         }
-      );
+        normalizedBytes = transformed;
+
+        object = await env.BUCKET.put(claims.quarantineKey, normalizedBytes, {
+          onlyIf: { etagMatches: reservation.etag },
+          httpMetadata: { contentType: "image/webp" },
+          customMetadata: {
+            purpose: momentsUploadTokenPurpose,
+            uploadId: claims.uploadId
+          }
+        });
+      }
       if (!object)
         return json({ error: "upload_already_exists" }, 409, headers);
       return json(
