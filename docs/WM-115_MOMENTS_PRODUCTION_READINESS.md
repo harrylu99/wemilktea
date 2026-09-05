@@ -29,6 +29,24 @@ capabilities. WM-115 therefore adds explicit Moments-only server-side limits:
 The thresholds are deliberately explicit in the migration and are not
 environment-configurable for V1.4.
 
+### Final Auth model
+
+The production Auth configuration is intended to use this combination:
+
+- global signup enabled;
+- anonymous sign-ins enabled;
+- the Email provider enabled for the existing Admin email/password account;
+- a Before User Created Postgres Auth Hook that allows only events whose
+  `user.is_anonymous` value is `true`;
+- CAPTCHA enabled with Cloudflare Turnstile.
+
+The global signup switch must never be enabled by itself. Supabase uses the
+signup endpoint for anonymous identities, but the global switch also permits
+other enabled providers to create new users. The anonymous-only Before User
+Created hook is the server-side gate that allows Moments identities while
+rejecting permanent-user creation; existing email/password login is
+unaffected because the hook runs only before a new user is created.
+
 ## Implemented changes
 
 ### CAPTCHA
@@ -133,17 +151,22 @@ anonymous Moments writes, an operator must complete this order:
 3. Configure the Turnstile secret in Supabase Auth CAPTCHA protection.
 4. Verify existing Admin email/password sign-in, including a fresh login and
    session restoration.
-5. Apply the tracked database migration through the normal migration workflow.
-6. Deploy the community image Edge Function and verifier Worker through the
+5. Apply the tracked database migrations, including the anonymous-only Before
+   User Created hook, through the normal migration workflow.
+6. Configure the Before User Created Auth Hook to call
+   `public.hook_allow_anonymous_signups_only`.
+7. Enable global signup only after the hook is active, keeping anonymous
+   sign-ins enabled and the Email provider enabled for existing Admin login.
+8. Deploy the community image Edge Function and verifier Worker through the
    approved non-production-to-production workflow.
-7. Enable anonymous sign-ins only after the CAPTCHA-capable clients and Auth
+9. Enable anonymous sign-ins only after the CAPTCHA-capable clients and Auth
    CAPTCHA setting are verified.
-8. Smoke-test that browsing and pagination do not create identity or challenge;
-   the first Like/Share/Must Try/Report write obtains Turnstile, creates the
-   anonymous identity with `captchaToken`, and succeeds.
-9. Verify subsequent writes reuse the session without another CAPTCHA and that
-   the draft/upload quotas reject over-limit direct API/RPC calls.
-10. Verify the existing R2 `community-quarantine/` lifecycle backstop remains
+10. Smoke-test that browsing and pagination do not create identity or challenge;
+    the first Like/Share/Must Try/Report write obtains Turnstile, creates the
+    anonymous identity with `captchaToken`, and succeeds.
+11. Verify subsequent writes reuse the session without another CAPTCHA and that
+    the draft/upload quotas reject over-limit direct API/RPC calls.
+12. Verify the existing R2 `community-quarantine/` lifecycle backstop remains
     approximately one day and does not match final `community/` objects.
 
 Required names only; values must remain outside the repository:
