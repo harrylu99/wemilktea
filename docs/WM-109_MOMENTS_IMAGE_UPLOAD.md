@@ -26,6 +26,13 @@ long edge at 2,048px. Re-encoding pixels does not copy source EXIF/GPS/XMP.
 file. It does not trust the source filename, MIME declaration, or client image
 dimensions.
 
+When the selected canvas cannot encode an actual `image/webp`, the browser uses
+a capability-detected server-normalization fallback instead of user-agent
+sniffing. It keeps the header-verified JPEG, PNG, or WebP source under its
+actual detected content type for preview and upload; it does not relabel source
+bytes as WebP. The fallback decoder only validates browser decode availability,
+so the Worker remains responsible for canonical orientation and output.
+
 ## Server and R2
 
 `community-image-storage` verifies the Supabase user JWT and only authorizes a
@@ -43,6 +50,16 @@ and refuses to overwrite an existing final key. The Edge Function passes the
 observed final metadata to the service-role-only
 `finalize_community_post_image` RPC, which atomically inserts the owned
 `image_assets` row, attaches it to the owned draft, and activates the Moment.
+
+The upload capability binds both the detected source content type and whether
+the browser or Worker normalizes it. Browser-normalized capabilities remain
+strictly WebP. For the server fallback, the Worker bounds and decodes the
+signed JPEG, PNG, or WebP request body, applies Cloudflare Images' EXIF
+orientation during its 2,048px WebP transcode, validates the generated WebP,
+and only then writes that generated WebP to the existing quarantine key. Raw
+fallback bytes are never stored in R2, and the existing verifier repeats its
+WebP, decode, ETag, and final-promotion checks. Already-issued v1 capabilities
+remain restricted to the legacy browser-WebP path during their short lifetime.
 
 ## Configuration
 
@@ -94,7 +111,9 @@ cleaned up. Owner delete remains the existing soft delete for moderation/audit;
 hidden or removed Moments retain a referenced final object until a later
 retention policy explicitly permits deletion.
 
-The production Edge Function and verifier Worker are separate rollout steps;
-the production Supabase deployment workflow intentionally does not deploy
-`community-image-storage` automatically when this PR is merged. Configure and
-deploy it only as part of the separately approved production rollout.
+The production workflow deploys `community-image-storage` automatically with
+the other Edge Functions after reviewed changes merge to `main`.
+Browser-normalized WebP authorization continues to issue legacy v1
+capabilities, so it remains compatible with the existing verifier during the
+separate Worker rollout. Server-normalization fallback authorization issues v2
+capabilities; deploy the v2-capable Worker before the matching Web client.

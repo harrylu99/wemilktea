@@ -2,9 +2,12 @@
 /// <reference path="./worker-configuration.d.ts" />
 
 import {
+  legacyMomentsUploadTokenVersion,
   momentsUploadTokenPurpose,
   momentsUploadTokenVersion,
-  verifyMomentsUploadToken
+  verifyMomentsUploadToken,
+  type MomentsUploadSourceContentType,
+  type MomentsUploadTokenClaims
 } from "../../supabase/functions/_shared/moments-upload-token";
 
 type RuntimeEnv = Env & {
@@ -31,6 +34,18 @@ type VerificationRequest = {
 
 type UploadBodyResult =
   { bytes: ArrayBuffer } | { status: 400 | 413; error: string };
+
+type UploadInput = {
+  sourceContentType: MomentsUploadSourceContentType;
+  normalization: "browser" | "server";
+};
+
+type ImageInfo = {
+  format: unknown;
+  fileSize: unknown;
+  width: unknown;
+  height: unknown;
+};
 
 function json(
   body: Record<string, unknown>,
@@ -166,6 +181,164 @@ export function inspectWebp(bytes: ArrayBuffer) {
   return { valid: true as const };
 }
 
+function requestContentType(request: Request) {
+  return request.headers
+    .get("Content-Type")
+    ?.split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+}
+
+function uploadInput(claims: MomentsUploadTokenClaims): UploadInput | null {
+  if (claims.v === legacyMomentsUploadTokenVersion)
+    return { sourceContentType: "image/webp", normalization: "browser" };
+  if (claims.v !== momentsUploadTokenVersion) return null;
+  if (
+    claims.normalization === "browser" &&
+    claims.sourceContentType !== "image/webp"
+  )
+    return null;
+  return {
+    sourceContentType: claims.sourceContentType,
+    normalization: claims.normalization
+  };
+}
+
+function hasExpectedSourceContainer(
+  bytes: ArrayBuffer,
+  contentType: MomentsUploadSourceContentType
+) {
+  const data = new Uint8Array(bytes);
+  if (contentType === "image/jpeg")
+    return (
+      data.length >= 3 &&
+      data[0] === 0xff &&
+      data[1] === 0xd8 &&
+      data[2] === 0xff
+    );
+  if (contentType === "image/png")
+    return (
+      data.length >= 8 &&
+      data[0] === 0x89 &&
+      data[1] === 0x50 &&
+      data[2] === 0x4e &&
+      data[3] === 0x47 &&
+      data[4] === 0x0d &&
+      data[5] === 0x0a &&
+      data[6] === 0x1a &&
+      data[7] === 0x0a
+    );
+  return (
+    data.length >= 12 &&
+    fourCC(data, 0) === "RIFF" &&
+    fourCC(data, 8) === "WEBP"
+  );
+}
+
+function matchesSourceContentType(
+  format: unknown,
+  contentType: MomentsUploadSourceContentType
+) {
+  const normalizedFormat = String(format).toLowerCase();
+  return (
+    (contentType === "image/jpeg" &&
+      (normalizedFormat === "jpeg" ||
+        normalizedFormat === "jpg" ||
+        normalizedFormat === "image/jpeg")) ||
+    (contentType === "image/png" &&
+      (normalizedFormat === "png" || normalizedFormat === "image/png")) ||
+    (contentType === "image/webp" &&
+      (normalizedFormat === "webp" || normalizedFormat === "image/webp"))
+  );
+}
+
+function hasSafeImageInfo(
+  info: ImageInfo,
+  byteLength: number,
+  maxLongEdge = maxSourceDimension
+) {
+  const width = Number(info.width);
+  const height = Number(info.height);
+  const fileSize = Number(info.fileSize);
+  return (
+    Number.isSafeInteger(width) &&
+    Number.isSafeInteger(height) &&
+    width >= 1 &&
+    height >= 1 &&
+    width <= maxSourceDimension &&
+    height <= maxSourceDimension &&
+    width * height <= maxSourcePixels &&
+    Math.max(width, height) <= maxLongEdge &&
+    (!Number.isFinite(fileSize) || fileSize === byteLength)
+  );
+}
+
+async function normalizeFallbackSource(
+  bytes: ArrayBuffer,
+  sourceContentType: MomentsUploadSourceContentType,
+  images: RuntimeEnv["IMAGES"]
+) {
+  let sourceInfo: ImageInfo;
+  try {
+    sourceInfo = await images.info(new Response(bytes).body!);
+  } catch {
+    return null;
+  }
+  if (
+    !matchesSourceContentType(sourceInfo.format, sourceContentType) ||
+    !hasSafeImageInfo(sourceInfo, bytes.byteLength)
+  )
+    return null;
+
+  let response: Response;
+  try {
+    response = await (
+      await images
+        .input(new Response(bytes).body!)
+        .transform({
+          width: maxOutputLongEdge,
+          height: maxOutputLongEdge,
+          fit: "scale-down"
+        })
+        .output({ format: "image/webp", quality: 85, anim: false })
+    ).response();
+  } catch {
+    return null;
+  }
+  if (!response.ok || requestContentType(response) !== "image/webp")
+    return null;
+
+  let normalizedBytes: ArrayBuffer;
+  try {
+    normalizedBytes = await response.arrayBuffer();
+  } catch {
+    return null;
+  }
+  if (
+    normalizedBytes.byteLength < 1 ||
+    normalizedBytes.byteLength > maxImageBytes ||
+    !inspectWebp(normalizedBytes).valid
+  )
+    return null;
+
+  let normalizedInfo: ImageInfo;
+  try {
+    normalizedInfo = await images.info(new Response(normalizedBytes).body!);
+  } catch {
+    return null;
+  }
+  if (
+    !matchesSourceContentType(normalizedInfo.format, "image/webp") ||
+    !hasSafeImageInfo(
+      normalizedInfo,
+      normalizedBytes.byteLength,
+      maxOutputLongEdge
+    )
+  )
+    return null;
+  return normalizedBytes;
+}
+
 export default {
   async fetch(request, env: RuntimeEnv) {
     const pathname = new URL(request.url).pathname;
@@ -190,9 +363,12 @@ export default {
       if (
         !claims ||
         claims.purpose !== momentsUploadTokenPurpose ||
-        claims.v !== momentsUploadTokenVersion
+        (claims.v !== legacyMomentsUploadTokenVersion &&
+          claims.v !== momentsUploadTokenVersion)
       )
         return json({ error: "unauthorized" }, 401, headers);
+      const input = uploadInput(claims);
+      if (!input) return json({ error: "invalid_upload_mode" }, 400, headers);
 
       const match = sourceKeyPattern.exec(claims.quarantineKey);
       if (
@@ -202,29 +378,64 @@ export default {
         claims.uploadId !== match[3]
       )
         return json({ error: "invalid_upload_key" }, 400, headers);
-      if (
-        request.headers
-          .get("Content-Type")
-          ?.split(";", 1)[0]
-          .trim()
-          .toLowerCase() !== "image/webp"
-      )
+      if (requestContentType(request) !== input.sourceContentType)
         return json({ error: "normalized_webp_required" }, 415, headers);
 
       const body = await readBoundedBody(request);
       if ("error" in body)
         return json({ error: body.error }, body.status, headers);
-      const webp = inspectWebp(body.bytes);
-      if (!webp.valid) return json({ error: webp.reason }, 400, headers);
+      let normalizedBytes = body.bytes;
+      let object: R2Object | null;
+      if (input.normalization === "browser") {
+        const webp = inspectWebp(body.bytes);
+        if (!webp.valid) return json({ error: webp.reason }, 400, headers);
+        object = await env.BUCKET.put(claims.quarantineKey, normalizedBytes, {
+          onlyIf: { etagDoesNotMatch: "*" },
+          httpMetadata: { contentType: "image/webp" },
+          customMetadata: {
+            purpose: momentsUploadTokenPurpose,
+            uploadId: claims.uploadId
+          }
+        });
+      } else {
+        if (!hasExpectedSourceContainer(body.bytes, input.sourceContentType))
+          return json({ error: "invalid_source_container" }, 400, headers);
 
-      const object = await env.BUCKET.put(claims.quarantineKey, body.bytes, {
-        onlyIf: { etagDoesNotMatch: "*" },
-        httpMetadata: { contentType: "image/webp" },
-        customMetadata: {
-          purpose: momentsUploadTokenPurpose,
-          uploadId: claims.uploadId
+        const reservation = await env.BUCKET.put(
+          claims.quarantineKey,
+          new Uint8Array(),
+          {
+            onlyIf: { etagDoesNotMatch: "*" },
+            httpMetadata: { contentType: "application/octet-stream" },
+            customMetadata: {
+              purpose: momentsUploadTokenPurpose,
+              uploadId: claims.uploadId
+            }
+          }
+        );
+        if (!reservation)
+          return json({ error: "upload_already_exists" }, 409, headers);
+
+        const transformed = await normalizeFallbackSource(
+          body.bytes,
+          input.sourceContentType,
+          env.IMAGES
+        );
+        if (!transformed) {
+          await env.BUCKET.delete(claims.quarantineKey);
+          return json({ error: "source_normalization_failed" }, 400, headers);
         }
-      });
+        normalizedBytes = transformed;
+
+        object = await env.BUCKET.put(claims.quarantineKey, normalizedBytes, {
+          onlyIf: { etagMatches: reservation.etag },
+          httpMetadata: { contentType: "image/webp" },
+          customMetadata: {
+            purpose: momentsUploadTokenPurpose,
+            uploadId: claims.uploadId
+          }
+        });
+      }
       if (!object)
         return json({ error: "upload_already_exists" }, 409, headers);
       return json(
@@ -232,7 +443,7 @@ export default {
           uploadId: claims.uploadId,
           quarantineKey: claims.quarantineKey,
           etag: object.etag,
-          byteSize: body.bytes.byteLength
+          byteSize: normalizedBytes.byteLength
         },
         200,
         headers

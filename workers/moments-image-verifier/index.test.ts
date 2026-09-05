@@ -62,6 +62,10 @@ function webpVp8xBytes(flags: number) {
   return bytes;
 }
 
+function jpegBytes() {
+  return new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0]);
+}
+
 function createEnvironment(
   bytes = webpBytes(),
   infoOverrides: Record<string, unknown> = {},
@@ -71,6 +75,7 @@ function createEnvironment(
     ? new Map([[sourceKey, { bytes, etag: "source-etag" }]])
     : new Map<string, { bytes: Uint8Array; etag: string }>();
   const puts: string[] = [];
+  const putValues: ArrayBuffer[] = [];
   const bucket = {
     async get(key: string, options?: { onlyIf?: { etagMatches?: string } }) {
       const object = objects.get(key);
@@ -105,12 +110,30 @@ function createEnvironment(
           }
         : null;
     },
-    async put(key: string, value: ArrayBuffer) {
+    async put(
+      key: string,
+      value: ArrayBuffer,
+      options?: {
+        onlyIf?: { etagDoesNotMatch?: string; etagMatches?: string };
+      }
+    ) {
       puts.push(key);
-      if (objects.has(key)) return null;
+      putValues.push(value);
+      const current = objects.get(key);
+      if (options?.onlyIf?.etagDoesNotMatch === "*" && current) return null;
+      if (
+        options?.onlyIf?.etagMatches &&
+        options.onlyIf.etagMatches !== current?.etag
+      )
+        return null;
+      if (!options?.onlyIf?.etagMatches && current) return null;
       const stored = new Uint8Array(value);
-      objects.set(key, { bytes: stored, etag: "final-etag" });
-      return { key, size: stored.byteLength, etag: "final-etag" };
+      const etag = stored.byteLength === 0 ? "reservation-etag" : "final-etag";
+      objects.set(key, { bytes: stored, etag });
+      return { key, size: stored.byteLength, etag };
+    },
+    async delete(key: string) {
+      objects.delete(key);
     }
   };
   return {
@@ -127,7 +150,9 @@ function createEnvironment(
     },
     MOMENTS_APP_ORIGIN: "https://moments.example",
     MOMENTS_IMAGE_UPLOAD_TOKEN_SECRET: uploadTokenSecret,
-    puts
+    objects,
+    puts,
+    putValues
   };
 }
 
@@ -161,6 +186,69 @@ async function uploadToken(expiresAt = Math.floor(Date.now() / 1000) + 60) {
     },
     uploadTokenSecret
   );
+}
+
+async function serverNormalizationToken(
+  sourceContentType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg"
+) {
+  return createMomentsUploadToken(
+    {
+      v: 2,
+      purpose: "moments-image-upload",
+      ownerUserId: ownerId,
+      postId,
+      uploadId,
+      quarantineKey: sourceKey,
+      sourceContentType,
+      normalization: "server",
+      expiresAt: Math.floor(Date.now() / 1000) + 60
+    },
+    uploadTokenSecret
+  );
+}
+
+function serverNormalizationEnvironment(
+  sourceInfoOverrides: Record<string, unknown> = {}
+) {
+  const environment = createEnvironment(webpBytes(), {}, false);
+  const transformCalls: Array<{
+    transform: Record<string, unknown>;
+    output: Record<string, unknown>;
+  }> = [];
+  let infoCalls = 0;
+  environment.IMAGES = {
+    info: async () => {
+      infoCalls += 1;
+      if (infoCalls === 1)
+        return {
+          format: "jpeg",
+          fileSize: jpegBytes().byteLength,
+          width: 4032,
+          height: 3024,
+          ...sourceInfoOverrides
+        };
+      return {
+        format: "webp",
+        fileSize: webpBytes().byteLength,
+        width: 2048,
+        height: 1536
+      };
+    },
+    input: () => ({
+      transform: (transform: Record<string, unknown>) => ({
+        output: async (output: Record<string, unknown>) => {
+          transformCalls.push({ transform, output });
+          return {
+            response: async () =>
+              new Response(webpBytes(), {
+                headers: { "Content-Type": "image/webp" }
+              })
+          };
+        }
+      })
+    })
+  };
+  return { environment, transformCalls };
 }
 
 async function invokeUpload(
@@ -256,7 +344,7 @@ describe("Moments image verifier", () => {
     expect(changed.status).toBe(412);
   });
 
-  test("bounds uploads before R2 and accepts a valid capability", async () => {
+  test("accepts a legacy v1 capability as browser-normalized WebP", async () => {
     const environment = createEnvironment(webpBytes(), {}, false);
     const valid = await worker.fetch(
       new Request("https://verifier.example/upload", {
@@ -289,6 +377,165 @@ describe("Moments image verifier", () => {
       "Content-Type": "image/jpeg"
     });
     expect(wrongMime.status).toBe(415);
+  });
+
+  test("normalizes a valid fallback source before the WebP quarantine boundary", async () => {
+    const { environment, transformCalls } = serverNormalizationEnvironment();
+    const upload = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${await serverNormalizationToken()}`,
+          "Content-Type": "image/jpeg",
+          Origin: "https://moments.example"
+        },
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+
+    expect(upload.status).toBe(200);
+    expect(environment.puts).toEqual([sourceKey, sourceKey]);
+    expect(Array.from(new Uint8Array(environment.putValues[0]))).toEqual([]);
+    expect(Array.from(new Uint8Array(environment.putValues[1]))).toEqual(
+      Array.from(webpBytes())
+    );
+    expect(transformCalls).toEqual([
+      {
+        transform: { width: 2048, height: 2048, fit: "scale-down" },
+        output: { format: "image/webp", quality: 85, anim: false }
+      }
+    ]);
+
+    const verified = await invoke(
+      { sourceKey, finalKey, expectedEtag: "final-etag" },
+      environment
+    );
+    expect(verified.status).toBe(200);
+    expect(await verified.json()).toMatchObject({
+      finalKey,
+      contentType: "image/webp",
+      width: 2048,
+      height: 1536
+    });
+  });
+
+  test("rejects a replayed fallback capability before transforming it again", async () => {
+    const { environment, transformCalls } = serverNormalizationEnvironment();
+    const authorization = await serverNormalizationToken();
+    const headers = {
+      Authorization: `Bearer ${authorization}`,
+      "Content-Type": "image/jpeg",
+      Origin: "https://moments.example"
+    };
+
+    const first = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers,
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+    const replay = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers,
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toEqual({ error: "upload_already_exists" });
+    expect(transformCalls).toHaveLength(1);
+  });
+
+  test("rejects a v2 browser capability for a non-WebP source", async () => {
+    const environment = createEnvironment(webpBytes(), {}, false);
+    const invalidMode = await createMomentsUploadToken(
+      {
+        v: 2,
+        purpose: "moments-image-upload",
+        ownerUserId: ownerId,
+        postId,
+        uploadId,
+        quarantineKey: sourceKey,
+        sourceContentType: "image/jpeg",
+        normalization: "browser",
+        expiresAt: Math.floor(Date.now() / 1000) + 60
+      },
+      uploadTokenSecret
+    );
+    const response = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${invalidMode}`,
+          "Content-Type": "image/jpeg",
+          Origin: "https://moments.example"
+        },
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_upload_mode" });
+    expect(environment.puts).toEqual([]);
+  });
+
+  test("rejects corrupt, mismatched, and oversized fallback sources before quarantine", async () => {
+    const corruptedEnvironment = serverNormalizationEnvironment();
+    const corrupted = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${await serverNormalizationToken()}`,
+          "Content-Type": "image/jpeg",
+          Origin: "https://moments.example"
+        },
+        body: new Uint8Array([1, 2, 3])
+      }),
+      corruptedEnvironment.environment as never
+    );
+    expect(corrupted.status).toBe(400);
+    expect(corruptedEnvironment.environment.puts).toEqual([]);
+
+    const { environment } = serverNormalizationEnvironment({ width: 8001 });
+    const oversized = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${await serverNormalizationToken()}`,
+          "Content-Type": "image/jpeg",
+          Origin: "https://moments.example"
+        },
+        body: jpegBytes()
+      }),
+      environment as never
+    );
+    expect(oversized.status).toBe(400);
+    expect(environment.puts).toEqual([sourceKey]);
+    expect(environment.objects.has(sourceKey)).toBeFalse();
+
+    const mismatchedSource = serverNormalizationEnvironment({ format: "png" });
+    const mismatchedSourceResponse = await worker.fetch(
+      new Request("https://verifier.example/upload", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${await serverNormalizationToken()}`,
+          "Content-Type": "image/jpeg",
+          Origin: "https://moments.example"
+        },
+        body: jpegBytes()
+      }),
+      mismatchedSource.environment as never
+    );
+    expect(mismatchedSourceResponse.status).toBe(400);
+    expect(mismatchedSource.environment.puts).toEqual([sourceKey]);
+    expect(mismatchedSource.environment.objects.has(sourceKey)).toBeFalse();
   });
 
   test("accepts bounded bodies and rejects actual oversized streams", async () => {

@@ -1,8 +1,21 @@
 export const momentsUploadTokenPurpose = "moments-image-upload" as const;
-export const momentsUploadTokenVersion = 1 as const;
+export const legacyMomentsUploadTokenVersion = 1 as const;
+export const momentsUploadTokenVersion = 2 as const;
 
-export type MomentsUploadTokenClaims = {
-  v: typeof momentsUploadTokenVersion;
+export const momentsUploadSourceContentTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+] as const;
+
+export const momentsUploadNormalizations = ["browser", "server"] as const;
+
+export type MomentsUploadSourceContentType =
+  (typeof momentsUploadSourceContentTypes)[number];
+export type MomentsUploadNormalization =
+  (typeof momentsUploadNormalizations)[number];
+
+type MomentsUploadTokenBase = {
   purpose: typeof momentsUploadTokenPurpose;
   ownerUserId: string;
   postId: string;
@@ -10,6 +23,43 @@ export type MomentsUploadTokenClaims = {
   quarantineKey: string;
   expiresAt: number;
 };
+
+export type LegacyMomentsUploadTokenClaims = MomentsUploadTokenBase & {
+  v: typeof legacyMomentsUploadTokenVersion;
+};
+
+export type CurrentMomentsUploadTokenClaims = MomentsUploadTokenBase & {
+  v: typeof momentsUploadTokenVersion;
+  sourceContentType: MomentsUploadSourceContentType;
+  normalization: MomentsUploadNormalization;
+};
+
+export type MomentsUploadTokenClaims =
+  LegacyMomentsUploadTokenClaims | CurrentMomentsUploadTokenClaims;
+
+export type MomentsUploadTokenAuthorizationInput = MomentsUploadTokenBase & {
+  sourceContentType: MomentsUploadSourceContentType;
+  normalization: MomentsUploadNormalization;
+};
+
+export function createMomentsUploadTokenAuthorizationClaims(
+  input: MomentsUploadTokenAuthorizationInput
+): MomentsUploadTokenClaims {
+  if (input.normalization === "browser") {
+    if (input.sourceContentType !== "image/webp")
+      throw new Error("Browser normalization must upload WebP.");
+    return {
+      v: legacyMomentsUploadTokenVersion,
+      purpose: input.purpose,
+      ownerUserId: input.ownerUserId,
+      postId: input.postId,
+      uploadId: input.uploadId,
+      quarantineKey: input.quarantineKey,
+      expiresAt: input.expiresAt
+    };
+  }
+  return { v: momentsUploadTokenVersion, ...input };
+}
 
 function encode(value: string | Uint8Array) {
   const bytes =
@@ -79,11 +129,12 @@ export async function verifyMomentsUploadToken(
   const encodedPayload = decode(payload);
   if (!encodedPayload) return null;
   try {
-    const claims = JSON.parse(
-      new TextDecoder().decode(encodedPayload)
-    ) as Partial<MomentsUploadTokenClaims>;
+    const claims = JSON.parse(new TextDecoder().decode(encodedPayload)) as
+      | Partial<LegacyMomentsUploadTokenClaims>
+      | Partial<CurrentMomentsUploadTokenClaims>;
     if (
-      claims.v !== momentsUploadTokenVersion ||
+      (claims.v !== legacyMomentsUploadTokenVersion &&
+        claims.v !== momentsUploadTokenVersion) ||
       claims.purpose !== momentsUploadTokenPurpose ||
       typeof claims.ownerUserId !== "string" ||
       typeof claims.postId !== "string" ||
@@ -93,7 +144,18 @@ export async function verifyMomentsUploadToken(
       claims.expiresAt <= now
     )
       return null;
-    return claims as MomentsUploadTokenClaims;
+    if (claims.v === legacyMomentsUploadTokenVersion)
+      return claims as LegacyMomentsUploadTokenClaims;
+    if (
+      !momentsUploadSourceContentTypes.includes(
+        claims.sourceContentType as MomentsUploadSourceContentType
+      ) ||
+      !momentsUploadNormalizations.includes(
+        claims.normalization as MomentsUploadNormalization
+      )
+    )
+      return null;
+    return claims as CurrentMomentsUploadTokenClaims;
   } catch {
     return null;
   }

@@ -1,9 +1,66 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import {
+  MomentImageError,
   momentsImageProcessingConfig,
+  normalizeMomentImage,
   outputDimensions,
   readMomentImageHeader
 } from "./moments-image-normalization";
+
+const browserGlobals = ["OffscreenCanvas", "createImageBitmap", "Image"];
+const originalGlobals = new Map(
+  browserGlobals.map((name) => [
+    name,
+    Object.getOwnPropertyDescriptor(globalThis, name)
+  ])
+);
+const originalCreateObjectURL = Object.getOwnPropertyDescriptor(
+  URL,
+  "createObjectURL"
+);
+const originalRevokeObjectURL = Object.getOwnPropertyDescriptor(
+  URL,
+  "revokeObjectURL"
+);
+
+let canvasBlobs: Blob[] = [];
+let canvasRequests: Array<{ type?: string; quality?: number }> = [];
+let drawImage = mock(() => undefined);
+
+function setGlobal(name: string, value: unknown) {
+  Object.defineProperty(globalThis, name, {
+    configurable: true,
+    value,
+    writable: true
+  });
+}
+
+function restoreProperty(
+  target: object,
+  name: string,
+  descriptor: PropertyDescriptor | undefined
+) {
+  if (descriptor) Object.defineProperty(target, name, descriptor);
+  else Reflect.deleteProperty(target, name);
+}
+
+class TestOffscreenCanvas {
+  width = 0;
+  height = 0;
+
+  getContext() {
+    return {
+      imageSmoothingEnabled: false,
+      imageSmoothingQuality: "low",
+      drawImage
+    };
+  }
+
+  async convertToBlob(options: { type?: string; quality?: number }) {
+    canvasRequests.push(options);
+    return canvasBlobs.shift() ?? new Blob(["webp"], { type: "image/webp" });
+  }
+}
 
 function pngHeader(width: number, height: number) {
   const bytes = new Uint8Array(24);
@@ -39,6 +96,54 @@ function webpVp8xHeader(width: number, height: number) {
   return bytes;
 }
 
+function installCanvas(...blobs: Blob[]) {
+  canvasBlobs = [...blobs];
+  setGlobal("OffscreenCanvas", TestOffscreenCanvas);
+}
+
+function installFallbackDecoder(
+  width: number,
+  height: number,
+  shouldFail = false
+) {
+  setGlobal(
+    "Image",
+    class {
+      naturalWidth = width;
+      naturalHeight = height;
+      onerror: (() => void) | null = null;
+      onload: (() => void) | null = null;
+
+      set src(_value: string) {
+        queueMicrotask(() => {
+          if (shouldFail) this.onerror?.();
+          else this.onload?.();
+        });
+      }
+    }
+  );
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: mock(() => "blob:moment-source"),
+    writable: true
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: mock(() => undefined),
+    writable: true
+  });
+}
+
+afterEach(() => {
+  for (const name of browserGlobals)
+    restoreProperty(globalThis, name, originalGlobals.get(name));
+  restoreProperty(URL, "createObjectURL", originalCreateObjectURL);
+  restoreProperty(URL, "revokeObjectURL", originalRevokeObjectURL);
+  canvasBlobs = [];
+  canvasRequests = [];
+  drawImage = mock(() => undefined);
+});
+
 describe("Moments image normalization guards", () => {
   test("reads PNG and WebP dimensions without trusting MIME or filename", () => {
     expect(readMomentImageHeader(pngHeader(800, 600))).toEqual({
@@ -65,5 +170,136 @@ describe("Moments image normalization guards", () => {
     expect(momentsImageProcessingConfig.maxSourcePixels).toBe(40_000_000);
     expect(momentsImageProcessingConfig.maxSourceDimension).toBe(8000);
     expect(momentsImageProcessingConfig.outputType).toBe("image/webp");
+  });
+
+  test("normalizes a valid image with EXIF-aware decoding when WebP encoding works", async () => {
+    installCanvas(
+      new Blob(["probe"], { type: "image/webp" }),
+      new Blob(["normalized"], { type: "image/webp" })
+    );
+    const close = mock(() => undefined);
+    const createBitmap = mock(async () => ({
+      width: 300,
+      height: 400,
+      close
+    }));
+    setGlobal("createImageBitmap", createBitmap);
+    const source = new File([pngHeader(400, 300)], "portrait.jpg", {
+      type: "image/jpeg"
+    });
+
+    const normalized = await normalizeMomentImage(source);
+
+    expect(normalized).toMatchObject({
+      normalization: "browser",
+      contentType: "image/webp",
+      width: 300,
+      height: 400
+    });
+    expect(createBitmap).toHaveBeenCalledWith(source, {
+      imageOrientation: "from-image"
+    });
+    expect(canvasRequests).toEqual([
+      {
+        type: "image/webp",
+        quality: momentsImageProcessingConfig.outputQuality
+      },
+      {
+        type: "image/webp",
+        quality: momentsImageProcessingConfig.outputQuality
+      }
+    ]);
+    expect(drawImage).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test("uses the server fallback when the selected canvas cannot encode WebP", async () => {
+    installCanvas(new Blob(["png fallback"], { type: "image/png" }));
+    const createBitmap = mock(async () => ({ width: 1, height: 1 }));
+    setGlobal("createImageBitmap", createBitmap);
+    installFallbackDecoder(300, 400);
+    const source = new File([pngHeader(400, 300)], "portrait.png", {
+      type: "image/png"
+    });
+
+    const normalized = await normalizeMomentImage(source);
+
+    expect(normalized).toEqual({
+      normalization: "server",
+      file: source,
+      width: 300,
+      height: 400,
+      byteSize: source.size,
+      contentType: "image/png"
+    });
+    expect(createBitmap).not.toHaveBeenCalled();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:moment-source");
+  });
+
+  test("falls back when createImageBitmap is unavailable after validating the source", async () => {
+    installCanvas(new Blob(["probe"], { type: "image/webp" }));
+    setGlobal("createImageBitmap", undefined);
+    installFallbackDecoder(300, 400);
+    const source = new File([pngHeader(400, 300)], "portrait.png", {
+      type: "image/png"
+    });
+
+    const normalized = await normalizeMomentImage(source);
+
+    expect(normalized).toMatchObject({
+      normalization: "server",
+      contentType: "image/png",
+      width: 300,
+      height: 400
+    });
+  });
+
+  test("keeps a valid-header decode failure as a clear image error", async () => {
+    installCanvas(new Blob(["probe"], { type: "image/webp" }));
+    setGlobal(
+      "createImageBitmap",
+      mock(async () => Promise.reject())
+    );
+    installFallbackDecoder(0, 0, true);
+
+    await expect(
+      normalizeMomentImage(
+        new File([pngHeader(400, 300)], "corrupt.png", { type: "image/png" })
+      )
+    ).rejects.toEqual(
+      new MomentImageError(
+        "The selected file could not be decoded as an image."
+      )
+    );
+  });
+
+  test("rejects corrupt sources and keeps byte and dimension guards before decoding", async () => {
+    const createBitmap = mock(async () => ({ width: 1, height: 1 }));
+    setGlobal("createImageBitmap", createBitmap);
+
+    await expect(
+      normalizeMomentImage(new File(["not an image"], "photo.jpg"))
+    ).rejects.toEqual(
+      new MomentImageError("Choose a valid JPEG, PNG, or WebP image.")
+    );
+    await expect(
+      normalizeMomentImage(
+        new File(
+          [new Uint8Array(momentsImageProcessingConfig.maxSourceBytes + 1)],
+          "large.png",
+          { type: "image/png" }
+        )
+      )
+    ).rejects.toEqual(
+      new MomentImageError("Images must be smaller than 10 MB.")
+    );
+    await expect(
+      normalizeMomentImage(
+        new File([pngHeader(8001, 1)], "wide.png", { type: "image/png" })
+      )
+    ).rejects.toEqual(
+      new MomentImageError("Source image dimensions are not supported.")
+    );
+    expect(createBitmap).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildFinalKey,
   buildQuarantineKey,
+  communityImageRequestSchema,
   parseOwnedQuarantineKey
 } from "./storage-policy";
 
@@ -10,6 +11,31 @@ const postId = "22222222-2222-4222-8222-222222222222";
 const uploadId = "33333333-3333-4333-8333-333333333333";
 
 describe("Moments upload key policy", () => {
+  test("authorizes non-WebP source bytes only for server normalization", () => {
+    expect(
+      communityImageRequestSchema.parse({ action: "authorize", postId })
+    ).toMatchObject({
+      sourceContentType: "image/webp",
+      normalization: "browser"
+    });
+    expect(
+      communityImageRequestSchema.safeParse({
+        action: "authorize",
+        postId,
+        sourceContentType: "image/jpeg",
+        normalization: "browser"
+      }).success
+    ).toBe(false);
+    expect(
+      communityImageRequestSchema.safeParse({
+        action: "authorize",
+        postId,
+        sourceContentType: "image/jpeg",
+        normalization: "server"
+      }).success
+    ).toBe(true);
+  });
+
   test("derives a final key only from the authenticated owner and post", () => {
     const quarantine = buildQuarantineKey(userId, postId, uploadId);
     expect(parseOwnedQuarantineKey(quarantine, userId, postId)).toBe(
