@@ -118,6 +118,10 @@ let pendingRpc: (() => void) | null = null;
 const pageCalls: Array<unknown> = [];
 const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
+async function settleSipExit() {
+  await new Promise((resolve) => setTimeout(resolve, 280));
+}
+
 const auth = {
   getSession: mock(async () => ({ data: { session: null }, error: null })),
   signInAnonymously: mock(async () => ({
@@ -597,6 +601,15 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
   ).toBeTruthy();
   expect(pageCalls).toHaveLength(1);
   expect(auth.signInAnonymously).not.toHaveBeenCalled();
+
+  const actionLabels = Array.from(
+    view.getByRole("group", { name: "Sip actions" }).querySelectorAll("button")
+  ).map((button) => button.getAttribute("aria-label"));
+  expect(actionLabels).toEqual([
+    "Skip this Moment",
+    "Must Try this Moment",
+    "Like this Moment"
+  ]);
 });
 
 test.serial(
@@ -620,8 +633,9 @@ test.serial(
       name: "like_community_post",
       args: { p_post_id: firstMoment.id }
     });
-    expect(view.getAllByRole("status")).toHaveLength(1);
+    expect(view.getAllByRole("status")).toHaveLength(2);
     expect(view.getByRole("main").className).toContain("md:items-start");
+    await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
     ).toBeTruthy();
@@ -632,10 +646,17 @@ test.serial(
     );
     await act(async () => await Promise.resolve());
 
-    expect(rpcCalls.at(-1)).toEqual({
-      name: "save_community_post_must_try",
-      args: { p_post_id: secondMoment.id }
-    });
+    expect(rpcCalls.slice(-2)).toEqual([
+      {
+        name: "save_community_post_must_try",
+        args: { p_post_id: secondMoment.id }
+      },
+      {
+        name: "like_community_post",
+        args: { p_post_id: secondMoment.id }
+      }
+    ]);
+    await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 3" })
     ).toBeTruthy();
@@ -676,11 +697,13 @@ test.serial(
       view.getByRole("region", { name: "Sip Mode, Moment 1" }),
       { key: "ArrowLeft" }
     );
+    await act(settleSipExit);
     fireEvent.keyDown(
       view.getByRole("region", { name: "Sip Mode, Moment 2" }),
       { key: "ArrowLeft" }
     );
     await act(async () => await Promise.resolve());
+    await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 3" })
     ).toBeTruthy();
@@ -708,6 +731,7 @@ test.serial(
       { key: "ArrowLeft" }
     );
     await act(async () => await Promise.resolve());
+    await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
     ).toBeTruthy();
@@ -742,10 +766,12 @@ test.serial("preserves focus through a pagination loading gap", async () => {
   fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 1" }), {
     key: "ArrowLeft"
   });
+  await act(settleSipExit);
   fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 2" }), {
     key: "ArrowLeft"
   });
   await act(async () => await Promise.resolve());
+  await act(settleSipExit);
 
   const loading = view.getByText("Loading more Moments…");
   expect(loading).toBe(document.activeElement as HTMLElement);
@@ -797,11 +823,13 @@ test.serial(
       view.getByRole("region", { name: "Sip Mode, Moment 1" }),
       { key: "ArrowLeft" }
     );
+    await act(settleSipExit);
     fireEvent.keyDown(
       view.getByRole("region", { name: "Sip Mode, Moment 2" }),
       { key: "ArrowLeft" }
     );
     await act(async () => await Promise.resolve());
+    await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 3" })
     ).toBeTruthy();
@@ -840,6 +868,7 @@ test.serial(
       pointerId: 1
     });
     await act(async () => await Promise.resolve());
+    await act(settleSipExit);
 
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
@@ -877,6 +906,61 @@ test.serial("keeps metadata touch scrolling out of Sip actions", async () => {
   expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
   expect(rpcCalls).toHaveLength(0);
 });
+
+test.serial("does not commit a below-threshold swipe", async () => {
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  const surface = view.container.querySelector<HTMLElement>(
+    "[data-sip-gesture-surface]"
+  );
+  fireEvent.pointerDown(surface!, {
+    button: 0,
+    clientX: 200,
+    clientY: 200,
+    isPrimary: true,
+    pointerId: 1
+  });
+  fireEvent.pointerMove(surface!, {
+    clientX: 220,
+    clientY: 200,
+    isPrimary: true,
+    pointerId: 1
+  });
+  fireEvent.pointerUp(surface!, {
+    clientX: 220,
+    clientY: 200,
+    isPrimary: true,
+    pointerId: 1
+  });
+  await act(async () => await Promise.resolve());
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
+  expect(rpcCalls).toHaveLength(0);
+});
+
+test("supports a deliberate horizontal flick without accepting a tiny flick", () => {
+  expect(resolveSipAction(-32, 0, 400, 600, -0.8, 0)).toBe("skip");
+  expect(resolveSipAction(10, 0, 400, 600, 0.8, 0)).toBeNull();
+});
+
+test.serial(
+  "keeps a committed action on screen until its exit completes",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
+    await act(async () => await Promise.resolve());
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+    await act(settleSipExit);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+  }
+);
 
 test.serial(
   "ignores an action completion from an exited Sip session",
@@ -979,6 +1063,7 @@ test.serial(
       }
     );
     await act(async () => await Promise.resolve());
+    await act(settleSipExit);
 
     const backButton = view.getByRole("button", { name: "Back to Gallery" });
     expect(backButton).toBe(document.activeElement as HTMLElement);
