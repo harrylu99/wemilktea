@@ -6,14 +6,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  begin
-    if coalesce((event -> 'user' ->> 'is_anonymous')::boolean, false) is true then
-      return '{}'::jsonb;
-    end if;
-  exception
-    when invalid_text_representation then
-      null;
-  end;
+  if event #> '{user,is_anonymous}' = 'true'::jsonb then
+    return '{}'::jsonb;
+  end if;
 
   return jsonb_build_object(
     'error',
