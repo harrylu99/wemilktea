@@ -259,6 +259,7 @@ export function SipMode({
   onEnsureLike,
   onEnsureMustTry,
   onOptimisticReaction,
+  onReactionSettled,
   onRollbackReaction,
   onExit,
   onLoadMore
@@ -275,6 +276,7 @@ export function SipMode({
     action: SipReactionAction,
     previous: SipReactionSnapshot
   ) => SipReactionOperation;
+  onReactionSettled: (operation: SipReactionOperation) => void;
   onRollbackReaction: (operation: SipReactionOperation) => void;
   onExit: () => void;
   onLoadMore: () => Promise<void>;
@@ -309,6 +311,7 @@ export function SipMode({
   const [pending, setPending] = useState<SipAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState(false);
+  const feedbackSequenceRef = useRef(0);
   const moment = moments[index] ?? null;
   const hadMomentRef = useRef(Boolean(moment));
   const dragProgress = Math.min(
@@ -426,6 +429,7 @@ export function SipMode({
       setPending(action);
       setFeedback(null);
       setFeedbackError(false);
+      const feedbackSequence = ++feedbackSequenceRef.current;
 
       const operation =
         action === "skip"
@@ -450,33 +454,45 @@ export function SipMode({
       );
 
       if (operation) {
-        const persist =
+        const persist = Promise.resolve().then(() =>
           action === "like"
             ? onEnsureLike(operation.postId)
-            : onEnsureMustTry(operation.postId);
+            : onEnsureMustTry(operation.postId)
+        );
         void persist
           .then((result) => {
             if (result.ok) {
-              if (mountedRef.current) {
-                setFeedback(`${actionLabel(action)} saved`);
+              if (
+                mountedRef.current &&
+                feedbackSequenceRef.current === feedbackSequence
+              ) {
+                setFeedback(null);
+                setFeedbackError(false);
               }
               return;
             }
             onRollbackReaction(operation);
-            if (mountedRef.current) {
+            if (
+              mountedRef.current &&
+              feedbackSequenceRef.current === feedbackSequence
+            ) {
               setFeedback(result.message);
               setFeedbackError(true);
             }
           })
           .catch(() => {
             onRollbackReaction(operation);
-            if (mountedRef.current) {
+            if (
+              mountedRef.current &&
+              feedbackSequenceRef.current === feedbackSequence
+            ) {
               setFeedback(
                 `${actionLabel(action)} wasn’t saved. Please try again.`
               );
               setFeedbackError(true);
             }
-          });
+          })
+          .finally(() => onReactionSettled(operation));
       }
     },
     [
@@ -486,6 +502,7 @@ export function SipMode({
       onEnsureLike,
       onEnsureMustTry,
       onOptimisticReaction,
+      onReactionSettled,
       onRollbackReaction
     ]
   );

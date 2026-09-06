@@ -653,7 +653,7 @@ test.serial(
     expect(
       view.container.querySelector('[data-sip-effect="like"]')
     ).toBeTruthy();
-    expect(view.getAllByRole("status")).toHaveLength(2);
+    expect(view.getAllByRole("status")).toHaveLength(1);
     expect(view.getByRole("main").className).toContain("items-center");
     await act(settleSipExit);
     expect(
@@ -827,6 +827,124 @@ test.serial(
     ).toHaveLength(2);
     expect(view.getByText("3")).toBeTruthy();
     expect(view.getByText("1")).toBeTruthy();
+  }
+);
+
+test.serial(
+  "keeps the newest Sip failure visible after an older success",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    fireEvent.click(view.getByRole("button", { name: "Must Try this Moment" }));
+    await act(async () => await Promise.resolve());
+    expect(pendingRpcs).toHaveLength(2);
+
+    pendingRpcs[1]!(false);
+    await act(async () => await Promise.resolve());
+    expect(view.getByRole("alert").textContent).toContain(
+      "Must Try could not be saved"
+    );
+    const errorClass = view.getByRole("alert").className;
+
+    pendingRpcs[0]!(true);
+    await act(async () => await Promise.resolve());
+    expect(view.getByRole("alert").textContent).toContain(
+      "Must Try could not be saved"
+    );
+    expect(view.getByRole("alert").className).toBe(errorClass);
+    expect(view.queryByText("Like saved")).toBeNull();
+  }
+);
+
+test.serial(
+  "disables only the pending Sip post in Gallery and re-enables it on success",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+
+    const firstLike = view
+      .getByText(firstMoment.caption)
+      .closest("article")
+      ?.querySelector("button") as HTMLButtonElement;
+    const secondLike = view
+      .getByText(secondMoment.product.text!)
+      .closest("article")
+      ?.querySelector("button") as HTMLButtonElement;
+    expect(firstLike.disabled).toBe(true);
+    expect(secondLike.disabled).toBe(false);
+
+    pendingRpcs[0]!(true);
+    await act(async () => await Promise.resolve());
+    expect(firstLike.disabled).toBe(false);
+    expect(firstLike.getAttribute("aria-label")).toBe("Unlike this Moment");
+  }
+);
+
+test.serial(
+  "rolls back a failed Sip Like and releases its Gallery control",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+
+    const firstCard = view.getByText(firstMoment.caption).closest("article")!;
+    const firstLike = firstCard.querySelector("button") as HTMLButtonElement;
+    expect(firstLike.disabled).toBe(true);
+    failRpc = true;
+    pendingRpcs[0]!();
+    await act(async () => await Promise.resolve());
+    expect(firstLike.disabled).toBe(false);
+    expect(firstLike.getAttribute("aria-label")).toBe("Like this Moment");
+  }
+);
+
+test.serial(
+  "protects a pending Sip Must Try from a Gallery Unlike",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Must Try this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+
+    const firstUnlike = view
+      .getByText(firstMoment.caption)
+      .closest("article")
+      ?.querySelector("button") as HTMLButtonElement;
+    expect(firstUnlike.disabled).toBe(true);
+    pendingRpcs[0]!(true);
+    await act(async () => await Promise.resolve());
+    expect(firstUnlike.disabled).toBe(false);
+    expect(firstUnlike.getAttribute("aria-label")).toBe("Unlike this Moment");
   }
 );
 
