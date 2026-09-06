@@ -71,6 +71,8 @@ function SipCard({
   isPreview = false,
   isExiting = false,
   isDragging = false,
+  feedbackProgress = 0,
+  previewProgress = 0,
   onTransitionEnd
 }: {
   moment: PublicMoment;
@@ -80,6 +82,8 @@ function SipCard({
   isPreview?: boolean;
   isExiting?: boolean;
   isDragging?: boolean;
+  feedbackProgress?: number;
+  previewProgress?: number;
   onTransitionEnd?: () => void;
 }) {
   const [imageError, setImageError] = useState(false);
@@ -91,6 +95,8 @@ function SipCard({
   const hasDetails = Boolean(product || location || author || caption);
   const rotation = Math.max(-10, Math.min(10, dragX / 24));
   const vector = isExiting && dragAction ? exitVector(dragAction) : null;
+  const normalizedFeedbackProgress = Math.max(0, Math.min(1, feedbackProgress));
+  const normalizedPreviewProgress = Math.max(0, Math.min(1, previewProgress));
 
   useEffect(() => setImageError(false), [moment.id]);
 
@@ -101,7 +107,7 @@ function SipCard({
       className={`sip-card relative flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xl md:max-h-[calc(100dvh-13rem)] md:flex-row ${isPreview ? "sip-card-preview" : "z-10"} ${isExiting ? "sip-card-exiting" : ""} ${isDragging ? "sip-card-dragging" : ""}`}
       style={{
         transform: isPreview
-          ? "scale(0.97) translateY(0.5rem)"
+          ? `scale(${0.97 + normalizedPreviewProgress * 0.03}) translateY(${(1 - normalizedPreviewProgress) * 0.5}rem)`
           : vector
             ? `translate3d(${vector.x}, ${vector.y}, 0) rotate(${rotation}deg)`
             : `translate3d(${dragX}px, ${dragY}px, 0) rotate(${rotation}deg)`
@@ -133,6 +139,10 @@ function SipCard({
           <div
             aria-hidden="true"
             className="sip-drag-feedback pointer-events-none absolute inset-x-0 top-1/2 mx-auto grid size-16 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/65 text-4xl font-semibold text-white shadow-lg"
+            style={{
+              opacity: 0.18 + normalizedFeedbackProgress * 0.7,
+              transform: `translateY(-50%) scale(${0.82 + normalizedFeedbackProgress * 0.18})`
+            }}
           >
             {actionIcon(dragAction)}
           </div>
@@ -148,7 +158,8 @@ function SipCard({
             moment.product.id &&
             moment.product.slug &&
             moment.product.name &&
-            moment.product.brandSlug ? (
+            moment.product.brandSlug &&
+            !isPreview ? (
               <Link
                 className="break-words text-2xl font-semibold leading-8 hover:underline"
                 to={`/drinks/${encodeURIComponent(moment.product.brandSlug)}/${encodeURIComponent(moment.product.slug)}`}
@@ -164,7 +175,8 @@ function SipCard({
           {location ? (
             moment.location.id &&
             moment.location.slug &&
-            moment.location.name ? (
+            moment.location.name &&
+            !isPreview ? (
               <Link
                 className="w-fit break-words text-sm leading-5 text-muted-foreground hover:underline"
                 to={`/stores/${encodeURIComponent(moment.location.slug)}`}
@@ -230,6 +242,8 @@ export function SipMode({
     startTime: number;
   } | null>(null);
   const exitTimerRef = useRef<number | null>(null);
+  const exitActionRef = useRef<SipAction | null>(null);
+  const exitCompletedRef = useRef(false);
   const pendingRef = useRef(false);
   const mountedRef = useRef(true);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -245,9 +259,20 @@ export function SipMode({
   const [feedbackError, setFeedbackError] = useState(false);
   const moment = moments[index] ?? null;
   const hadMomentRef = useRef(Boolean(moment));
+  const dragProgress = Math.min(
+    1,
+    Math.max(Math.abs(drag.x) / 160, Math.max(0, -drag.y) / 120)
+  );
 
   const finishExit = useCallback(() => {
-    if (!mountedRef.current) return;
+    if (
+      !mountedRef.current ||
+      exitActionRef.current === null ||
+      exitCompletedRef.current
+    ) {
+      return;
+    }
+    exitCompletedRef.current = true;
     if (exitTimerRef.current !== null) {
       window.clearTimeout(exitTimerRef.current);
       exitTimerRef.current = null;
@@ -255,6 +280,7 @@ export function SipMode({
     setExitAction(null);
     setPending(null);
     pendingRef.current = false;
+    exitActionRef.current = null;
     setDrag({ action: null, x: 0, y: 0 });
     onAdvance();
   }, [onAdvance]);
@@ -337,6 +363,7 @@ export function SipMode({
   const clearPointer = useCallback(() => {
     pointerRef.current = null;
     setDragging(false);
+    if (pendingRef.current || exitActionRef.current !== null) return;
     setDrag({ action: null, x: 0, y: 0 });
   }, []);
 
@@ -372,6 +399,8 @@ export function SipMode({
       setFeedback(
         action === "skip" ? "Skipped" : `${actionLabel(action)} saved`
       );
+      exitActionRef.current = action;
+      exitCompletedRef.current = false;
       setExitAction(action);
       const reduceMotion =
         typeof window !== "undefined" &&
@@ -529,7 +558,7 @@ export function SipMode({
           {moments[index + 1] ? (
             <div
               aria-hidden="true"
-              className="absolute inset-0 flex items-center justify-center"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
             >
               <SipCard
                 isPreview
@@ -537,6 +566,7 @@ export function SipMode({
                 dragAction={null}
                 dragX={0}
                 dragY={0}
+                previewProgress={exitAction ? 1 : dragProgress}
               />
             </div>
           ) : null}
@@ -547,6 +577,7 @@ export function SipMode({
             dragY={drag.y}
             isExiting={exitAction !== null}
             isDragging={dragging}
+            feedbackProgress={exitAction ? 1 : dragProgress}
             onTransitionEnd={finishExit}
           />
         </div>
@@ -567,7 +598,7 @@ export function SipMode({
           <button
             aria-label="Must Try this Moment"
             aria-pressed={moment.mustTryByMe}
-            className="sip-action-button rounded-full border border-border bg-card text-xl text-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
             disabled={pending !== null}
             type="button"
             onClick={() => void runAction("must_try")}
@@ -575,9 +606,7 @@ export function SipMode({
             <span aria-hidden="true">{actionIcon("must_try")}</span>
           </button>
           <button
-            aria-label={
-              moment.likedByMe ? "Unlike this Moment" : "Like this Moment"
-            }
+            aria-label="Like this Moment"
             aria-pressed={moment.likedByMe}
             className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             disabled={pending !== null}

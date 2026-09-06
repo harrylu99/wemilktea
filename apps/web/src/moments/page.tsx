@@ -635,6 +635,9 @@ export function MomentsPage() {
     async (postId: string): Promise<SipActionResult> => {
       const currentMoment = moments.find((item) => item.id === postId);
       if (!currentMoment) return { ok: true };
+      if (currentMoment.mustTryByMe && currentMoment.likedByMe) {
+        return { ok: true };
+      }
       if (!supabase) {
         return {
           ok: false,
@@ -646,29 +649,14 @@ export function MomentsPage() {
       if (identity.error) {
         return { ok: false, message: "Must Try is unavailable right now." };
       }
-      if (!currentMoment.mustTryByMe) {
-        const { error } = await supabase.rpc("save_community_post_must_try", {
-          p_post_id: postId
-        });
-        if (error) {
-          return {
-            ok: false,
-            message: "Must Try could not be saved. Please try again."
-          };
-        }
-      }
-
-      if (!currentMoment.likedByMe) {
-        const { error } = await supabase.rpc("like_community_post", {
-          p_post_id: postId
-        });
-        if (error) {
-          return {
-            ok: false,
-            message:
-              "Must Try was saved, but Like could not be saved. Please try again."
-          };
-        }
+      const { error } = await supabase.rpc("save_community_post_must_try", {
+        p_post_id: postId
+      });
+      if (error) {
+        return {
+          ok: false,
+          message: "Must Try could not be saved. Please try again."
+        };
       }
 
       setMoments((current) =>

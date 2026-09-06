@@ -165,6 +165,9 @@ body {
 
 .sip-drag-feedback {
   opacity: 0.88;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
 
 .discovery-card:focus-visible {
@@ -189,7 +192,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .discovery-card,
   .discovery-card-image,
-  .sip-card {
+  .sip-card,
+  .sip-drag-feedback {
     transition: none;
   }
 

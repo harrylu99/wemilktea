@@ -646,16 +646,10 @@ test.serial(
     );
     await act(async () => await Promise.resolve());
 
-    expect(rpcCalls.slice(-2)).toEqual([
-      {
-        name: "save_community_post_must_try",
-        args: { p_post_id: secondMoment.id }
-      },
-      {
-        name: "like_community_post",
-        args: { p_post_id: secondMoment.id }
-      }
-    ]);
+    expect(rpcCalls.at(-1)).toEqual({
+      name: "save_community_post_must_try",
+      args: { p_post_id: secondMoment.id }
+    });
     await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 3" })
@@ -934,6 +928,10 @@ test.serial("does not commit a below-threshold swipe", async () => {
     pointerId: 1
   });
   await act(async () => await Promise.resolve());
+  fireEvent.transitionEnd(
+    view.getByRole("article", { name: "Current Moment" })
+  );
+  await act(settleSipExit);
   expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
   expect(rpcCalls).toHaveLength(0);
 });
@@ -954,6 +952,13 @@ test.serial(
     await act(async () => await Promise.resolve());
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+    fireEvent.transitionEnd(
+      view.getByRole("article", { name: "Current Moment" })
+    );
+    await act(settleSipExit);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
     ).toBeTruthy();
     await act(settleSipExit);
     expect(
