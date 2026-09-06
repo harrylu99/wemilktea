@@ -47,3 +47,20 @@ Read this file and the relevant document in `docs/` before significant implement
 - Keep work within the approved public discovery flows and internal operations portal described in `docs/PRD.md`.
 - Do not add hypothetical V2 features, generalized infrastructure, or speculative automation.
 - Create a reusable custom AI skill only after its workflow has been exercised and is demonstrably repeated; this document and the repository docs are the initial working agreement.
+
+## Pull request workflow
+
+For authorized implementation tickets:
+
+- After implementation is complete and required validation passes,
+  push the feature/fix branch.
+- Automatically create a GitHub Draft PR against `main`.
+- Creating or updating a Draft PR does not require additional user approval.
+- Reference the Jira ticket in the PR title/body.
+- Do not request a Codex GitHub review.
+- Do not mark the PR ready for review unless explicitly instructed.
+- Never merge the PR without explicit team-lead authorization.
+- Never deploy production unless explicitly authorized.
+- If required validation fails, do not create the PR unless the failure is
+  explicitly documented as pre-existing/unrelated and the task instructions
+  permit proceeding.

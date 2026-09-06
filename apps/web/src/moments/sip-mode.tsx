@@ -51,16 +51,40 @@ function actionLabel(action: SipAction) {
   return "Must Try";
 }
 
+function actionIcon(action: SipAction, pressed = false) {
+  if (action === "skip") return "×";
+  if (action === "must_try") return "★";
+  return pressed ? "♥" : "♡";
+}
+
+function exitVector(action: SipAction) {
+  if (action === "skip") return { x: "-120vw", y: "0px" };
+  if (action === "like") return { x: "120vw", y: "0px" };
+  return { x: "0px", y: "-120vh" };
+}
+
 function SipCard({
   moment,
   dragAction,
   dragX,
-  dragY
+  dragY,
+  isPreview = false,
+  isExiting = false,
+  isDragging = false,
+  feedbackProgress = 0,
+  previewProgress = 0,
+  onTransitionEnd
 }: {
   moment: PublicMoment;
   dragAction: SipAction | null;
   dragX: number;
   dragY: number;
+  isPreview?: boolean;
+  isExiting?: boolean;
+  isDragging?: boolean;
+  feedbackProgress?: number;
+  previewProgress?: number;
+  onTransitionEnd?: () => void;
 }) {
   const [imageError, setImageError] = useState(false);
   const location = publicLocation(moment);
@@ -69,27 +93,43 @@ function SipCard({
   const caption = moment.caption.trim();
   const relativeTime = author ? relativeMomentTime(moment.submittedAt) : null;
   const hasDetails = Boolean(product || location || author || caption);
-  const dragDistance = Math.min(28, Math.max(-28, dragX * 0.08));
-  const dragVerticalDistance = Math.min(28, Math.max(-28, dragY * 0.08));
+  const rotation = Math.max(-10, Math.min(10, dragX / 24));
+  const vector = isExiting && dragAction ? exitVector(dragAction) : null;
+  const normalizedFeedbackProgress = Math.max(0, Math.min(1, feedbackProgress));
+  const normalizedPreviewProgress = Math.max(0, Math.min(1, previewProgress));
 
   useEffect(() => setImageError(false), [moment.id]);
 
   return (
     <article
-      aria-label="Current Moment"
-      className="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xl md:max-h-[calc(100dvh-13rem)] md:flex-row"
+      aria-hidden={isPreview || undefined}
+      aria-label={isPreview ? undefined : "Current Moment"}
+      className={`sip-card relative flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xl md:max-h-[calc(100dvh-13rem)] md:flex-row ${isPreview ? "sip-card-preview" : "z-10"} ${isExiting ? "sip-card-exiting" : ""} ${isDragging ? "sip-card-dragging" : ""}`}
       style={{
-        transform: `translate(${dragDistance}px, ${dragVerticalDistance}px)`
+        transform: isPreview
+          ? `scale(${0.97 + normalizedPreviewProgress * 0.03}) translateY(${(1 - normalizedPreviewProgress) * 0.5}rem)`
+          : vector
+            ? `translate3d(${vector.x}, ${vector.y}, 0) rotate(${rotation}deg)`
+            : `translate3d(${dragX}px, ${dragY}px, 0) rotate(${rotation}deg)`
+      }}
+      onTransitionEnd={(event) => {
+        if (
+          event.target !== event.currentTarget ||
+          event.propertyName !== "transform"
+        ) {
+          return;
+        }
+        onTransitionEnd?.();
       }}
     >
       <div
-        className="relative flex min-h-[min(62dvh,34rem)] flex-1 touch-none items-center justify-center bg-muted md:min-h-0"
+        className="relative flex min-h-0 flex-1 touch-none items-center justify-center bg-muted md:min-h-0"
         data-sip-gesture-surface="true"
       >
         {moment.imageUrl && !imageError ? (
           <img
             alt={imageAlt(moment)}
-            className="max-h-[min(62dvh,34rem)] w-full object-contain md:max-h-[calc(100dvh-9rem)]"
+            className="h-full max-h-full w-full object-contain md:max-h-[calc(100dvh-9rem)]"
             decoding="async"
             draggable={false}
             height={moment.height ?? undefined}
@@ -103,12 +143,16 @@ function SipCard({
             className="h-full min-h-64 w-full bg-accent"
           />
         )}
-        {dragAction ? (
+        {dragAction && !isPreview ? (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-1/2 mx-auto w-fit -translate-y-1/2 rounded-full border border-white/30 bg-black/65 px-4 py-2 text-sm font-semibold text-white shadow-lg motion-reduce:transition-none"
+            className="sip-drag-feedback pointer-events-none absolute inset-x-0 top-1/2 mx-auto grid size-16 -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/65 text-4xl font-semibold text-white shadow-lg"
+            style={{
+              opacity: 0.18 + normalizedFeedbackProgress * 0.7,
+              transform: `translateY(-50%) scale(${0.82 + normalizedFeedbackProgress * 0.18})`
+            }}
           >
-            {actionLabel(dragAction)}
+            {actionIcon(dragAction)}
           </div>
         ) : null}
         <span className="absolute bottom-3 right-3 rounded-full bg-black/65 px-3 py-1 text-sm font-medium text-white">
@@ -117,12 +161,13 @@ function SipCard({
         </span>
       </div>
       {hasDetails ? (
-        <div className="grid content-start gap-2 overflow-y-auto p-5 [touch-action:pan-y] md:min-h-0 md:w-[min(28rem,38%)] md:p-7">
+        <div className="grid max-h-[30%] content-start gap-2 overflow-y-auto p-4 [touch-action:pan-y] md:min-h-0 md:max-h-none md:w-[min(28rem,38%)] md:p-7">
           {product ? (
             moment.product.id &&
             moment.product.slug &&
             moment.product.name &&
-            moment.product.brandSlug ? (
+            moment.product.brandSlug &&
+            !isPreview ? (
               <Link
                 className="break-words text-2xl font-semibold leading-8 hover:underline"
                 to={`/drinks/${encodeURIComponent(moment.product.brandSlug)}/${encodeURIComponent(moment.product.slug)}`}
@@ -138,7 +183,8 @@ function SipCard({
           {location ? (
             moment.location.id &&
             moment.location.slug &&
-            moment.location.name ? (
+            moment.location.name &&
+            !isPreview ? (
               <Link
                 className="w-fit break-words text-sm leading-5 text-muted-foreground hover:underline"
                 to={`/stores/${encodeURIComponent(moment.location.slug)}`}
@@ -201,7 +247,11 @@ export function SipMode({
     id: number;
     startX: number;
     startY: number;
+    startTime: number;
   } | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
+  const exitActionRef = useRef<SipAction | null>(null);
+  const exitCompletedRef = useRef(false);
   const pendingRef = useRef(false);
   const mountedRef = useRef(true);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -210,11 +260,46 @@ export function SipMode({
     x: 0,
     y: 0
   });
+  const [exitAction, setExitAction] = useState<SipAction | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [pending, setPending] = useState<SipAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState(false);
   const moment = moments[index] ?? null;
   const hadMomentRef = useRef(Boolean(moment));
+  const dragProgress = Math.min(
+    1,
+    Math.max(Math.abs(drag.x) / 160, Math.max(0, -drag.y) / 120)
+  );
+
+  const finishExit = useCallback(() => {
+    if (
+      !mountedRef.current ||
+      exitActionRef.current === null ||
+      exitCompletedRef.current
+    ) {
+      return;
+    }
+    exitCompletedRef.current = true;
+    if (exitTimerRef.current !== null) {
+      window.clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
+    }
+    setExitAction(null);
+    setPending(null);
+    pendingRef.current = false;
+    exitActionRef.current = null;
+    setDrag({ action: null, x: 0, y: 0 });
+    onAdvance();
+  }, [onAdvance]);
+
+  useEffect(
+    () => () => {
+      if (exitTimerRef.current !== null)
+        window.clearTimeout(exitTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -285,6 +370,8 @@ export function SipMode({
 
   const clearPointer = useCallback(() => {
     pointerRef.current = null;
+    setDragging(false);
+    if (pendingRef.current || exitActionRef.current !== null) return;
     setDrag({ action: null, x: 0, y: 0 });
   }, []);
 
@@ -320,11 +407,18 @@ export function SipMode({
       setFeedback(
         action === "skip" ? "Skipped" : `${actionLabel(action)} saved`
       );
-      onAdvance();
-      pendingRef.current = false;
-      setPending(null);
+      exitActionRef.current = action;
+      exitCompletedRef.current = false;
+      setExitAction(action);
+      const reduceMotion =
+        typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      exitTimerRef.current = window.setTimeout(
+        finishExit,
+        reduceMotion ? 0 : 260
+      );
     },
-    [helpOpen, moment, onAdvance, onEnsureLike, onEnsureMustTry]
+    [finishExit, helpOpen, moment, onEnsureLike, onEnsureMustTry]
   );
 
   const handleOverlayKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -354,8 +448,10 @@ export function SipMode({
     pointerRef.current = {
       id: event.pointerId,
       startX: event.clientX,
-      startY: event.clientY
+      startY: event.clientY,
+      startTime: performance.now()
     };
+    setDragging(true);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
@@ -373,9 +469,22 @@ export function SipMode({
     const x = event.clientX - pointer.startX;
     const y = event.clientY - pointer.startY;
     const rect = event.currentTarget.getBoundingClientRect();
-    const action = resolveSipAction(x, y, rect.width, rect.height);
-    clearPointer();
-    if (action) void runAction(action);
+    const elapsed = Math.max(1, performance.now() - pointer.startTime);
+    const action = resolveSipAction(
+      x,
+      y,
+      rect.width,
+      rect.height,
+      x / elapsed,
+      y / elapsed
+    );
+    pointerRef.current = null;
+    setDragging(false);
+    if (action) {
+      void runAction(action);
+    } else {
+      setDrag({ action: null, x: 0, y: 0 });
+    }
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -399,6 +508,7 @@ export function SipMode({
   };
 
   let content: ReactNode;
+  let actionBar: ReactNode = null;
   if (!moment) {
     content = hasMore ? (
       <div className="grid max-w-md gap-3 text-center">
@@ -440,11 +550,11 @@ export function SipMode({
     );
   } else {
     content = (
-      <div className="grid min-h-0 w-full max-w-5xl gap-4">
+      <div className="h-full min-h-0 w-full max-w-5xl">
         <div
           ref={stageRef}
           aria-label={`Sip Mode, Moment ${index + 1}`}
-          className="flex min-h-0 w-full items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="relative flex h-full min-h-0 w-full items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           role="region"
           tabIndex={0}
           onKeyDown={handleKeyDown}
@@ -454,72 +564,126 @@ export function SipMode({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
         >
+          {moments[index + 1] ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
+              <SipCard
+                isPreview
+                moment={moments[index + 1]}
+                dragAction={null}
+                dragX={0}
+                dragY={0}
+                previewProgress={exitAction ? 1 : dragProgress}
+              />
+            </div>
+          ) : null}
           <SipCard
+            key={moment.id}
             moment={moment}
-            dragAction={drag.action}
+            dragAction={exitAction ?? drag.action}
             dragX={drag.x}
             dragY={drag.y}
+            isExiting={exitAction !== null}
+            isDragging={dragging}
+            feedbackProgress={exitAction ? 1 : dragProgress}
+            onTransitionEnd={finishExit}
           />
         </div>
-        <div
-          aria-label="Sip actions"
-          className="flex justify-center gap-2"
-          role="group"
+      </div>
+    );
+    actionBar = (
+      <div
+        aria-label="Sip actions"
+        className="flex shrink-0 justify-center gap-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-8 sm:pb-4"
+        role="group"
+      >
+        <button
+          aria-label="Skip this Moment"
+          className="sip-action-button rounded-full border border-border bg-card text-xl text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending !== null}
+          type="button"
+          onClick={() => void runAction("skip")}
         >
-          <button
-            aria-label="Skip this Moment"
-            className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={pending !== null}
-            type="button"
-            onClick={() => void runAction("skip")}
-          >
-            Skip
-          </button>
-          <button
-            aria-label="Like this Moment"
-            aria-pressed={moment.likedByMe}
-            className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={pending !== null}
-            type="button"
-            onClick={() => void runAction("like")}
-          >
-            Like
-          </button>
-          <button
-            aria-label="Must Try this Moment"
-            aria-pressed={moment.mustTryByMe}
-            className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={pending !== null}
-            type="button"
-            onClick={() => void runAction("must_try")}
-          >
-            Must Try
-          </button>
-        </div>
+          <span aria-hidden="true">{actionIcon("skip")}</span>
+        </button>
+        <button
+          aria-label="Must Try this Moment"
+          aria-pressed={moment.mustTryByMe}
+          className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
+          disabled={pending !== null}
+          type="button"
+          onClick={() => void runAction("must_try")}
+        >
+          <span aria-hidden="true">{actionIcon("must_try")}</span>
+        </button>
+        <button
+          aria-label="Like this Moment"
+          aria-pressed={moment.likedByMe}
+          className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending !== null}
+          type="button"
+          onClick={() => void runAction("like")}
+        >
+          <span aria-hidden="true">{actionIcon("like", moment.likedByMe)}</span>
+        </button>
       </div>
     );
   }
 
   return (
     <div
-      className="fixed inset-0 z-30 flex min-h-[100dvh] flex-col bg-background text-foreground"
+      className="sip-mode-shell fixed inset-0 z-30 flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground"
       onKeyDown={handleOverlayKeyDown}
     >
-      <header className="flex items-center justify-between gap-3 px-5 py-4 sm:px-8">
-        <h1 className="text-base font-semibold">Sip Mode</h1>
+      <header className="relative flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:py-4">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Sip Mode</h1>
+          <div className="relative">
+            <button
+              ref={helpTriggerRef}
+              aria-expanded={helpOpen}
+              aria-haspopup="dialog"
+              aria-label="How Sip Mode works"
+              className="grid size-9 place-items-center rounded-full border border-border bg-card text-sm font-semibold hover:bg-accent"
+              type="button"
+              onClick={() => setHelpOpen(true)}
+            >
+              ?
+            </button>
+            {helpOpen ? (
+              <div
+                ref={helpPanelRef}
+                aria-label="Sip Mode help"
+                className="absolute left-0 top-[calc(100%+0.5rem)] z-50 max-h-[min(28rem,calc(100dvh-7rem))] w-[min(20rem,calc(100vw-7rem))] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
+                role="dialog"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="font-semibold">How to sip</h2>
+                  <button
+                    aria-label="Close Sip Mode help"
+                    className="grid size-8 place-items-center rounded-full border border-border bg-background text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    type="button"
+                    onClick={closeHelp}
+                  >
+                    ×
+                  </button>
+                </div>
+                <ul className="mt-4 grid gap-2 text-sm leading-5 text-muted-foreground">
+                  <li>← Swipe or press Left to Skip</li>
+                  <li>→ Swipe or press Right to Like</li>
+                  <li>↑ Swipe or press Up to Must Try</li>
+                  <li>Or use the action buttons below the card</li>
+                  <li>Press Escape or Exit to return to Gallery</li>
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <button
-            ref={helpTriggerRef}
-            aria-expanded={helpOpen}
-            aria-haspopup="dialog"
-            aria-label="How Sip Mode works"
-            className="grid size-10 place-items-center rounded-full border border-border bg-card text-sm font-semibold hover:bg-accent"
-            type="button"
-            onClick={() => setHelpOpen(true)}
-          >
-            ?
-          </button>
-          <button
+            aria-label="Exit"
             className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-accent"
             type="button"
             onClick={onExit}
@@ -527,48 +691,20 @@ export function SipMode({
             Exit
           </button>
         </div>
-        {helpOpen ? (
-          <div
-            ref={helpPanelRef}
-            aria-label="Sip Mode help"
-            className="absolute right-5 top-16 z-10 w-[min(20rem,calc(100vw-2.5rem))] rounded-2xl border border-border bg-card p-5 shadow-xl sm:right-8"
-            role="dialog"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="font-semibold">How to sip</h2>
-              <button
-                aria-label="Close Sip Mode help"
-                className="rounded-lg px-2 py-1 text-sm hover:bg-accent"
-                type="button"
-                onClick={closeHelp}
-              >
-                ×
-              </button>
-            </div>
-            <ul className="mt-4 grid gap-2 text-sm leading-5 text-muted-foreground">
-              <li>← Swipe or press Left to Skip</li>
-              <li>→ Swipe or press Right to Like</li>
-              <li>↑ Swipe or press Up to Must Try</li>
-              <li>Or use the action buttons below the card</li>
-              <li>Press Escape or Exit to return to Gallery</li>
-            </ul>
-          </div>
-        ) : null}
       </header>
-      <main
-        className={`flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-5 pb-8 sm:px-8 ${feedback ? "md:items-start" : "md:items-center"}`}
-      >
+      <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2 sm:px-8">
         {content}
+        {feedback ? (
+          <p
+            aria-live={feedbackError ? "assertive" : "polite"}
+            className={`pointer-events-none absolute inset-x-3 bottom-2 z-20 mx-auto max-w-[min(32rem,calc(100vw-2.5rem))] rounded-xl border px-4 py-2 text-center text-sm ${feedbackError ? "border-destructive/60 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
+            role={feedbackError ? "alert" : "status"}
+          >
+            {feedback}
+          </p>
+        ) : null}
       </main>
-      {feedback ? (
-        <p
-          aria-live={feedbackError ? "assertive" : "polite"}
-          className={`mx-auto mb-5 max-w-[min(32rem,calc(100vw-2.5rem))] rounded-xl border px-4 py-3 text-center text-sm ${feedbackError ? "border-destructive/60 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
-          role={feedbackError ? "alert" : "status"}
-        >
-          {feedback}
-        </p>
-      ) : null}
+      {actionBar}
       {pending ? (
         <p aria-live="polite" className="sr-only" role="status">
           {`${actionLabel(pending)} in progress`}

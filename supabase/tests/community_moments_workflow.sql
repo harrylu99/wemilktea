@@ -3,6 +3,7 @@ begin;
 select plan(1);
 
 do $$
+<<workflow>>
 declare
   admin_id uuid := extensions.gen_random_uuid();
   owner_id uuid := extensions.gen_random_uuid();
@@ -76,6 +77,30 @@ begin
       end if;
   end;
 
+  begin
+    perform public.save_community_post_must_try(post_id);
+    raise exception 'a draft accepted Must Try';
+  exception
+    when others then
+      if sqlerrm <> 'post_not_active' then
+        raise;
+      end if;
+  end;
+  if exists (
+    select 1
+    from public.community_post_must_tries as must_try
+    where must_try.post_id = workflow.post_id and must_try.user_id = owner_id
+  ) then
+    raise exception 'a rejected draft created a Must Try row';
+  end if;
+  if exists (
+    select 1
+    from public.community_post_likes as post_like
+    where post_like.post_id = workflow.post_id and post_like.user_id = owner_id
+  ) then
+    raise exception 'a rejected draft created a Like row';
+  end if;
+
   execute 'reset role';
   update public.community_posts
   set image_asset_id = image_id
@@ -121,6 +146,21 @@ begin
   if not public.save_community_post_must_try(post_id) then
     raise exception 'Must Try was not persisted';
   end if;
+  if (select count(*) from public.community_post_must_tries as must_try where must_try.post_id = workflow.post_id and must_try.user_id = owner_id) <> 1 then
+    raise exception 'Must Try row count is incorrect after first save';
+  end if;
+  if (select count(*) from public.community_post_likes as post_like where post_like.post_id = workflow.post_id and post_like.user_id = owner_id) <> 1 then
+    raise exception 'Like row count is incorrect after Must Try';
+  end if;
+  if public.save_community_post_must_try(post_id) then
+    raise exception 'duplicate Must Try was not idempotently rejected';
+  end if;
+  if (select count(*) from public.community_post_must_tries as must_try where must_try.post_id = workflow.post_id and must_try.user_id = owner_id) <> 1 then
+    raise exception 'duplicate Must Try created a second Must Try row';
+  end if;
+  if (select count(*) from public.community_post_likes as post_like where post_like.post_id = workflow.post_id and post_like.user_id = owner_id) <> 1 then
+    raise exception 'duplicate Must Try created a duplicate Like row';
+  end if;
 
   select like_count, liked_by_me, must_try_by_me
   into post_like_count, liked, must_try
@@ -128,6 +168,19 @@ begin
   where id = post_id;
   if post_like_count <> 1 or not liked or not must_try then
     raise exception 'owner reaction state is incorrect';
+  end if;
+
+  execute 'reset role';
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', other_id::text, true);
+  if not public.save_community_post_must_try(post_id) then
+    raise exception 'new Must Try did not persist for a second authenticated user';
+  end if;
+  if (select count(*) from public.community_post_must_tries as must_try where must_try.post_id = workflow.post_id and must_try.user_id = other_id) <> 1 then
+    raise exception 'new Must Try row is missing for a second authenticated user';
+  end if;
+  if (select count(*) from public.community_post_likes as post_like where post_like.post_id = workflow.post_id and post_like.user_id = other_id) <> 1 then
+    raise exception 'new Like row is missing for a second authenticated user';
   end if;
 
   select public.create_community_post_draft(
