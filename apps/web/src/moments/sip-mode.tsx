@@ -14,6 +14,17 @@ import { sipDirection, resolveSipAction, type SipAction } from "./sip-gesture";
 export type SipLoadMoreStatus = "idle" | "loading" | "error";
 
 export type SipActionResult = { ok: true } | { ok: false; message: string };
+export type SipReactionAction = Extract<SipAction, "like" | "must_try">;
+export type SipReactionSnapshot = Pick<
+  PublicMoment,
+  "likedByMe" | "mustTryByMe" | "likeCount"
+>;
+export type SipReactionOperation = {
+  action: SipReactionAction;
+  postId: string;
+  previous: SipReactionSnapshot;
+  version: number;
+};
 
 function publicLocation(moment: PublicMoment) {
   return moment.location.name ?? moment.location.text;
@@ -247,6 +258,8 @@ export function SipMode({
   onAdvance,
   onEnsureLike,
   onEnsureMustTry,
+  onOptimisticReaction,
+  onRollbackReaction,
   onExit,
   onLoadMore
 }: {
@@ -257,6 +270,12 @@ export function SipMode({
   onAdvance: () => void;
   onEnsureLike: (postId: string) => Promise<SipActionResult>;
   onEnsureMustTry: (postId: string) => Promise<SipActionResult>;
+  onOptimisticReaction: (
+    postId: string,
+    action: SipReactionAction,
+    previous: SipReactionSnapshot
+  ) => SipReactionOperation;
+  onRollbackReaction: (operation: SipReactionOperation) => void;
   onExit: () => void;
   onLoadMore: () => Promise<void>;
 }) {
@@ -401,36 +420,23 @@ export function SipMode({
   }, []);
 
   const runAction = useCallback(
-    async (action: SipAction) => {
+    (action: SipAction) => {
       if (!moment || pendingRef.current || helpOpen) return;
       pendingRef.current = true;
       setPending(action);
       setFeedback(null);
       setFeedbackError(false);
-      let result: SipActionResult;
-      try {
-        result =
-          action === "skip"
-            ? { ok: true }
-            : action === "like"
-              ? await onEnsureLike(moment.id)
-              : await onEnsureMustTry(moment.id);
-      } catch {
-        result = {
-          ok: false,
-          message: "That action could not be completed. Please try again."
-        };
-      }
-      if (!mountedRef.current) return;
-      if (!result.ok) {
-        setFeedback(result.message);
-        setFeedbackError(true);
-        pendingRef.current = false;
-        setPending(null);
-        return;
-      }
+
+      const operation =
+        action === "skip"
+          ? null
+          : onOptimisticReaction(moment.id, action, {
+              likedByMe: moment.likedByMe,
+              mustTryByMe: moment.mustTryByMe,
+              likeCount: moment.likeCount
+            });
       setFeedback(
-        action === "skip" ? "Skipped" : `${actionLabel(action)} saved`
+        action === "skip" ? "Skipped" : `${actionLabel(action)} sending…`
       );
       exitActionRef.current = action;
       exitCompletedRef.current = false;
@@ -442,8 +448,46 @@ export function SipMode({
         finishExit,
         reduceMotion ? 0 : 260
       );
+
+      if (operation) {
+        const persist =
+          action === "like"
+            ? onEnsureLike(operation.postId)
+            : onEnsureMustTry(operation.postId);
+        void persist
+          .then((result) => {
+            if (result.ok) {
+              if (mountedRef.current) {
+                setFeedback(`${actionLabel(action)} saved`);
+              }
+              return;
+            }
+            onRollbackReaction(operation);
+            if (mountedRef.current) {
+              setFeedback(result.message);
+              setFeedbackError(true);
+            }
+          })
+          .catch(() => {
+            onRollbackReaction(operation);
+            if (mountedRef.current) {
+              setFeedback(
+                `${actionLabel(action)} wasn’t saved. Please try again.`
+              );
+              setFeedbackError(true);
+            }
+          });
+      }
     },
-    [finishExit, helpOpen, moment, onEnsureLike, onEnsureMustTry]
+    [
+      finishExit,
+      helpOpen,
+      moment,
+      onEnsureLike,
+      onEnsureMustTry,
+      onOptimisticReaction,
+      onRollbackReaction
+    ]
   );
 
   const handleOverlayKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {

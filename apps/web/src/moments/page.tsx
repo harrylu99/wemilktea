@@ -26,7 +26,10 @@ import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import {
   SipMode,
   type SipActionResult,
-  type SipLoadMoreStatus
+  type SipLoadMoreStatus,
+  type SipReactionAction,
+  type SipReactionOperation,
+  type SipReactionSnapshot
 } from "./sip-mode";
 
 type FeedStatus = "loading" | "ready" | "error";
@@ -494,6 +497,7 @@ export function MomentsPage() {
   const sipTriggerRef = useRef<HTMLButtonElement>(null);
   const previousModeRef = useRef<"gallery" | "sip">("gallery");
   const galleryScrollYRef = useRef(0);
+  const sipReactionVersionsRef = useRef(new Map<string, number>());
   const shareTriggerRef = useRef<HTMLButtonElement>(null);
   const emptyShareTriggerRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -576,6 +580,10 @@ export function MomentsPage() {
   }, [hasMore, loadMore, loadMoreStatus]);
 
   const updateLike = useCallback((postId: string, liked: boolean) => {
+    sipReactionVersionsRef.current.set(
+      postId,
+      (sipReactionVersionsRef.current.get(postId) ?? 0) + 1
+    );
     setMoments((current) =>
       current.map((moment) =>
         moment.id === postId
@@ -587,6 +595,51 @@ export function MomentsPage() {
                   : Math.max(0, moment.likeCount + (liked ? 1 : -1)),
               likedByMe: liked
             }
+          : moment
+      )
+    );
+  }, []);
+
+  const optimisticallyApplySipReaction = useCallback(
+    (
+      postId: string,
+      action: SipReactionAction,
+      previous: SipReactionSnapshot
+    ): SipReactionOperation => {
+      const version = (sipReactionVersionsRef.current.get(postId) ?? 0) + 1;
+      sipReactionVersionsRef.current.set(postId, version);
+      setMoments((current) =>
+        current.map((moment) => {
+          if (moment.id !== postId) return moment;
+          const likedByMe =
+            action === "like" || action === "must_try" || moment.likedByMe;
+          const mustTryByMe = action === "must_try" || moment.mustTryByMe;
+          return {
+            ...moment,
+            likedByMe,
+            mustTryByMe,
+            likeCount:
+              moment.likedByMe === likedByMe
+                ? moment.likeCount
+                : Math.max(0, moment.likeCount + (likedByMe ? 1 : -1))
+          };
+        })
+      );
+      return { action, postId, previous, version };
+    },
+    []
+  );
+
+  const rollbackSipReaction = useCallback((operation: SipReactionOperation) => {
+    if (
+      sipReactionVersionsRef.current.get(operation.postId) !== operation.version
+    ) {
+      return;
+    }
+    setMoments((current) =>
+      current.map((moment) =>
+        moment.id === operation.postId
+          ? { ...moment, ...operation.previous }
           : moment
       )
     );
@@ -625,10 +678,9 @@ export function MomentsPage() {
           message: "Your Like could not be saved. Please try again."
         };
       }
-      updateLike(postId, true);
       return { ok: true };
     },
-    [moments, updateLike]
+    [moments]
   );
 
   const ensureMustTry = useCallback(
@@ -658,19 +710,6 @@ export function MomentsPage() {
           message: "Must Try could not be saved. Please try again."
         };
       }
-
-      setMoments((current) =>
-        current.map((item) =>
-          item.id === postId
-            ? {
-                ...item,
-                mustTryByMe: true,
-                likedByMe: true,
-                likeCount: item.likedByMe ? item.likeCount : item.likeCount + 1
-              }
-            : item
-        )
-      );
       return { ok: true };
     },
     [moments]
@@ -716,6 +755,8 @@ export function MomentsPage() {
           onAdvance={() => setSipIndex((current) => current + 1)}
           onEnsureLike={ensureLike}
           onEnsureMustTry={ensureMustTry}
+          onOptimisticReaction={optimisticallyApplySipReaction}
+          onRollbackReaction={rollbackSipReaction}
           onExit={exitSipMode}
           onLoadMore={loadMore}
         />
