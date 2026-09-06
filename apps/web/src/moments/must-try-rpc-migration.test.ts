@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 const migration = readFileSync(
   resolve(
     import.meta.dir,
-    "../../../../supabase/migrations/20260906000000_wm124_atomic_must_try_like.sql"
+    "../../../../supabase/migrations/20260906033843_wm124_atomic_must_try_like.sql"
   ),
   "utf8"
 ).toLowerCase();
