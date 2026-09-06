@@ -508,6 +508,7 @@ export function SipMode({
   };
 
   let content: ReactNode;
+  let actionBar: ReactNode = null;
   if (!moment) {
     content = hasMore ? (
       <div className="grid max-w-md gap-3 text-center">
@@ -549,11 +550,11 @@ export function SipMode({
     );
   } else {
     content = (
-      <div className="grid min-h-0 w-full max-w-5xl grid-rows-[minmax(0,1fr)_auto] gap-3">
+      <div className="h-full min-h-0 w-full max-w-5xl">
         <div
           ref={stageRef}
           aria-label={`Sip Mode, Moment ${index + 1}`}
-          className="relative flex min-h-0 w-full items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="relative flex h-full min-h-0 w-full items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           role="region"
           tabIndex={0}
           onKeyDown={handleKeyDown}
@@ -590,43 +591,43 @@ export function SipMode({
             onTransitionEnd={finishExit}
           />
         </div>
-        <div
-          aria-label="Sip actions"
-          className="flex justify-center gap-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-          role="group"
+      </div>
+    );
+    actionBar = (
+      <div
+        aria-label="Sip actions"
+        className="flex shrink-0 justify-center gap-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-8 sm:pb-4"
+        role="group"
+      >
+        <button
+          aria-label="Skip this Moment"
+          className="sip-action-button rounded-full border border-border bg-card text-xl text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending !== null}
+          type="button"
+          onClick={() => void runAction("skip")}
         >
-          <button
-            aria-label="Skip this Moment"
-            className="sip-action-button rounded-full border border-border bg-card text-xl text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={pending !== null}
-            type="button"
-            onClick={() => void runAction("skip")}
-          >
-            <span aria-hidden="true">{actionIcon("skip")}</span>
-          </button>
-          <button
-            aria-label="Must Try this Moment"
-            aria-pressed={moment.mustTryByMe}
-            className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
-            disabled={pending !== null}
-            type="button"
-            onClick={() => void runAction("must_try")}
-          >
-            <span aria-hidden="true">{actionIcon("must_try")}</span>
-          </button>
-          <button
-            aria-label="Like this Moment"
-            aria-pressed={moment.likedByMe}
-            className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={pending !== null}
-            type="button"
-            onClick={() => void runAction("like")}
-          >
-            <span aria-hidden="true">
-              {actionIcon("like", moment.likedByMe)}
-            </span>
-          </button>
-        </div>
+          <span aria-hidden="true">{actionIcon("skip")}</span>
+        </button>
+        <button
+          aria-label="Must Try this Moment"
+          aria-pressed={moment.mustTryByMe}
+          className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
+          disabled={pending !== null}
+          type="button"
+          onClick={() => void runAction("must_try")}
+        >
+          <span aria-hidden="true">{actionIcon("must_try")}</span>
+        </button>
+        <button
+          aria-label="Like this Moment"
+          aria-pressed={moment.likedByMe}
+          className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending !== null}
+          type="button"
+          onClick={() => void runAction("like")}
+        >
+          <span aria-hidden="true">{actionIcon("like", moment.likedByMe)}</span>
+        </button>
       </div>
     );
   }
@@ -639,17 +640,46 @@ export function SipMode({
       <header className="relative flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:py-4">
         <div className="flex items-center gap-2">
           <h1 className="text-base font-semibold">Sip Mode</h1>
-          <button
-            ref={helpTriggerRef}
-            aria-expanded={helpOpen}
-            aria-haspopup="dialog"
-            aria-label="How Sip Mode works"
-            className="grid size-9 place-items-center rounded-full border border-border bg-card text-sm font-semibold hover:bg-accent"
-            type="button"
-            onClick={() => setHelpOpen(true)}
-          >
-            ?
-          </button>
+          <div className="relative">
+            <button
+              ref={helpTriggerRef}
+              aria-expanded={helpOpen}
+              aria-haspopup="dialog"
+              aria-label="How Sip Mode works"
+              className="grid size-9 place-items-center rounded-full border border-border bg-card text-sm font-semibold hover:bg-accent"
+              type="button"
+              onClick={() => setHelpOpen(true)}
+            >
+              ?
+            </button>
+            {helpOpen ? (
+              <div
+                ref={helpPanelRef}
+                aria-label="Sip Mode help"
+                className="absolute left-0 top-[calc(100%+0.5rem)] z-50 max-h-[min(28rem,calc(100dvh-7rem))] w-[min(20rem,calc(100vw-7rem))] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
+                role="dialog"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="font-semibold">How to sip</h2>
+                  <button
+                    aria-label="Close Sip Mode help"
+                    className="rounded-lg px-2 py-1 text-sm hover:bg-accent"
+                    type="button"
+                    onClick={closeHelp}
+                  >
+                    ×
+                  </button>
+                </div>
+                <ul className="mt-4 grid gap-2 text-sm leading-5 text-muted-foreground">
+                  <li>← Swipe or press Left to Skip</li>
+                  <li>→ Swipe or press Right to Like</li>
+                  <li>↑ Swipe or press Up to Must Try</li>
+                  <li>Or use the action buttons below the card</li>
+                  <li>Press Escape or Exit to return to Gallery</li>
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -661,48 +691,20 @@ export function SipMode({
             Exit
           </button>
         </div>
-        {helpOpen ? (
-          <div
-            ref={helpPanelRef}
-            aria-label="Sip Mode help"
-            className="absolute right-5 top-16 z-10 w-[min(20rem,calc(100vw-2.5rem))] rounded-2xl border border-border bg-card p-5 shadow-xl sm:right-8"
-            role="dialog"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="font-semibold">How to sip</h2>
-              <button
-                aria-label="Close Sip Mode help"
-                className="rounded-lg px-2 py-1 text-sm hover:bg-accent"
-                type="button"
-                onClick={closeHelp}
-              >
-                ×
-              </button>
-            </div>
-            <ul className="mt-4 grid gap-2 text-sm leading-5 text-muted-foreground">
-              <li>← Swipe or press Left to Skip</li>
-              <li>→ Swipe or press Right to Like</li>
-              <li>↑ Swipe or press Up to Must Try</li>
-              <li>Or use the action buttons below the card</li>
-              <li>Press Escape or Exit to return to Gallery</li>
-            </ul>
-          </div>
-        ) : null}
       </header>
-      <main
-        className={`flex min-h-0 flex-1 items-start justify-center overflow-hidden px-3 py-2 sm:px-8 ${feedback ? "md:items-start" : "md:items-center"}`}
-      >
+      <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2 sm:px-8">
         {content}
+        {feedback ? (
+          <p
+            aria-live={feedbackError ? "assertive" : "polite"}
+            className={`pointer-events-none absolute inset-x-3 bottom-2 z-20 mx-auto max-w-[min(32rem,calc(100vw-2.5rem))] rounded-xl border px-4 py-2 text-center text-sm ${feedbackError ? "border-destructive/60 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
+            role={feedbackError ? "alert" : "status"}
+          >
+            {feedback}
+          </p>
+        ) : null}
       </main>
-      {feedback ? (
-        <p
-          aria-live={feedbackError ? "assertive" : "polite"}
-          className={`mx-auto mb-2 max-w-[min(32rem,calc(100vw-2.5rem))] rounded-xl border px-4 py-2 text-center text-sm ${feedbackError ? "border-destructive/60 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
-          role={feedbackError ? "alert" : "status"}
-        >
-          {feedback}
-        </p>
-      ) : null}
+      {actionBar}
       {pending ? (
         <p aria-live="polite" className="sr-only" role="status">
           {`${actionLabel(pending)} in progress`}

@@ -588,8 +588,9 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
     view.container.querySelector("[data-sip-gesture-surface]")
   ).toBeTruthy();
   expect(view.queryByText("What’s Auckland sipping? 🧋")).toBeNull();
-  expect(view.getByRole("main").className).toContain("items-start");
-  expect(view.getByRole("main").className).toContain("md:items-center");
+  const main = view.getByRole("main");
+  expect(main.className).toContain("flex-1");
+  expect(main.className).toContain("min-h-0");
   expect(view.getByRole("img").getAttribute("draggable")).toBe("false");
   expect(
     view.getByRole("article", { name: "Current Moment" }).className
@@ -602,9 +603,13 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
   expect(pageCalls).toHaveLength(1);
   expect(auth.signInAnonymously).not.toHaveBeenCalled();
 
-  const actionLabels = Array.from(
-    view.getByRole("group", { name: "Sip actions" }).querySelectorAll("button")
-  ).map((button) => button.getAttribute("aria-label"));
+  const actions = view.getByRole("group", { name: "Sip actions" });
+  expect(main.contains(actions)).toBe(false);
+  expect(actions.className).toContain("shrink-0");
+  expect(actions.className).toContain("env(safe-area-inset-bottom)");
+  const actionLabels = Array.from(actions.querySelectorAll("button")).map(
+    (button) => button.getAttribute("aria-label")
+  );
   expect(actionLabels).toEqual([
     "Skip this Moment",
     "Must Try this Moment",
@@ -634,7 +639,7 @@ test.serial(
       args: { p_post_id: firstMoment.id }
     });
     expect(view.getAllByRole("status")).toHaveLength(2);
-    expect(view.getByRole("main").className).toContain("md:items-start");
+    expect(view.getByRole("main").className).toContain("items-center");
     await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
@@ -1055,7 +1060,11 @@ test.serial(
     });
     fireEvent.click(helpTrigger);
     await act(async () => await Promise.resolve());
-    expect(view.getByRole("dialog", { name: "Sip Mode help" })).toBeTruthy();
+    const helpDialog = view.getByRole("dialog", { name: "Sip Mode help" });
+    expect(helpDialog).toBeTruthy();
+    expect(helpTrigger.parentElement?.className).toContain("relative");
+    expect(helpTrigger.parentElement?.contains(helpDialog)).toBe(true);
+    expect(helpDialog.className).toContain("z-50");
     expect(view.getByRole("button", { name: "Close Sip Mode help" })).toBe(
       document.activeElement as HTMLElement
     );
