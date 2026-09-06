@@ -663,7 +663,7 @@ export function SipMode({
                   <h2 className="font-semibold">How to sip</h2>
                   <button
                     aria-label="Close Sip Mode help"
-                    className="rounded-lg px-2 py-1 text-sm hover:bg-accent"
+                    className="grid size-8 place-items-center rounded-full border border-border bg-background text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     type="button"
                     onClick={closeHelp}
                   >
