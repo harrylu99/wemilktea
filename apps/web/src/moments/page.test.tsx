@@ -950,15 +950,42 @@ test.serial(
     fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
     fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
     await act(async () => await Promise.resolve());
+    const card = view.getByRole("article", { name: "Current Moment" });
+    const feedback = card.querySelector<HTMLElement>(".sip-drag-feedback");
+    fireEvent.transitionEnd(feedback!, { propertyName: "opacity" });
+    fireEvent.transitionEnd(feedback!, { propertyName: "transform" });
+    fireEvent.transitionEnd(card, { propertyName: "opacity" });
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 1" })
     ).toBeTruthy();
-    fireEvent.transitionEnd(
-      view.getByRole("article", { name: "Current Moment" })
+    fireEvent.transitionEnd(card, { propertyName: "transform" });
+    await act(settleSipExit);
+    const nextCard = view.getByRole("article", { name: "Current Moment" });
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+    expect(nextCard.className).not.toContain("sip-card-exiting");
+    expect(nextCard.style.transform).toBe(
+      "translate3d(0px, 0px, 0) rotate(0deg)"
     );
     await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "uses the exit timeout when no card transition event arrives",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
+    await act(async () => await Promise.resolve());
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
     ).toBeTruthy();
     await act(settleSipExit);
     expect(

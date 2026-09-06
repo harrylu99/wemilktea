@@ -112,7 +112,15 @@ function SipCard({
             ? `translate3d(${vector.x}, ${vector.y}, 0) rotate(${rotation}deg)`
             : `translate3d(${dragX}px, ${dragY}px, 0) rotate(${rotation}deg)`
       }}
-      onTransitionEnd={onTransitionEnd}
+      onTransitionEnd={(event) => {
+        if (
+          event.target !== event.currentTarget ||
+          event.propertyName !== "transform"
+        ) {
+          return;
+        }
+        onTransitionEnd?.();
+      }}
     >
       <div
         className="relative flex min-h-0 flex-1 touch-none items-center justify-center bg-muted md:min-h-0"
@@ -571,6 +579,7 @@ export function SipMode({
             </div>
           ) : null}
           <SipCard
+            key={moment.id}
             moment={moment}
             dragAction={exitAction ?? drag.action}
             dragX={drag.x}
