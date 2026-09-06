@@ -638,6 +638,9 @@ test.serial(
       name: "like_community_post",
       args: { p_post_id: firstMoment.id }
     });
+    expect(
+      view.container.querySelector('[data-sip-effect="like"]')
+    ).toBeTruthy();
     expect(view.getAllByRole("status")).toHaveLength(2);
     expect(view.getByRole("main").className).toContain("items-center");
     await act(settleSipExit);
@@ -655,9 +658,59 @@ test.serial(
       name: "save_community_post_must_try",
       args: { p_post_id: secondMoment.id }
     });
+    expect(
+      view.container.querySelector('[data-sip-effect="must_try"]')
+    ).toBeTruthy();
     await act(settleSipExit);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "uses the same positive effects for button and gesture actions",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    const likeEffect = view.container.querySelector('[data-sip-effect="like"]');
+    expect(likeEffect).toBeTruthy();
+    fireEvent.transitionEnd(likeEffect!, { propertyName: "transform" });
+    fireEvent.animationEnd(likeEffect!);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+    await act(settleSipExit);
+
+    const surface = view.container.querySelector<HTMLElement>(
+      "[data-sip-gesture-surface]"
+    );
+    fireEvent.pointerDown(surface!, {
+      button: 0,
+      clientX: 200,
+      clientY: 200,
+      isPrimary: true,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(surface!, {
+      clientX: 200,
+      clientY: 80,
+      isPrimary: true,
+      pointerId: 1
+    });
+    await act(async () => await Promise.resolve());
+    expect(
+      view.container.querySelector('[data-sip-effect="must_try"]')
     ).toBeTruthy();
   }
 );
@@ -955,6 +1008,7 @@ test.serial(
     fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
     fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
     await act(async () => await Promise.resolve());
+    expect(view.container.querySelector("[data-sip-effect]")).toBeNull();
     const card = view.getByRole("article", { name: "Current Moment" });
     const feedback = card.querySelector<HTMLElement>(".sip-drag-feedback");
     fireEvent.transitionEnd(feedback!, { propertyName: "opacity" });

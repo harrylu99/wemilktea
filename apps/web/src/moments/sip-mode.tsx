@@ -63,6 +63,31 @@ function exitVector(action: SipAction) {
   return { x: "0px", y: "-120vh" };
 }
 
+function SipActionEffect({ action }: { action: SipAction | null }) {
+  if (!action || action === "skip") return null;
+  const mustTry = action === "must_try";
+  const particles = mustTry ? ["✦", "★", "✦", "·", "✦"] : ["♥", "♥", "·", "·"];
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`sip-action-effect sip-action-effect-${mustTry ? "must-try" : "like"}`}
+      data-sip-effect={action}
+    >
+      <span className="sip-action-effect-core">{mustTry ? "★" : "♥"}</span>
+      {particles.map((particle, index) => (
+        <span
+          className="sip-action-effect-particle"
+          data-particle-index={index}
+          key={`${particle}-${index}`}
+        >
+          {particle}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SipCard({
   moment,
   dragAction,
@@ -590,6 +615,7 @@ export function SipMode({
             feedbackProgress={exitAction ? 1 : dragProgress}
             onTransitionEnd={finishExit}
           />
+          <SipActionEffect action={exitAction} />
         </div>
       </div>
     );
