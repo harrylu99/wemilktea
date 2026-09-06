@@ -205,7 +205,7 @@ function MomentActions({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Open Moment actions"
-        className="grid size-9 place-items-center rounded-full bg-card/90 text-lg text-card-foreground shadow-sm backdrop-blur hover:bg-card"
+        className={`grid size-9 place-items-center rounded-full border border-transparent bg-card/35 text-lg text-muted-foreground backdrop-blur transition-colors hover:bg-card/80 hover:text-card-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${open ? "bg-card text-card-foreground shadow-sm" : ""}`}
         type="button"
         onClick={() => {
           setError(null);
@@ -387,7 +387,7 @@ function MomentCard({
             moment.likedByMe ? "Unlike this Moment" : "Like this Moment"
           }
           aria-pressed={moment.likedByMe}
-          className="absolute bottom-0 right-0 grid size-11 place-items-end p-2 text-xs font-medium text-white drop-shadow-sm hover:text-white/80 disabled:cursor-wait disabled:opacity-70"
+          className="absolute bottom-3 right-3 grid min-h-11 min-w-11 place-items-end p-1 text-xs font-medium text-white drop-shadow-sm hover:text-white/80 disabled:cursor-wait disabled:opacity-70"
           disabled={likePending}
           type="button"
           onClick={() => void toggleLike()}
