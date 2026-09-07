@@ -208,7 +208,7 @@ function MomentActions({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Open Moment actions"
-        className={`grid size-9 place-items-center rounded-full border border-transparent bg-card/35 text-lg text-muted-foreground backdrop-blur transition-colors hover:bg-card/80 hover:text-card-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${open ? "bg-card text-card-foreground shadow-sm" : ""}`}
+        className={`grid size-9 cursor-pointer place-items-center rounded-full border border-transparent bg-card/35 text-lg text-muted-foreground backdrop-blur transition-colors hover:bg-card/80 hover:text-card-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${open ? "bg-card text-card-foreground shadow-sm" : ""}`}
         type="button"
         onClick={() => {
           setError(null);
@@ -261,14 +261,14 @@ function MomentActions({
               ) : null}
               <div className="flex justify-end gap-2">
                 <button
-                  className="rounded-lg px-2 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted"
+                  className="cursor-pointer rounded-lg px-2 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   type="button"
                   onClick={close}
                 >
                   Cancel
                 </button>
                 <button
-                  className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                  className="cursor-pointer rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={!reportReason || pending}
                   type="submit"
                 >
@@ -279,7 +279,7 @@ function MomentActions({
           ) : (
             <>
               <button
-                className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                className="block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 role="menuitem"
                 type="button"
                 onClick={() => {
@@ -392,7 +392,7 @@ function MomentCard({
             moment.likedByMe ? "Unlike this Moment" : "Like this Moment"
           }
           aria-pressed={moment.likedByMe}
-          className="absolute bottom-3 right-3 grid min-h-11 min-w-11 place-items-end p-1 text-xs font-medium text-white drop-shadow-sm hover:text-white/80 disabled:cursor-wait disabled:opacity-70"
+          className="absolute bottom-3 right-3 grid min-h-11 min-w-11 cursor-pointer place-items-end p-1 text-xs font-medium text-white drop-shadow-sm transition-colors enabled:hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70"
           disabled={likePending || sipReactionPending}
           type="button"
           onClick={() => void toggleLike()}
@@ -822,7 +822,7 @@ export function MomentsPage() {
               <button
                 ref={sipTriggerRef}
                 aria-pressed={false}
-                className="flex h-10 w-[96px] shrink-0 items-center rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex h-10 w-[96px] shrink-0 cursor-pointer items-center rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={status !== "ready" || moments.length === 0}
                 type="button"
                 onClick={enterSipMode}
@@ -832,7 +832,7 @@ export function MomentsPage() {
             </div>
             <button
               ref={shareTriggerRef}
-              className="flex h-12 w-[156px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground disabled:cursor-not-allowed"
+              className="flex h-12 w-[156px] shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
               type="button"
               onClick={() => {
                 returnFocusRef.current = shareTriggerRef.current;
@@ -864,7 +864,7 @@ export function MomentsPage() {
               We couldn’t load the Gallery right now.
             </p>
             <button
-              className="mt-4 rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground"
+              className="mt-4 cursor-pointer rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               onClick={() => void loadInitial()}
             >
@@ -883,7 +883,7 @@ export function MomentsPage() {
             </p>
             <button
               ref={emptyShareTriggerRef}
-              className="mt-5 min-h-11 rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground"
+              className="mt-5 min-h-11 cursor-pointer rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               onClick={() => {
                 returnFocusRef.current = emptyShareTriggerRef.current;
@@ -926,7 +926,7 @@ export function MomentsPage() {
                   More Moments couldn’t load.
                 </p>
                 <button
-                  className="rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent"
+                  className="cursor-pointer rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   type="button"
                   onClick={() => void loadMore()}
                 >

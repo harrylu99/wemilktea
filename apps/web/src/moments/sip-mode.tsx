@@ -619,7 +619,7 @@ export function SipMode({
             <p>More Moments couldn’t load.</p>
             <button
               ref={retryLoadMoreRef}
-              className="mx-auto rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold hover:bg-accent"
+              className="mx-auto cursor-pointer rounded-xl border border-border bg-card px-4 py-3 text-xs font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               onClick={() => void onLoadMore()}
             >
@@ -638,7 +638,7 @@ export function SipMode({
         </p>
         <button
           ref={endTriggerRef}
-          className="mx-auto rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground"
+          className="mx-auto cursor-pointer rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
           onClick={onExit}
         >
@@ -700,7 +700,7 @@ export function SipMode({
       >
         <button
           aria-label="Skip this Moment"
-          className="sip-action-button rounded-full border border-border bg-card text-xl text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className="sip-action-button cursor-pointer rounded-full border border-border bg-card text-xl text-muted-foreground transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           disabled={pending !== null}
           type="button"
           onClick={() => void runAction("skip")}
@@ -710,7 +710,7 @@ export function SipMode({
         <button
           aria-label="Must Try this Moment"
           aria-pressed={moment.mustTryByMe}
-          className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
+          className="sip-action-button cursor-pointer rounded-full border border-sky-600 bg-card text-xl text-sky-600 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:enabled:hover:bg-sky-950"
           disabled={
             pending !== null || pendingSipReactionPostIds.has(moment.id)
           }
@@ -722,7 +722,7 @@ export function SipMode({
         <button
           aria-label="Like this Moment"
           aria-pressed={moment.likedByMe}
-          className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className="sip-action-button cursor-pointer rounded-full border border-border bg-card text-xl text-rose-600 transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           disabled={
             pending !== null || pendingSipReactionPostIds.has(moment.id)
           }
@@ -749,7 +749,7 @@ export function SipMode({
               aria-expanded={helpOpen}
               aria-haspopup="dialog"
               aria-label="How Sip Mode works"
-              className="grid size-9 place-items-center rounded-full border border-border bg-card text-sm font-semibold hover:bg-accent"
+              className="grid size-9 cursor-pointer place-items-center rounded-full border border-border bg-card text-sm font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               onClick={() => setHelpOpen(true)}
             >
@@ -766,7 +766,7 @@ export function SipMode({
                   <h2 className="font-semibold">How to sip</h2>
                   <button
                     aria-label="Close Sip Mode help"
-                    className="grid size-8 place-items-center rounded-full border border-border bg-background text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="grid size-8 cursor-pointer place-items-center rounded-full border border-border bg-background text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     type="button"
                     onClick={closeHelp}
                   >
@@ -787,7 +787,7 @@ export function SipMode({
         <div className="flex items-center gap-2">
           <button
             aria-label="Exit"
-            className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-accent"
+            className="cursor-pointer rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
             onClick={onExit}
           >
