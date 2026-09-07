@@ -26,7 +26,10 @@ import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import {
   SipMode,
   type SipActionResult,
-  type SipLoadMoreStatus
+  type SipLoadMoreStatus,
+  type SipReactionAction,
+  type SipReactionOperation,
+  type SipReactionSnapshot
 } from "./sip-mode";
 
 type FeedStatus = "loading" | "ready" | "error";
@@ -315,12 +318,14 @@ function MomentCard({
   moment,
   isOwn,
   onDelete,
-  onLikeChange
+  onLikeChange,
+  sipReactionPending
 }: {
   moment: PublicMoment;
   isOwn: boolean;
   onDelete: (postId: string) => void;
   onLikeChange: (postId: string, liked: boolean) => void;
+  sipReactionPending: boolean;
 }) {
   const [imageError, setImageError] = useState(false);
   const [likePending, setLikePending] = useState(false);
@@ -335,7 +340,7 @@ function MomentCard({
   );
 
   const toggleLike = async () => {
-    if (!supabase || likePending) return;
+    if (!supabase || likePending || sipReactionPending) return;
     setLikePending(true);
     setLikeError(null);
     const identity = await ensurePublicWriteIdentity();
@@ -388,7 +393,7 @@ function MomentCard({
           }
           aria-pressed={moment.likedByMe}
           className="absolute bottom-3 right-3 grid min-h-11 min-w-11 place-items-end p-1 text-xs font-medium text-white drop-shadow-sm hover:text-white/80 disabled:cursor-wait disabled:opacity-70"
-          disabled={likePending}
+          disabled={likePending || sipReactionPending}
           type="button"
           onClick={() => void toggleLike()}
         >
@@ -489,11 +494,15 @@ export function MomentsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [mode, setMode] = useState<"gallery" | "sip">("gallery");
   const [sipIndex, setSipIndex] = useState(0);
+  const [pendingSipReactionPostIds, setPendingSipReactionPostIds] = useState<
+    Set<string>
+  >(new Set());
   const generationRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const sipTriggerRef = useRef<HTMLButtonElement>(null);
   const previousModeRef = useRef<"gallery" | "sip">("gallery");
   const galleryScrollYRef = useRef(0);
+  const sipReactionVersionsRef = useRef(new Map<string, number>());
   const shareTriggerRef = useRef<HTMLButtonElement>(null);
   const emptyShareTriggerRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -576,6 +585,10 @@ export function MomentsPage() {
   }, [hasMore, loadMore, loadMoreStatus]);
 
   const updateLike = useCallback((postId: string, liked: boolean) => {
+    sipReactionVersionsRef.current.set(
+      postId,
+      (sipReactionVersionsRef.current.get(postId) ?? 0) + 1
+    );
     setMoments((current) =>
       current.map((moment) =>
         moment.id === postId
@@ -587,6 +600,65 @@ export function MomentsPage() {
                   : Math.max(0, moment.likeCount + (liked ? 1 : -1)),
               likedByMe: liked
             }
+          : moment
+      )
+    );
+  }, []);
+
+  const optimisticallyApplySipReaction = useCallback(
+    (
+      postId: string,
+      action: SipReactionAction,
+      previous: SipReactionSnapshot
+    ): SipReactionOperation => {
+      const version = (sipReactionVersionsRef.current.get(postId) ?? 0) + 1;
+      sipReactionVersionsRef.current.set(postId, version);
+      setPendingSipReactionPostIds((current) => {
+        const next = new Set(current);
+        next.add(postId);
+        return next;
+      });
+      setMoments((current) =>
+        current.map((moment) => {
+          if (moment.id !== postId) return moment;
+          const likedByMe =
+            action === "like" || action === "must_try" || moment.likedByMe;
+          const mustTryByMe = action === "must_try" || moment.mustTryByMe;
+          return {
+            ...moment,
+            likedByMe,
+            mustTryByMe,
+            likeCount:
+              moment.likedByMe === likedByMe
+                ? moment.likeCount
+                : Math.max(0, moment.likeCount + (likedByMe ? 1 : -1))
+          };
+        })
+      );
+      return { action, postId, previous, version };
+    },
+    []
+  );
+
+  const settleSipReaction = useCallback((operation: SipReactionOperation) => {
+    setPendingSipReactionPostIds((current) => {
+      if (!current.has(operation.postId)) return current;
+      const next = new Set(current);
+      next.delete(operation.postId);
+      return next;
+    });
+  }, []);
+
+  const rollbackSipReaction = useCallback((operation: SipReactionOperation) => {
+    if (
+      sipReactionVersionsRef.current.get(operation.postId) !== operation.version
+    ) {
+      return;
+    }
+    setMoments((current) =>
+      current.map((moment) =>
+        moment.id === operation.postId
+          ? { ...moment, ...operation.previous }
           : moment
       )
     );
@@ -625,10 +697,9 @@ export function MomentsPage() {
           message: "Your Like could not be saved. Please try again."
         };
       }
-      updateLike(postId, true);
       return { ok: true };
     },
-    [moments, updateLike]
+    [moments]
   );
 
   const ensureMustTry = useCallback(
@@ -658,19 +729,6 @@ export function MomentsPage() {
           message: "Must Try could not be saved. Please try again."
         };
       }
-
-      setMoments((current) =>
-        current.map((item) =>
-          item.id === postId
-            ? {
-                ...item,
-                mustTryByMe: true,
-                likedByMe: true,
-                likeCount: item.likedByMe ? item.likeCount : item.likeCount + 1
-              }
-            : item
-        )
-      );
       return { ok: true };
     },
     [moments]
@@ -716,6 +774,10 @@ export function MomentsPage() {
           onAdvance={() => setSipIndex((current) => current + 1)}
           onEnsureLike={ensureLike}
           onEnsureMustTry={ensureMustTry}
+          onOptimisticReaction={optimisticallyApplySipReaction}
+          pendingSipReactionPostIds={pendingSipReactionPostIds}
+          onReactionSettled={settleSipReaction}
+          onRollbackReaction={rollbackSipReaction}
           onExit={exitSipMode}
           onLoadMore={loadMore}
         />
@@ -842,6 +904,7 @@ export function MomentsPage() {
                   moment={moment}
                   onDelete={removeMoment}
                   onLikeChange={updateLike}
+                  sipReactionPending={pendingSipReactionPostIds.has(moment.id)}
                 />
               ))}
             </div>

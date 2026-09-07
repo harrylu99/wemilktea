@@ -14,6 +14,17 @@ import { sipDirection, resolveSipAction, type SipAction } from "./sip-gesture";
 export type SipLoadMoreStatus = "idle" | "loading" | "error";
 
 export type SipActionResult = { ok: true } | { ok: false; message: string };
+export type SipReactionAction = Extract<SipAction, "like" | "must_try">;
+export type SipReactionSnapshot = Pick<
+  PublicMoment,
+  "likedByMe" | "mustTryByMe" | "likeCount"
+>;
+export type SipReactionOperation = {
+  action: SipReactionAction;
+  postId: string;
+  previous: SipReactionSnapshot;
+  version: number;
+};
 
 function publicLocation(moment: PublicMoment) {
   return moment.location.name ?? moment.location.text;
@@ -247,6 +258,10 @@ export function SipMode({
   onAdvance,
   onEnsureLike,
   onEnsureMustTry,
+  onOptimisticReaction,
+  pendingSipReactionPostIds,
+  onReactionSettled,
+  onRollbackReaction,
   onExit,
   onLoadMore
 }: {
@@ -257,6 +272,14 @@ export function SipMode({
   onAdvance: () => void;
   onEnsureLike: (postId: string) => Promise<SipActionResult>;
   onEnsureMustTry: (postId: string) => Promise<SipActionResult>;
+  onOptimisticReaction: (
+    postId: string,
+    action: SipReactionAction,
+    previous: SipReactionSnapshot
+  ) => SipReactionOperation;
+  pendingSipReactionPostIds: ReadonlySet<string>;
+  onReactionSettled: (operation: SipReactionOperation) => void;
+  onRollbackReaction: (operation: SipReactionOperation) => void;
   onExit: () => void;
   onLoadMore: () => Promise<void>;
 }) {
@@ -290,6 +313,8 @@ export function SipMode({
   const [pending, setPending] = useState<SipAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState(false);
+  const feedbackErrorRef = useRef(false);
+  const feedbackSequenceRef = useRef(0);
   const moment = moments[index] ?? null;
   const hadMomentRef = useRef(Boolean(moment));
   const dragProgress = Math.min(
@@ -401,37 +426,36 @@ export function SipMode({
   }, []);
 
   const runAction = useCallback(
-    async (action: SipAction) => {
-      if (!moment || pendingRef.current || helpOpen) return;
-      pendingRef.current = true;
-      setPending(action);
-      setFeedback(null);
-      setFeedbackError(false);
-      let result: SipActionResult;
-      try {
-        result =
-          action === "skip"
-            ? { ok: true }
-            : action === "like"
-              ? await onEnsureLike(moment.id)
-              : await onEnsureMustTry(moment.id);
-      } catch {
-        result = {
-          ok: false,
-          message: "That action could not be completed. Please try again."
-        };
-      }
-      if (!mountedRef.current) return;
-      if (!result.ok) {
-        setFeedback(result.message);
-        setFeedbackError(true);
-        pendingRef.current = false;
-        setPending(null);
+    (action: SipAction) => {
+      if (
+        !moment ||
+        pendingRef.current ||
+        helpOpen ||
+        (action !== "skip" && pendingSipReactionPostIds.has(moment.id))
+      ) {
         return;
       }
-      setFeedback(
-        action === "skip" ? "Skipped" : `${actionLabel(action)} saved`
-      );
+      pendingRef.current = true;
+      setPending(action);
+      if (!feedbackErrorRef.current) {
+        setFeedback(null);
+        setFeedbackError(false);
+      }
+      const feedbackSequence = ++feedbackSequenceRef.current;
+
+      const operation =
+        action === "skip"
+          ? null
+          : onOptimisticReaction(moment.id, action, {
+              likedByMe: moment.likedByMe,
+              mustTryByMe: moment.mustTryByMe,
+              likeCount: moment.likeCount
+            });
+      if (!feedbackErrorRef.current) {
+        setFeedback(
+          action === "skip" ? "Skipped" : `${actionLabel(action)} sending…`
+        );
+      }
       exitActionRef.current = action;
       exitCompletedRef.current = false;
       setExitAction(action);
@@ -442,8 +466,57 @@ export function SipMode({
         finishExit,
         reduceMotion ? 0 : 260
       );
+
+      if (operation) {
+        const persist = Promise.resolve().then(() =>
+          action === "like"
+            ? onEnsureLike(operation.postId)
+            : onEnsureMustTry(operation.postId)
+        );
+        void persist
+          .then((result) => {
+            if (result.ok) {
+              if (
+                mountedRef.current &&
+                feedbackSequenceRef.current === feedbackSequence &&
+                !feedbackErrorRef.current
+              ) {
+                setFeedback(null);
+                setFeedbackError(false);
+              }
+              return;
+            }
+            onRollbackReaction(operation);
+            if (mountedRef.current) {
+              feedbackErrorRef.current = true;
+              setFeedback(result.message);
+              setFeedbackError(true);
+            }
+          })
+          .catch(() => {
+            onRollbackReaction(operation);
+            if (mountedRef.current) {
+              feedbackErrorRef.current = true;
+              setFeedback(
+                `${actionLabel(action)} wasn’t saved. Please try again.`
+              );
+              setFeedbackError(true);
+            }
+          })
+          .finally(() => onReactionSettled(operation));
+      }
     },
-    [finishExit, helpOpen, moment, onEnsureLike, onEnsureMustTry]
+    [
+      finishExit,
+      helpOpen,
+      moment,
+      onEnsureLike,
+      onEnsureMustTry,
+      onOptimisticReaction,
+      pendingSipReactionPostIds,
+      onReactionSettled,
+      onRollbackReaction
+    ]
   );
 
   const handleOverlayKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -638,7 +711,9 @@ export function SipMode({
           aria-label="Must Try this Moment"
           aria-pressed={moment.mustTryByMe}
           className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
-          disabled={pending !== null}
+          disabled={
+            pending !== null || pendingSipReactionPostIds.has(moment.id)
+          }
           type="button"
           onClick={() => void runAction("must_try")}
         >
@@ -648,7 +723,9 @@ export function SipMode({
           aria-label="Like this Moment"
           aria-pressed={moment.likedByMe}
           className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={pending !== null}
+          disabled={
+            pending !== null || pendingSipReactionPostIds.has(moment.id)
+          }
           type="button"
           onClick={() => void runAction("like")}
         >
