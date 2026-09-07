@@ -5,7 +5,6 @@ import { supabase, supabaseConfigurationError } from "../lib/supabase";
 export const MOMENTS_PAGE_SIZE = 20;
 
 const uuidSchema = z.string().uuid();
-const ownMomentIdRowSchema = z.object({ id: uuidSchema });
 const momentCursorRowSchema = z.object({
   id: uuidSchema,
   submitted_at: z.string().min(1)
@@ -33,7 +32,8 @@ const publicMomentRowSchema = z.object({
   submitted_at: z.string().min(1),
   like_count: z.coerce.number().int().nonnegative(),
   liked_by_me: z.boolean(),
-  must_try_by_me: z.boolean()
+  must_try_by_me: z.boolean(),
+  owned_by_me: z.boolean()
 });
 
 const r2PublicBaseUrl =
@@ -72,6 +72,7 @@ export type PublicMoment = {
   likeCount: number;
   likedByMe: boolean;
   mustTryByMe: boolean;
+  ownedByMe: boolean;
 };
 
 export type MomentsPageResult =
@@ -120,7 +121,8 @@ export function normalizePublicMoment(
     submittedAt: parsed.data.submitted_at,
     likeCount: parsed.data.like_count,
     likedByMe: parsed.data.liked_by_me,
-    mustTryByMe: parsed.data.must_try_by_me
+    mustTryByMe: parsed.data.must_try_by_me,
+    ownedByMe: parsed.data.owned_by_me
   };
 }
 
@@ -189,31 +191,6 @@ export async function loadPublicMomentsPage(
     hasMore: cursorRow.success && hasLookAhead,
     error: null
   };
-}
-
-export async function loadOwnMomentIds(
-  client = supabase
-): Promise<Set<string>> {
-  if (!client) return new Set();
-
-  const {
-    data: { user },
-    error: userError
-  } = await client.auth.getUser();
-  if (userError || !user) return new Set();
-
-  const { data, error } = await client
-    .from("community_posts")
-    .select("id")
-    .eq("owner_user_id", user.id);
-  if (error || !Array.isArray(data)) return new Set();
-
-  return new Set(
-    data.flatMap((row) => {
-      const parsed = ownMomentIdRowSchema.safeParse(row);
-      return parsed.success ? [parsed.data.id] : [];
-    })
-  );
 }
 
 export const momentReportReasons = [

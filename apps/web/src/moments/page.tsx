@@ -13,7 +13,6 @@ import { PublicHeader } from "../public-header";
 import { Seo } from "../seo";
 import { useDismissiblePopover } from "../use-dismissible-popover";
 import {
-  loadOwnMomentIds,
   loadPublicMomentsPage,
   momentReportReasons,
   type MomentReportReason,
@@ -487,7 +486,6 @@ function MomentsSkeleton() {
 
 export function MomentsPage() {
   const [moments, setMoments] = useState<PublicMoment[]>([]);
-  const [ownMomentIds, setOwnMomentIds] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<FeedStatus>("loading");
   const [loadMoreStatus, setLoadMoreStatus] = useState<LoadMoreStatus>("idle");
   const [cursor, setCursor] = useState<MomentsCursor | null>(null);
@@ -517,12 +515,8 @@ export function MomentsPage() {
     setHasMore(false);
     setSipIndex(0);
 
-    const [page, ownIds] = await Promise.all([
-      loadPublicMomentsPage(),
-      loadOwnMomentIds()
-    ]);
+    const page = await loadPublicMomentsPage();
     if (generation !== generationRef.current) return;
-    setOwnMomentIds(ownIds);
     if (page.error || !page.data) {
       setStatus("error");
       return;
@@ -666,11 +660,6 @@ export function MomentsPage() {
 
   const removeMoment = useCallback((postId: string) => {
     setMoments((current) => current.filter((moment) => moment.id !== postId));
-    setOwnMomentIds((current) => {
-      const next = new Set(current);
-      next.delete(postId);
-      return next;
-    });
   }, []);
 
   const ensureLike = useCallback(
@@ -899,7 +888,7 @@ export function MomentsPage() {
             <div className="moments-grid columns-2 gap-3 md:columns-3 md:gap-4 lg:columns-4">
               {moments.map((moment) => (
                 <MomentCard
-                  isOwn={ownMomentIds.has(moment.id)}
+                  isOwn={moment.ownedByMe}
                   key={moment.id}
                   moment={moment}
                   onDelete={removeMoment}

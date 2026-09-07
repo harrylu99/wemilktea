@@ -21,6 +21,8 @@ declare
   post_like_count bigint;
   liked boolean;
   must_try boolean;
+  owned boolean;
+  feed_row record;
 begin
   select l.id into location_id
   from public.locations as l
@@ -117,6 +119,18 @@ begin
   if public_count < 1 then
     raise exception 'anonymous users cannot read active public Moments';
   end if;
+  select feed.* into feed_row
+  from public.list_public_community_posts() as feed
+  where feed.id = post_id;
+  if (to_jsonb(feed_row) ? 'owner_user_id') then
+    raise exception 'public feed exposed owner_user_id';
+  end if;
+  select owned_by_me into owned
+  from public.list_public_community_posts()
+  where id = post_id;
+  if owned then
+    raise exception 'anonymous feed incorrectly marked a Moment as owned';
+  end if;
 
   begin
     perform 1 from public.community_posts;
@@ -129,12 +143,12 @@ begin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', owner_id::text, true);
 
-  select like_count, liked_by_me, must_try_by_me
-  into post_like_count, liked, must_try
+  select like_count, liked_by_me, must_try_by_me, owned_by_me
+  into post_like_count, liked, must_try, owned
   from public.list_public_community_posts()
   where id = post_id;
-  if post_like_count <> 0 or liked or must_try then
-    raise exception 'new public feed reaction state is incorrect';
+  if post_like_count <> 0 or liked or must_try or not owned then
+    raise exception 'owner feed reaction or ownership state is incorrect';
   end if;
 
   if not public.like_community_post(post_id) then
@@ -162,17 +176,23 @@ begin
     raise exception 'duplicate Must Try created a duplicate Like row';
   end if;
 
-  select like_count, liked_by_me, must_try_by_me
-  into post_like_count, liked, must_try
+  select like_count, liked_by_me, must_try_by_me, owned_by_me
+  into post_like_count, liked, must_try, owned
   from public.list_public_community_posts()
   where id = post_id;
-  if post_like_count <> 1 or not liked or not must_try then
+  if post_like_count <> 1 or not liked or not must_try or not owned then
     raise exception 'owner reaction state is incorrect';
   end if;
 
   execute 'reset role';
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', other_id::text, true);
+  select owned_by_me into owned
+  from public.list_public_community_posts()
+  where id = post_id;
+  if owned then
+    raise exception 'different identity incorrectly marked the Moment as owned';
+  end if;
   if not public.save_community_post_must_try(post_id) then
     raise exception 'new Must Try did not persist for a second authenticated user';
   end if;
