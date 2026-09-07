@@ -259,6 +259,7 @@ export function SipMode({
   onEnsureLike,
   onEnsureMustTry,
   onOptimisticReaction,
+  pendingSipReactionPostIds,
   onReactionSettled,
   onRollbackReaction,
   onExit,
@@ -276,6 +277,7 @@ export function SipMode({
     action: SipReactionAction,
     previous: SipReactionSnapshot
   ) => SipReactionOperation;
+  pendingSipReactionPostIds: ReadonlySet<string>;
   onReactionSettled: (operation: SipReactionOperation) => void;
   onRollbackReaction: (operation: SipReactionOperation) => void;
   onExit: () => void;
@@ -311,6 +313,7 @@ export function SipMode({
   const [pending, setPending] = useState<SipAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState(false);
+  const feedbackErrorRef = useRef(false);
   const feedbackSequenceRef = useRef(0);
   const moment = moments[index] ?? null;
   const hadMomentRef = useRef(Boolean(moment));
@@ -424,9 +427,17 @@ export function SipMode({
 
   const runAction = useCallback(
     (action: SipAction) => {
-      if (!moment || pendingRef.current || helpOpen) return;
+      if (
+        !moment ||
+        pendingRef.current ||
+        helpOpen ||
+        (action !== "skip" && pendingSipReactionPostIds.has(moment.id))
+      ) {
+        return;
+      }
       pendingRef.current = true;
       setPending(action);
+      feedbackErrorRef.current = false;
       setFeedback(null);
       setFeedbackError(false);
       const feedbackSequence = ++feedbackSequenceRef.current;
@@ -464,7 +475,8 @@ export function SipMode({
             if (result.ok) {
               if (
                 mountedRef.current &&
-                feedbackSequenceRef.current === feedbackSequence
+                feedbackSequenceRef.current === feedbackSequence &&
+                !feedbackErrorRef.current
               ) {
                 setFeedback(null);
                 setFeedbackError(false);
@@ -472,20 +484,16 @@ export function SipMode({
               return;
             }
             onRollbackReaction(operation);
-            if (
-              mountedRef.current &&
-              feedbackSequenceRef.current === feedbackSequence
-            ) {
+            if (mountedRef.current) {
+              feedbackErrorRef.current = true;
               setFeedback(result.message);
               setFeedbackError(true);
             }
           })
           .catch(() => {
             onRollbackReaction(operation);
-            if (
-              mountedRef.current &&
-              feedbackSequenceRef.current === feedbackSequence
-            ) {
+            if (mountedRef.current) {
+              feedbackErrorRef.current = true;
               setFeedback(
                 `${actionLabel(action)} wasn’t saved. Please try again.`
               );
@@ -502,6 +510,7 @@ export function SipMode({
       onEnsureLike,
       onEnsureMustTry,
       onOptimisticReaction,
+      pendingSipReactionPostIds,
       onReactionSettled,
       onRollbackReaction
     ]
@@ -699,7 +708,9 @@ export function SipMode({
           aria-label="Must Try this Moment"
           aria-pressed={moment.mustTryByMe}
           className="sip-action-button rounded-full border border-sky-600 bg-card text-xl text-sky-600 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-400 dark:text-sky-400 dark:hover:bg-sky-950"
-          disabled={pending !== null}
+          disabled={
+            pending !== null || pendingSipReactionPostIds.has(moment.id)
+          }
           type="button"
           onClick={() => void runAction("must_try")}
         >
@@ -709,7 +720,9 @@ export function SipMode({
           aria-label="Like this Moment"
           aria-pressed={moment.likedByMe}
           className="sip-action-button rounded-full border border-border bg-card text-xl text-rose-600 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={pending !== null}
+          disabled={
+            pending !== null || pendingSipReactionPostIds.has(moment.id)
+          }
           type="button"
           onClick={() => void runAction("like")}
         >

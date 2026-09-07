@@ -775,6 +775,7 @@ export function MomentsPage() {
           onEnsureLike={ensureLike}
           onEnsureMustTry={ensureMustTry}
           onOptimisticReaction={optimisticallyApplySipReaction}
+          pendingSipReactionPostIds={pendingSipReactionPostIds}
           onReactionSettled={settleSipReaction}
           onRollbackReaction={rollbackSipReaction}
           onExit={exitSipMode}

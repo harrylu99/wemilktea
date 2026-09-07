@@ -869,6 +869,110 @@ test.serial(
 );
 
 test.serial(
+  "surfaces an older Sip failure after a later Skip without rewinding",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+
+    fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
+    await act(async () => await Promise.resolve());
+    pendingRpcs[0]!(false);
+    await act(async () => await Promise.resolve());
+
+    expect(view.getByRole("alert").textContent).toContain(
+      "Like could not be saved"
+    );
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 2" })
+    ).toBeTruthy();
+
+    await act(settleSipExit);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "keeps a same-post Sip guard across Exit and re-entry",
+  async () => {
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    expect(pendingRpcs).toHaveLength(1);
+
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    let firstLike = view
+      .getByText(firstMoment.caption)
+      .closest("article")
+      ?.querySelector("button") as HTMLButtonElement;
+    expect(firstLike.disabled).toBe(true);
+
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+    expect(
+      (
+        view.getByRole("button", {
+          name: "Like this Moment"
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        view.getByRole("button", {
+          name: "Must Try this Moment"
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        view.getByRole("button", {
+          name: "Skip this Moment"
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(false);
+    fireEvent.keyDown(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" }),
+      { key: "ArrowRight" }
+    );
+    expect(pendingRpcs).toHaveLength(1);
+
+    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    firstLike = view
+      .getByText(firstMoment.caption)
+      .closest("article")
+      ?.querySelector("button") as HTMLButtonElement;
+    expect(firstLike.disabled).toBe(true);
+
+    pendingRpcs[0]!(true);
+    await act(async () => await Promise.resolve());
+    expect(firstLike.disabled).toBe(false);
+    expect(firstLike.getAttribute("aria-label")).toBe("Unlike this Moment");
+  }
+);
+
+test.serial(
   "disables only the pending Sip post in Gallery and re-enables it on success",
   async () => {
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
