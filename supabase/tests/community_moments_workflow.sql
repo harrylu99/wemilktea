@@ -114,7 +114,11 @@ begin
     raise exception 'owner could not activate a finalized community image';
   end if;
 
+  perform set_config('request.jwt.claim.sub', '', true);
   execute 'set local role anon';
+  if auth.uid() is not null then
+    raise exception 'anonymous test retained an authenticated JWT subject';
+  end if;
   select count(*) into public_count from public.list_public_community_posts();
   if public_count < 1 then
     raise exception 'anonymous users cannot read active public Moments';
