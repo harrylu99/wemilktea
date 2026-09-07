@@ -294,6 +294,13 @@ test.serial(
         .getByRole("link", { name: "Matcha Cloud Latte" })
         .getAttribute("href")
     ).toBe("/drinks/gong-cha/matcha-cloud-latte");
+    const views = view.getByRole("group", { name: "Moments views" });
+    expect(views.querySelector('[aria-current="true"]')?.textContent).toBe(
+      "Gallery"
+    );
+    const sipButton = view.getByRole("button", { name: "Sip Mode" });
+    expect(sipButton.textContent).toContain("Try Sip Mode");
+    expect(sipButton.className).toContain("bg-primary/10");
     expect(pageCalls).toHaveLength(1);
     expect(auth.getSession).not.toHaveBeenCalled();
   }
