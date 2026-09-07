@@ -437,9 +437,10 @@ export function SipMode({
       }
       pendingRef.current = true;
       setPending(action);
-      feedbackErrorRef.current = false;
-      setFeedback(null);
-      setFeedbackError(false);
+      if (!feedbackErrorRef.current) {
+        setFeedback(null);
+        setFeedbackError(false);
+      }
       const feedbackSequence = ++feedbackSequenceRef.current;
 
       const operation =
