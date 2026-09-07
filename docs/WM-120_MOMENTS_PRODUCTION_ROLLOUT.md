@@ -103,6 +103,23 @@ contract. The Admin report count intentionally uses a count-only Supabase
 query (`head: true`) against `community_post_reports`; neither request should
 be replaced with a frontend fallback or a hard-coded zero.
 
+## WM-128 ownership rollout ordering
+
+The WM-128 feed contract adds the caller-specific `owned_by_me` boolean to
+`list_public_community_posts` without exposing `owner_user_id`. Because the
+updated Web parser requires that column, the production rollout must happen in
+this order:
+
+1. Apply the WM-128 database migration.
+2. Verify `list_public_community_posts` through PostgREST for anonymous,
+   owner, and different-identity callers.
+3. Deploy the Web bundle.
+4. Smoke test Moments ownership, Delete, Report, and pagination behavior.
+
+Read-only feed browsing must remain unauthenticated and must not create an
+anonymous Auth identity. The `owned_by_me` value is a UI affordance only; the
+`delete_own_community_post` RPC remains the server authorization boundary.
+
 ## Required runtime components and configuration names
 
 The reviewed production path requires the following components and names:

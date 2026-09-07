@@ -73,7 +73,8 @@ const firstMoment: PublicMoment = {
   submittedAt: "2026-08-31T00:00:00.000Z",
   likeCount: 2,
   likedByMe: false,
-  mustTryByMe: false
+  mustTryByMe: false,
+  ownedByMe: false
 };
 
 const secondMoment = {
@@ -108,7 +109,6 @@ let nextPage: MockPage = {
 };
 let cursorPage: MockPage | null = null;
 let cursorPages: MockPage[] = [];
-let ownIds = new Set<string>();
 let deferNextPage = false;
 let failNextPage = false;
 let failRpc = false;
@@ -190,7 +190,6 @@ mock.module("../turnstile", () => ({
   getWebTurnstileToken: async () => "test-turnstile-token"
 }));
 mock.module("./data", () => ({
-  loadOwnMomentIds: async () => ownIds,
   loadPublicMomentsPage: async (cursor: unknown) => {
     pageCalls.push(cursor);
     if (cursor && deferNextPage) {
@@ -217,7 +216,6 @@ mock.module("./data", () => ({
     ["other", "Other"]
   ]
 }));
-
 const { act, cleanup, fireEvent, render } =
   await import("@testing-library/react");
 const { MemoryRouter } = await import("react-router-dom");
@@ -246,7 +244,6 @@ beforeEach(() => {
   };
   cursorPage = null;
   cursorPages = [];
-  ownIds = new Set();
   deferNextPage = false;
   failNextPage = false;
   failRpc = false;
@@ -298,6 +295,7 @@ test.serial(
         .getAttribute("href")
     ).toBe("/drinks/gong-cha/matcha-cloud-latte");
     expect(pageCalls).toHaveLength(1);
+    expect(auth.getSession).not.toHaveBeenCalled();
   }
 );
 
@@ -326,7 +324,7 @@ test.serial(
 test.serial(
   "shows Delete only for an own Moment and removes it after success",
   async () => {
-    ownIds = new Set([firstMoment.id]);
+    nextPage = { ...nextPage, data: [{ ...firstMoment, ownedByMe: true }] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
 
@@ -395,7 +393,11 @@ test.serial(
 test.serial(
   "loads the next cursor once and deduplicates a repeated item",
   async () => {
-    const secondPageMoment = { ...secondMoment, caption: "Second cup" };
+    const secondPageMoment = {
+      ...secondMoment,
+      caption: "Second cup",
+      ownedByMe: true
+    };
     nextPage = {
       data: [firstMoment],
       nextCursor: { submittedAt: firstMoment.submittedAt, id: firstMoment.id },
@@ -418,6 +420,10 @@ test.serial(
 
     expect(await view.findByText("Second cup")).toBeTruthy();
     expect(view.getAllByText(firstMoment.caption)).toHaveLength(1);
+    fireEvent.click(
+      view.getAllByRole("button", { name: "Open Moment actions" })[1]!
+    );
+    expect(view.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
     expect(pageCalls).toEqual([
       undefined,
       { submittedAt: firstMoment.submittedAt, id: firstMoment.id }

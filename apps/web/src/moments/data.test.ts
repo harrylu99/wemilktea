@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import {
   loadPublicMomentsPage,
-  loadOwnMomentIds,
   normalizePublicMoment,
   MOMENTS_PAGE_SIZE
 } from "./data";
@@ -28,7 +27,8 @@ const firstRow = {
   submitted_at: "2026-08-31T00:00:00.000Z",
   like_count: 3,
   liked_by_me: false,
-  must_try_by_me: false
+  must_try_by_me: false,
+  owned_by_me: false
 };
 
 function makeRow(index: number) {
@@ -68,6 +68,12 @@ test("normalizes canonical and free-text Moment metadata without inventing links
       text: "A surprise jasmine drink"
     }
   });
+});
+
+test("normalizes server-provided ownership without exposing an owner id", () => {
+  expect(
+    normalizePublicMoment({ ...firstRow, owned_by_me: true })
+  ).toMatchObject({ ownedByMe: true });
 });
 
 test("keeps a valid dimensionless image in the public feed", async () => {
@@ -205,25 +211,11 @@ test("reports a malformed RPC payload without rendering partial data", async () 
   });
 });
 
-test("skips malformed own Moment rows without throwing", async () => {
-  const client = {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: firstRow.id } },
-        error: null
-      })
-    },
-    from: () => ({
-      select: () => ({
-        eq: async () => ({
-          data: [null, { id: firstRow.id }, { id: "not-a-uuid" }],
-          error: null
-        })
-      })
-    })
-  } as unknown as NonNullable<Parameters<typeof loadOwnMomentIds>[0]>;
-
-  await expect(loadOwnMomentIds(client)).resolves.toEqual(
-    new Set([firstRow.id])
-  );
+test("rejects a row with an invalid ownership value", () => {
+  expect(
+    normalizePublicMoment({ ...firstRow, owned_by_me: "true" })
+  ).toBeNull();
+  const { owned_by_me, ...missingOwnership } = firstRow;
+  void owned_by_me;
+  expect(normalizePublicMoment(missingOwnership)).toBeNull();
 });
