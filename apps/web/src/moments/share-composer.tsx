@@ -616,7 +616,7 @@ export function ShareMomentComposer({
           ) : (
             <button
               ref={photoPickerRef}
-              className="min-h-44 w-full cursor-pointer rounded-xl text-sm font-medium text-primary transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-72"
+              className="min-h-44 w-full cursor-pointer rounded-xl text-sm font-medium text-primary transition-colors enabled:hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-72"
               disabled={submitting}
               type="button"
               onClick={() => fileInputRef.current?.click()}
