@@ -616,7 +616,7 @@ export function ShareMomentComposer({
           ) : (
             <button
               ref={photoPickerRef}
-              className="min-h-44 w-full rounded-xl text-sm font-medium text-primary sm:min-h-72"
+              className="min-h-44 w-full cursor-pointer rounded-xl text-sm font-medium text-primary transition-colors enabled:hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-72"
               disabled={submitting}
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -627,7 +627,7 @@ export function ShareMomentComposer({
         </div>
         <div className="flex gap-4 text-xs font-medium">
           <button
-            className="min-h-11 rounded-lg px-1 text-primary hover:bg-accent disabled:opacity-60"
+            className="min-h-11 cursor-pointer rounded-lg px-1 text-primary transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
             disabled={submitting}
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -635,7 +635,7 @@ export function ShareMomentComposer({
             Change
           </button>
           <button
-            className="min-h-11 rounded-lg px-1 text-muted-foreground hover:bg-accent disabled:opacity-60"
+            className="min-h-11 cursor-pointer rounded-lg px-1 text-muted-foreground transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!normalized || submitting}
             type="button"
             onClick={() => {
@@ -681,7 +681,7 @@ export function ShareMomentComposer({
           />
         </label>
         <button
-          className="min-h-11 rounded-lg bg-accent px-3 text-left text-xs font-medium text-primary"
+          className="min-h-11 cursor-pointer rounded-lg bg-accent px-3 text-left text-xs font-medium text-primary transition-colors enabled:hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           disabled={submitting}
           type="button"
           onClick={() => {
@@ -725,7 +725,7 @@ export function ShareMomentComposer({
           </div>
         ) : null}
         <button
-          className="min-h-11 rounded-lg px-1 text-left text-xs font-medium text-foreground hover:bg-accent"
+          className="min-h-11 cursor-pointer rounded-lg px-1 text-left text-xs font-medium text-foreground transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           disabled={submitting}
           type="button"
           onClick={() => {
@@ -760,7 +760,7 @@ export function ShareMomentComposer({
         <ErrorText message={fieldError} />
         <ErrorText message={error} />
         <button
-          className="min-h-11 w-fit rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 w-fit cursor-pointer rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           disabled={submitting}
           type="submit"
         >
@@ -798,7 +798,7 @@ export function ShareMomentComposer({
           <div className="flex-1" />
           <button
             aria-label="Close Share your moment"
-            className="grid min-h-11 min-w-11 place-items-center rounded-xl bg-accent text-xs font-medium text-primary"
+            className="grid min-h-11 min-w-11 cursor-pointer place-items-center rounded-xl bg-accent text-xs font-medium text-primary transition-colors enabled:hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
             disabled={submitting}
             type="button"
             onClick={close}
@@ -819,7 +819,7 @@ export function ShareMomentComposer({
               </p>
             </div>
             <button
-              className="min-h-11 rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground"
+              className="min-h-11 cursor-pointer rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               onClick={close}
             >
