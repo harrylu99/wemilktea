@@ -778,7 +778,7 @@ export function SipMode({
                   <li>→ Swipe or press Right to Like</li>
                   <li>↑ Swipe or press Up to Must Try</li>
                   <li>Or use the action buttons below the card</li>
-                  <li>Press Escape or Exit to return to Gallery</li>
+                  <li>Press Escape or Gallery to return to Gallery</li>
                 </ul>
               </div>
             ) : null}
@@ -786,12 +786,12 @@ export function SipMode({
         </div>
         <div className="flex items-center gap-2">
           <button
-            aria-label="Exit"
+            aria-label="Open Gallery"
             className="cursor-pointer rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
             onClick={onExit}
           >
-            Exit
+            Gallery
           </button>
         </div>
       </header>

@@ -41,7 +41,7 @@ export function PublicHeader() {
   const links = [
     ["Stores", "/stores"],
     ["Drinks", "/drinks"],
-    ["Moments", "/moments"]
+    ["Sip Mode", "/moments"]
   ] as const;
 
   useEffect(() => {

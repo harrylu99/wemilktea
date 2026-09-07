@@ -109,10 +109,13 @@ let nextPage: MockPage = {
 };
 let cursorPage: MockPage | null = null;
 let cursorPages: MockPage[] = [];
+let deferInitialPage = false;
+let failInitialPage = false;
 let deferNextPage = false;
 let failNextPage = false;
 let failRpc = false;
 let deferRpc = false;
+let pendingInitialPage: ((page: MockPage) => void) | null = null;
 let pendingNextPage: ((page: MockPage) => void) | null = null;
 let pendingRpc: ((success?: boolean) => void) | null = null;
 let pendingRpcs: Array<(success?: boolean) => void> = [];
@@ -192,6 +195,19 @@ mock.module("../turnstile", () => ({
 mock.module("./data", () => ({
   loadPublicMomentsPage: async (cursor: unknown) => {
     pageCalls.push(cursor);
+    if (!cursor && deferInitialPage) {
+      return new Promise<MockPage>((resolve) => {
+        pendingInitialPage = resolve;
+      });
+    }
+    if (!cursor && failInitialPage) {
+      return {
+        data: null,
+        nextCursor: null,
+        hasMore: false,
+        error: "query_failed"
+      };
+    }
     if (cursor && deferNextPage) {
       return new Promise<MockPage>((resolve) => {
         pendingNextPage = resolve;
@@ -234,6 +250,11 @@ function renderMoments() {
   );
 }
 
+function enterSipMode(view: ReturnType<typeof renderMoments>) {
+  if (view.queryByRole("heading", { name: "Sip Mode" })) return;
+  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+}
+
 beforeEach(() => {
   installBrowserGlobals();
   nextPage = {
@@ -244,11 +265,14 @@ beforeEach(() => {
   };
   cursorPage = null;
   cursorPages = [];
+  deferInitialPage = false;
+  failInitialPage = false;
   deferNextPage = false;
   failNextPage = false;
   failRpc = false;
   deferRpc = false;
   pendingNextPage = null;
+  pendingInitialPage = null;
   pendingRpc = null;
   pendingRpcs = [];
   FakeIntersectionObserver.current = null;
@@ -270,7 +294,7 @@ afterAll(() => {
 });
 
 test.serial(
-  "renders photo-only and rich Moments without filler labels",
+  "opens populated Moments in Sip Mode without filler labels",
   async () => {
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     const view = renderMoments();
@@ -279,6 +303,15 @@ test.serial(
       "Loading Moments"
     );
     expect(await view.findByText(firstMoment.caption)).toBeTruthy();
+    expect(view.getByRole("heading", { name: "Sip Mode" })).toBeTruthy();
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
+    expect(pageCalls).toHaveLength(1);
+    expect(auth.getSession).not.toHaveBeenCalled();
+    expect(auth.signInAnonymously).not.toHaveBeenCalled();
+
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     expect(view.getByText("Mellow Tea House")).toBeTruthy();
     expect(view.getByText("Matcha Cloud Latte")).toBeTruthy();
     expect(view.getByText("Takapuna tea shop")).toBeTruthy();
@@ -301,8 +334,43 @@ test.serial(
     const sipButton = view.getByRole("button", { name: "Sip Mode" });
     expect(sipButton.textContent).toContain("Try Sip Mode");
     expect(sipButton.className).toContain("bg-primary/10");
-    expect(pageCalls).toHaveLength(1);
-    expect(auth.getSession).not.toHaveBeenCalled();
+  }
+);
+
+test.serial("keeps the loading state out of Sip end-of-feed UI", async () => {
+  deferInitialPage = true;
+  const view = renderMoments();
+
+  expect(view.getByRole("status", { name: "Loading Moments" })).toBeTruthy();
+  expect(view.queryByText("That’s all for now 🧋")).toBeNull();
+
+  pendingInitialPage!({
+    data: [firstMoment],
+    nextCursor: null,
+    hasMore: false,
+    error: null
+  });
+  expect(await view.findByRole("heading", { name: "Sip Mode" })).toBeTruthy();
+  expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
+});
+
+test.serial(
+  "keeps the Gallery error and opens Sip after a successful retry",
+  async () => {
+    failInitialPage = true;
+    const view = renderMoments();
+
+    expect((await view.findByRole("alert")).textContent).toContain(
+      "couldn’t load the Gallery"
+    );
+    expect(view.queryByRole("heading", { name: "Sip Mode" })).toBeNull();
+
+    failInitialPage = false;
+    fireEvent.click(view.getByRole("button", { name: "Try again" }));
+    expect(await view.findByRole("heading", { name: "Sip Mode" })).toBeTruthy();
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeTruthy();
   }
 );
 
@@ -315,6 +383,8 @@ test.serial(
     expect(auth.signInAnonymously).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
+
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
 
     expect(auth.signInAnonymously).toHaveBeenCalledTimes(1);
     expect(rpcCalls[0]).toEqual({
@@ -335,6 +405,7 @@ test.serial(
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
 
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     fireEvent.click(view.getByRole("button", { name: "Open Moment actions" }));
     fireEvent.click(view.getByRole("menuitem", { name: "Delete" }));
     await act(async () => await Promise.resolve());
@@ -351,6 +422,7 @@ test.serial(
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
 
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     const trigger = view.getAllByRole("button", {
       name: "Open Moment actions"
     })[1]!;
@@ -377,6 +449,7 @@ test.serial(
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
 
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     const trigger = view.getByRole("button", { name: "Open Moment actions" });
     fireEvent.click(trigger);
     fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
@@ -411,15 +484,15 @@ test.serial(
       hasMore: true,
       error: null
     };
-    const view = renderMoments();
-    await view.findByText(firstMoment.caption);
-
-    nextPage = {
+    cursorPage = {
       data: [firstMoment, secondPageMoment],
       nextCursor: null,
       hasMore: false,
       error: null
     };
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     await act(async () => {
       FakeIntersectionObserver.current?.trigger();
       await Promise.resolve();
@@ -490,6 +563,8 @@ test.serial(
       await Promise.resolve();
     });
 
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
+
     expect(view.getByRole("alert").textContent).toContain("couldn’t load");
     expect(view.getByText(firstMoment.caption)).toBeTruthy();
     expect(pageCalls).toHaveLength(2);
@@ -551,6 +626,7 @@ test.serial("renders the genuine empty feed state", async () => {
   await act(async () => await Promise.resolve());
 
   expect(view.getByText("No Moments yet.")).toBeTruthy();
+  expect(view.queryByRole("heading", { name: "Sip Mode" })).toBeNull();
   expect(FakeIntersectionObserver.current).toBeNull();
   expect(pageCalls).toHaveLength(1);
 });
@@ -559,6 +635,7 @@ test.serial("opens the Share composer from the Gallery CTA", async () => {
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
 
+  fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
   fireEvent.click(view.getByRole("button", { name: "Share your moment" }));
 
   expect(view.getByRole("dialog", { name: "Share your moment" })).toBeTruthy();
@@ -602,7 +679,7 @@ test.serial("enters Sip Mode without reloading the public feed", async () => {
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
 
-  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  enterSipMode(view);
 
   expect(view.getByRole("heading", { name: "Sip Mode" })).toBeTruthy();
   expect(view.getByRole("region", { name: "Sip Mode, Moment 1" })).toBeTruthy();
@@ -653,7 +730,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     const stage = view.getByRole("region", { name: "Sip Mode, Moment 1" });
     fireEvent.keyDown(stage, { key: "ArrowRight" });
@@ -704,7 +781,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -747,7 +824,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -780,7 +857,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Must Try this Moment" }));
     await act(async () => await Promise.resolve());
@@ -801,7 +878,7 @@ test.serial(
     await act(async () => await Promise.resolve());
     expect(view.getByRole("alert").textContent).toContain("could not be saved");
 
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     expect(
       view.getAllByRole("button", { name: "Like this Moment" })
     ).toHaveLength(2);
@@ -820,7 +897,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -833,7 +910,7 @@ test.serial(
     pendingRpcs[0]!(true);
     await act(async () => await Promise.resolve());
     await act(settleSipExit);
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
 
     expect(
       view.getAllByRole("button", { name: "Unlike this Moment" })
@@ -855,7 +932,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -893,7 +970,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -933,7 +1010,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -969,7 +1046,7 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
@@ -1002,25 +1079,25 @@ test.serial(
 );
 
 test.serial(
-  "keeps a same-post Sip guard across Exit and re-entry",
+  "keeps a same-post Sip guard across Gallery exit and re-entry",
   async () => {
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
     expect(pendingRpcs).toHaveLength(1);
 
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     let firstLike = view
       .getByText(firstMoment.caption)
       .closest("article")
       ?.querySelector("button") as HTMLButtonElement;
     expect(firstLike.disabled).toBe(true);
 
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 1" })
     ).toBeTruthy();
@@ -1051,7 +1128,7 @@ test.serial(
     );
     expect(pendingRpcs).toHaveLength(1);
 
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     firstLike = view
       .getByText(firstMoment.caption)
       .closest("article")
@@ -1072,11 +1149,11 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
     await act(settleSipExit);
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
 
     const firstLike = view
       .getByText(firstMoment.caption)
@@ -1103,11 +1180,11 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
     await act(async () => await Promise.resolve());
     await act(settleSipExit);
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
 
     const firstCard = view.getByText(firstMoment.caption).closest("article")!;
     const firstLike = firstCard.querySelector("button") as HTMLButtonElement;
@@ -1127,11 +1204,11 @@ test.serial(
     deferRpc = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.click(view.getByRole("button", { name: "Must Try this Moment" }));
     await act(async () => await Promise.resolve());
     await act(settleSipExit);
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
 
     const firstUnlike = view
       .getByText(firstMoment.caption)
@@ -1167,7 +1244,7 @@ test.serial(
     };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     await act(async () => await Promise.resolve());
 
     expect(pageCalls).toHaveLength(2);
@@ -1204,7 +1281,7 @@ test.serial(
     failNextPage = true;
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     await act(async () => await Promise.resolve());
 
     expect(pageCalls).toHaveLength(2);
@@ -1242,7 +1319,7 @@ test.serial("preserves focus through a pagination loading gap", async () => {
   deferNextPage = true;
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
-  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  enterSipMode(view);
   await act(async () => await Promise.resolve());
 
   fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 1" }), {
@@ -1294,7 +1371,7 @@ test.serial(
     ];
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     await act(async () => await Promise.resolve());
 
     expect(pageCalls).toHaveLength(3);
@@ -1324,7 +1401,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     const gestureSurface = view.container.querySelector<HTMLElement>(
       "[data-sip-gesture-surface]"
     );
@@ -1362,7 +1439,7 @@ test.serial(
 test.serial("keeps metadata touch scrolling out of Sip actions", async () => {
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
-  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  enterSipMode(view);
   const details = view.getByText(firstMoment.caption);
 
   fireEvent.pointerDown(details, {
@@ -1392,7 +1469,7 @@ test.serial("keeps metadata touch scrolling out of Sip actions", async () => {
 test.serial("does not commit a below-threshold swipe", async () => {
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
-  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+  enterSipMode(view);
   const surface = view.container.querySelector<HTMLElement>(
     "[data-sip-gesture-surface]"
   );
@@ -1435,7 +1512,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
     await act(async () => await Promise.resolve());
     expect(view.container.querySelector("[data-sip-effect]")).toBeNull();
@@ -1470,7 +1547,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
     await act(async () => await Promise.resolve());
     expect(
@@ -1489,7 +1566,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     deferRpc = true;
 
     fireEvent.keyDown(
@@ -1499,8 +1576,8 @@ test.serial(
     await act(async () => await Promise.resolve());
     expect(pendingRpc).toBeTruthy();
 
-    fireEvent.click(view.getByRole("button", { name: "Exit" }));
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
+    enterSipMode(view);
     pendingRpc!();
     await act(async () => await Promise.resolve());
 
@@ -1516,7 +1593,7 @@ test.serial(
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     failRpc = true;
 
     fireEvent.keyDown(
@@ -1537,7 +1614,7 @@ test.serial(
   async () => {
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
 
     const helpTrigger = view.getByRole("button", {
       name: "How Sip Mode works"
@@ -1549,6 +1626,8 @@ test.serial(
     expect(helpTrigger.parentElement?.className).toContain("relative");
     expect(helpTrigger.parentElement?.contains(helpDialog)).toBe(true);
     expect(helpDialog.className).toContain("z-50");
+    expect(helpDialog.textContent).toContain("Escape or Gallery");
+    expect(helpDialog.textContent).not.toContain("Escape or Exit");
     expect(view.getByRole("button", { name: "Close Sip Mode help" })).toBe(
       document.activeElement as HTMLElement
     );
@@ -1563,16 +1642,13 @@ test.serial(
 test.serial("restores focus to the Sip Mode trigger after exit", async () => {
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
-  const trigger = view.getByRole("button", { name: "Sip Mode" });
-  fireEvent.click(trigger);
   fireEvent.keyDown(view.getByRole("region", { name: "Sip Mode, Moment 1" }), {
     key: "Escape"
   });
   await act(async () => await Promise.resolve());
 
-  expect(view.getByRole("button", { name: "Sip Mode" })).toBe(
-    document.activeElement as HTMLElement
-  );
+  const trigger = view.getByRole("button", { name: "Sip Mode" });
+  expect(trigger).toBe(document.activeElement as HTMLElement);
 });
 
 test.serial(
@@ -1580,7 +1656,7 @@ test.serial(
   async () => {
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
-    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+    enterSipMode(view);
     fireEvent.keyDown(
       view.getByRole("region", { name: "Sip Mode, Moment 1" }),
       {
@@ -1601,8 +1677,8 @@ test.serial(
 test.serial("lets Escape exit from the Sip chrome controls", async () => {
   const view = renderMoments();
   await view.findByText(firstMoment.caption);
-  fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
-  fireEvent.keyDown(view.getByRole("button", { name: "Exit" }), {
+  enterSipMode(view);
+  fireEvent.keyDown(view.getByRole("button", { name: "Open Gallery" }), {
     key: "Escape"
   });
   await act(async () => await Promise.resolve());
