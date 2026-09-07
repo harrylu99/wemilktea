@@ -803,20 +803,26 @@ export function MomentsPage() {
           <div
             aria-label="Moments views"
             className="flex max-w-full items-center gap-2 overflow-x-auto pb-1"
+            role="group"
           >
-            <div className="flex h-12 w-[190px] shrink-0 items-center rounded-xl border border-border bg-card p-1">
-              <span className="flex h-10 w-[86px] shrink-0 items-center rounded-lg bg-accent px-4 py-2 text-xs font-medium text-primary">
+            <div className="flex h-12 w-[214px] shrink-0 items-center rounded-xl border border-border bg-card p-1">
+              <span
+                aria-current="true"
+                className="flex h-10 w-[86px] shrink-0 items-center rounded-lg bg-accent px-4 py-2 text-xs font-medium text-primary"
+              >
                 Gallery
               </span>
               <button
                 ref={sipTriggerRef}
+                aria-label="Sip Mode"
                 aria-pressed={false}
-                className="flex h-10 w-[96px] shrink-0 cursor-pointer items-center rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground transition-colors enabled:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex h-10 w-[120px] shrink-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary shadow-sm transition-colors enabled:hover:border-primary/50 enabled:hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={status !== "ready" || moments.length === 0}
                 type="button"
                 onClick={enterSipMode}
               >
-                Sip Mode
+                <span aria-hidden="true">✦</span>
+                <span>Try Sip Mode</span>
               </button>
             </div>
             <button
