@@ -909,6 +909,86 @@ test.serial(
 );
 
 test.serial(
+  "keeps a surfaced Sip failure visible across a later Skip",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    failRpc = true;
+    pendingRpcs[0]!();
+    await act(async () => await Promise.resolve());
+    expect(view.getByRole("alert").textContent).toContain(
+      "Like could not be saved"
+    );
+
+    fireEvent.click(view.getByRole("button", { name: "Skip this Moment" }));
+    expect(view.getByRole("alert").textContent).toContain(
+      "Like could not be saved"
+    );
+    expect(view.queryByText("Skipped")).toBeNull();
+    await act(settleSipExit);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
+  "keeps a surfaced Sip failure visible during a later positive action",
+  async () => {
+    const thirdMoment = {
+      ...secondMoment,
+      id: "77777777-7777-4777-8777-777777777777",
+      caption: "Third cup"
+    };
+    nextPage = { ...nextPage, data: [firstMoment, secondMoment, thirdMoment] };
+    deferRpc = true;
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+    fireEvent.click(view.getByRole("button", { name: "Sip Mode" }));
+
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    await act(settleSipExit);
+    failRpc = true;
+    pendingRpcs[0]!();
+    await act(async () => await Promise.resolve());
+    expect(view.getByRole("alert").textContent).toContain(
+      "Like could not be saved"
+    );
+
+    failRpc = false;
+    fireEvent.click(view.getByRole("button", { name: "Like this Moment" }));
+    await act(async () => await Promise.resolve());
+    expect(pendingRpcs).toHaveLength(2);
+    expect(view.getByRole("alert").textContent).toContain(
+      "Like could not be saved"
+    );
+
+    pendingRpcs[1]!(true);
+    await act(async () => await Promise.resolve());
+    expect(view.getByRole("alert").textContent).toContain(
+      "Like could not be saved"
+    );
+    await act(settleSipExit);
+    expect(
+      view.getByRole("region", { name: "Sip Mode, Moment 3" })
+    ).toBeTruthy();
+  }
+);
+
+test.serial(
   "keeps a same-post Sip guard across Exit and re-entry",
   async () => {
     nextPage = { ...nextPage, data: [firstMoment, secondMoment] };

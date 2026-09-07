@@ -451,9 +451,11 @@ export function SipMode({
               mustTryByMe: moment.mustTryByMe,
               likeCount: moment.likeCount
             });
-      setFeedback(
-        action === "skip" ? "Skipped" : `${actionLabel(action)} sending…`
-      );
+      if (!feedbackErrorRef.current) {
+        setFeedback(
+          action === "skip" ? "Skipped" : `${actionLabel(action)} sending…`
+        );
+      }
       exitActionRef.current = action;
       exitCompletedRef.current = false;
       setExitAction(action);
