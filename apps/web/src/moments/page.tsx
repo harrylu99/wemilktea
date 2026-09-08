@@ -496,6 +496,7 @@ export function MomentsPage() {
     Set<string>
   >(new Set());
   const generationRef = useRef(0);
+  const entryDecisionResolvedRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const sipTriggerRef = useRef<HTMLButtonElement>(null);
   const previousModeRef = useRef<"gallery" | "sip">("gallery");
@@ -525,6 +526,10 @@ export function MomentsPage() {
     setCursor(page.nextCursor);
     setHasMore(page.hasMore);
     setStatus("ready");
+    if (!entryDecisionResolvedRef.current) {
+      entryDecisionResolvedRef.current = true;
+      if (page.data.length > 0) setMode("sip");
+    }
   }, []);
 
   const loadMore = useCallback(async () => {
@@ -745,7 +750,10 @@ export function MomentsPage() {
     setMode("sip");
   };
 
-  const exitSipMode = useCallback(() => setMode("gallery"), []);
+  const exitSipMode = useCallback(() => {
+    entryDecisionResolvedRef.current = true;
+    setMode("gallery");
+  }, []);
 
   if (mode === "sip") {
     return (

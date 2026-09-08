@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { test, expect } from "bun:test";
 import { PublicHeader } from "./public-header";
+import { publicNavigationLinks } from "./public-navigation";
 import { ThemeContext } from "./theme-context";
 
 function renderHeader(pathname: string) {
@@ -76,12 +77,18 @@ test("marks Pick for me active for the picker and result routes", () => {
   }
 });
 
-test("marks Moments active for the Gallery route", () => {
+test("marks Sip Mode active for the Moments route", () => {
   const active = activeLinks(renderHeader("/moments"));
 
   expect(active).toHaveLength(1);
-  expect(active[0]?.text).toBe("Moments");
+  expect(active[0]?.text).toBe("Sip Mode");
   expect(active[0]?.attributes).toContain('href="/moments"');
+});
+
+test("renders Sip Mode in desktop and mobile navigation", () => {
+  const desktopMarkup = renderHeader("/");
+  expect(desktopMarkup).toContain(">Sip Mode</a>");
+  expect(publicNavigationLinks).toContainEqual(["Sip Mode", "/moments"]);
 });
 
 test("does not mark a top-level destination active on Home or Search", () => {
