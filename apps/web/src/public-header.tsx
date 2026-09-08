@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useTheme } from "./theme-context";
 import { nextExplicitTheme } from "./theme-preference";
+import { publicNavigationLinks } from "./public-navigation";
 
 function ThemeControl() {
   const { resolvedTheme, setPreference } = useTheme();
@@ -38,11 +39,6 @@ function ThemeControl() {
 export function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const links = [
-    ["Stores", "/stores"],
-    ["Drinks", "/drinks"],
-    ["Sip Mode", "/moments"]
-  ] as const;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -71,7 +67,7 @@ export function PublicHeader() {
           className="hidden items-center gap-6 md:flex"
           aria-label="Main navigation"
         >
-          {links.map(([label, href]) => (
+          {publicNavigationLinks.map(([label, href]) => (
             <NavLink
               className={({ isActive }) =>
                 `text-xs font-medium ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`
@@ -133,7 +129,7 @@ export function PublicHeader() {
           aria-label="Mobile navigation"
         >
           <div className="mx-auto flex max-w-[1280px] flex-col gap-1">
-            {links.map(([label, href]) => (
+            {publicNavigationLinks.map(([label, href]) => (
               <NavLink
                 className={({ isActive }) =>
                   `rounded-md px-3 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent ${isActive ? "bg-accent font-semibold" : ""}`

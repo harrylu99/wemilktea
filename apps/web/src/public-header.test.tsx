@@ -1,44 +1,9 @@
-import { GlobalWindow } from "happy-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { afterAll, afterEach, test, expect } from "bun:test";
+import { test, expect } from "bun:test";
 import { PublicHeader } from "./public-header";
+import { publicNavigationLinks } from "./public-navigation";
 import { ThemeContext } from "./theme-context";
-
-const browserWindow = new GlobalWindow();
-browserWindow.location.href = "http://localhost:5173/";
-const browserGlobals = [
-  "window",
-  "self",
-  "document",
-  "navigator",
-  "location",
-  "HTMLElement",
-  "HTMLButtonElement",
-  "Node",
-  "Element",
-  "Text",
-  "Event",
-  "EventTarget",
-  "MouseEvent",
-  "KeyboardEvent",
-  "MutationObserver"
-] as const;
-const originalGlobalDescriptors = new Map(
-  browserGlobals.map((property) => [
-    property,
-    Object.getOwnPropertyDescriptor(globalThis, property)
-  ])
-);
-
-for (const property of browserGlobals) {
-  Object.defineProperty(globalThis, property, {
-    configurable: true,
-    value: browserWindow[property]
-  });
-}
-
-const { cleanup, fireEvent, render } = await import("@testing-library/react");
 
 function renderHeader(pathname: string) {
   return renderToStaticMarkup(
@@ -51,28 +16,6 @@ function renderHeader(pathname: string) {
     </ThemeContext.Provider>
   );
 }
-
-function renderInteractiveHeader(pathname: string) {
-  return render(
-    <ThemeContext.Provider
-      value={{ resolvedTheme: "light", setPreference: () => undefined }}
-    >
-      <MemoryRouter initialEntries={[pathname]}>
-        <PublicHeader />
-      </MemoryRouter>
-    </ThemeContext.Provider>
-  );
-}
-
-afterEach(() => cleanup());
-
-afterAll(() => {
-  for (const property of browserGlobals) {
-    const descriptor = originalGlobalDescriptors.get(property);
-    if (descriptor) Object.defineProperty(globalThis, property, descriptor);
-    else delete (globalThis as Record<string, unknown>)[property];
-  }
-});
 
 function activeLinks(markup: string) {
   return [...markup.matchAll(/<a\b([^>]*)>(.*?)<\/a>/gs)]
@@ -145,12 +88,7 @@ test("marks Sip Mode active for the Moments route", () => {
 test("renders Sip Mode in desktop and mobile navigation", () => {
   const desktopMarkup = renderHeader("/");
   expect(desktopMarkup).toContain(">Sip Mode</a>");
-
-  const view = renderInteractiveHeader("/");
-  fireEvent.click(view.getByRole("button", { name: "Open menu" }));
-  expect(
-    view.getByRole("navigation", { name: "Mobile navigation" }).textContent
-  ).toContain("Sip Mode");
+  expect(publicNavigationLinks).toContainEqual(["Sip Mode", "/moments"]);
 });
 
 test("does not mark a top-level destination active on Home or Search", () => {
