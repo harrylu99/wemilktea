@@ -491,6 +491,7 @@ export function MomentsPage() {
   const [cursor, setCursor] = useState<MomentsCursor | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [mode, setMode] = useState<"gallery" | "sip">("gallery");
+  const [entryDecisionResolved, setEntryDecisionResolved] = useState(false);
   const [sipIndex, setSipIndex] = useState(0);
   const [pendingSipReactionPostIds, setPendingSipReactionPostIds] = useState<
     Set<string>
@@ -515,11 +516,13 @@ export function MomentsPage() {
     setCursor(null);
     setHasMore(false);
     setSipIndex(0);
+    if (!entryDecisionResolvedRef.current) setEntryDecisionResolved(false);
 
     const page = await loadPublicMomentsPage();
     if (generation !== generationRef.current) return;
     if (page.error || !page.data) {
       setStatus("error");
+      setEntryDecisionResolved(true);
       return;
     }
     setMoments(page.data);
@@ -530,6 +533,7 @@ export function MomentsPage() {
       entryDecisionResolvedRef.current = true;
       if (page.data.length > 0) setMode("sip");
     }
+    setEntryDecisionResolved(true);
   }, []);
 
   const loadMore = useCallback(async () => {
@@ -784,7 +788,12 @@ export function MomentsPage() {
 
   const showFooter =
     status === "error" ||
-    (status === "ready" && !hasMore && loadMoreStatus !== "loading");
+    (status === "ready" &&
+      entryDecisionResolved &&
+      !hasMore &&
+      loadMoreStatus !== "loading");
+  const populatedEntryPending =
+    status === "ready" && !entryDecisionResolved && moments.length > 0;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -850,7 +859,7 @@ export function MomentsPage() {
           </div>
         </header>
 
-        {status === "loading" ? (
+        {status === "loading" || populatedEntryPending ? (
           <div className="mt-8">
             <MomentsSkeleton />
           </div>
@@ -897,7 +906,9 @@ export function MomentsPage() {
             </button>
           </section>
         ) : null}
-        {status === "ready" && (moments.length > 0 || hasMore) ? (
+        {status === "ready" &&
+        entryDecisionResolved &&
+        (moments.length > 0 || hasMore) ? (
           <section aria-label="Public Moments Gallery" className="mt-5">
             <div className="moments-grid columns-2 gap-3 md:columns-3 md:gap-4 lg:columns-4">
               {moments.map((moment) => (
