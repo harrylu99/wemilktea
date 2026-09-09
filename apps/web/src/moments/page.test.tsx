@@ -337,6 +337,41 @@ test.serial(
   }
 );
 
+test.serial(
+  "does not expose populated Gallery while the Sip entry decision resolves",
+  async () => {
+    deferInitialPage = true;
+    const view = renderMoments();
+    const visibleModes: string[] = [];
+    const observer = new MutationObserver(() => {
+      if (view.queryByRole("region", { name: "Public Moments Gallery" })) {
+        visibleModes.push("gallery");
+      }
+      if (view.queryByRole("heading", { name: "Sip Mode" })) {
+        visibleModes.push("sip");
+      }
+    });
+    observer.observe(view.container, { childList: true, subtree: true });
+
+    expect(view.getByRole("status", { name: "Loading Moments" })).toBeTruthy();
+    expect(
+      view.queryByRole("region", { name: "Public Moments Gallery" })
+    ).toBeNull();
+
+    pendingInitialPage!({
+      data: [firstMoment, secondMoment],
+      nextCursor: null,
+      hasMore: false,
+      error: null
+    });
+    expect(await view.findByRole("heading", { name: "Sip Mode" })).toBeTruthy();
+    observer.disconnect();
+
+    expect(visibleModes).not.toContain("gallery");
+    expect(visibleModes).toContain("sip");
+  }
+);
+
 test.serial("keeps the loading state out of Sip end-of-feed UI", async () => {
   deferInitialPage = true;
   const view = renderMoments();
