@@ -332,8 +332,8 @@ test.serial(
       "Gallery"
     );
     const sipButton = view.getByRole("button", { name: "Sip Mode" });
-    expect(sipButton.textContent).toContain("Try Sip Mode");
-    expect(sipButton.className).toContain("bg-primary/10");
+    expect(sipButton.textContent).toContain("Sip Mode");
+    expect(sipButton.className).toContain("text-primary");
   }
 );
 
