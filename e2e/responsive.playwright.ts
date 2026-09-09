@@ -19,6 +19,32 @@ async function waitForPublicPage(page: Page) {
   await expect(page.locator("header").first()).toBeVisible();
 }
 
+const momentsFixture = {
+  id: "11111111-1111-4111-8111-111111111111",
+  image_asset_id: "22222222-2222-4222-8222-222222222222",
+  storage_key: "wm130-fixture.webp",
+  content_type: "image/webp",
+  width: 1200,
+  height: 900,
+  caption: "WM-130 fixture",
+  display_name: null,
+  location_id: null,
+  location_text: "Auckland",
+  location_name: null,
+  location_slug: null,
+  product_id: null,
+  product_text: "Test drink",
+  product_name: null,
+  product_slug: null,
+  product_brand_slug: null,
+  created_at: "2026-09-09T00:00:00.000Z",
+  submitted_at: "2026-09-09T00:00:00.000Z",
+  like_count: 0,
+  liked_by_me: false,
+  must_try_by_me: false,
+  owned_by_me: false
+};
+
 test.describe("public responsive smoke", () => {
   test("public routes do not create page-level horizontal overflow", async ({
     page
@@ -80,6 +106,113 @@ test.describe("public responsive smoke", () => {
       expect(detailsRect.x + detailsRect.width).toBeLessThanOrEqual(
         dialogRect.x + dialogRect.width
       );
+    }
+  });
+
+  test("Moments header hierarchy keeps controls and first content in view", async ({
+    page
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "tablet",
+      "The mobile and desktop viewport projects cover this header matrix."
+    );
+    const viewports =
+      testInfo.project.name === "mobile"
+        ? [
+            { width: 375, height: 667 },
+            { width: 390, height: 844 },
+            { width: 844, height: 390 }
+          ]
+        : [{ width: 1280, height: 900 }];
+
+    await page.route("**/rest/v1/rpc/list_public_community_posts*", (route) =>
+      route.fulfill({
+        body: JSON.stringify([momentsFixture]),
+        contentType: "application/json",
+        status: 200
+      })
+    );
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto("/moments");
+      await expect(
+        page.getByRole("heading", { name: "Sip Mode" })
+      ).toBeVisible();
+
+      const share = page.getByRole("button", { name: "Share your moment" });
+      const selector = page.getByRole("group", { name: "Moments views" });
+      const sipButton = selector.getByRole("button", { name: "Sip Mode" });
+      const currentMoment = page.getByRole("region", {
+        name: "Sip Mode, Moment 1"
+      });
+      await expect(share).toBeVisible();
+      await expect(selector).toBeVisible();
+      await expect(sipButton).toHaveAttribute("aria-pressed", "true");
+      await expect(currentMoment).toBeVisible();
+
+      for (const [label, locator] of [
+        ["Share", share],
+        ["mode selector", selector],
+        ["first Moment", currentMoment]
+      ] as const) {
+        const box = await locator.boundingBox();
+        expect(box, `${label} is not rendered`).not.toBeNull();
+        if (!box) continue;
+        expect(box.y, `${label} starts below the viewport`).toBeLessThan(
+          viewport.height
+        );
+        expect(
+          box.x + box.width,
+          `${label} overflows the viewport`
+        ).toBeLessThanOrEqual(viewport.width);
+      }
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth
+        )
+      ).toBe(true);
+
+      await share.click();
+      const shareDialog = page.getByRole("dialog", {
+        name: "Share your moment"
+      });
+      await expect(shareDialog).toBeVisible();
+      await expect(
+        shareDialog.getByRole("button", { name: "Close Share your moment" })
+      ).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(shareDialog).toBeHidden();
+      await expect(share).toBeFocused();
+
+      const selectorTop = (await selector.boundingBox())?.y;
+      await selector.getByRole("button", { name: "Open Gallery" }).click();
+      await expect(
+        page.getByRole("region", { name: "Public Moments Gallery" })
+      ).toBeVisible();
+      await expect(
+        selector.getByRole("button", { name: "Gallery" })
+      ).toHaveAttribute("aria-pressed", "true");
+      await share.click();
+      await expect(shareDialog).toBeVisible();
+      await expect(
+        shareDialog.getByRole("button", { name: "Close Share your moment" })
+      ).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(shareDialog).toBeHidden();
+      await expect(share).toBeFocused();
+      await expect(
+        selector.getByRole("button", { name: "Gallery" })
+      ).toHaveAttribute("aria-pressed", "true");
+
+      await selector.getByRole("button", { name: "Sip Mode" }).click();
+      await expect(
+        page.getByRole("heading", { name: "Sip Mode" })
+      ).toBeVisible();
+      const reentrySelectorTop = (await selector.boundingBox())?.y;
+      expect(reentrySelectorTop).toBe(selectorTop);
     }
   });
 

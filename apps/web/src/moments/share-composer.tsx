@@ -366,6 +366,7 @@ export function ShareMomentComposer({
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         if (!submitting) closeRef.current();
         return;
       }

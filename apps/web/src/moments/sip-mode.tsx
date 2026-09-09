@@ -10,6 +10,7 @@ import {
 import { Link } from "react-router-dom";
 import { useDismissiblePopover } from "../use-dismissible-popover";
 import type { PublicMoment } from "./data";
+import { MomentsModeSelector } from "./mode-selector";
 import { sipDirection, resolveSipAction, type SipAction } from "./sip-gesture";
 export type SipLoadMoreStatus = "idle" | "loading" | "error";
 
@@ -263,7 +264,8 @@ export function SipMode({
   onReactionSettled,
   onRollbackReaction,
   onExit,
-  onLoadMore
+  onLoadMore,
+  onShare
 }: {
   moments: PublicMoment[];
   index: number;
@@ -282,6 +284,7 @@ export function SipMode({
   onRollbackReaction: (operation: SipReactionOperation) => void;
   onExit: () => void;
   onLoadMore: () => Promise<void>;
+  onShare: (trigger: HTMLElement) => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const endTriggerRef = useRef<HTMLButtonElement>(null);
@@ -740,60 +743,66 @@ export function SipMode({
       className="sip-mode-shell fixed inset-0 z-30 flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground"
       onKeyDown={handleOverlayKeyDown}
     >
-      <header className="relative flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:py-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-base font-semibold">Sip Mode</h1>
-          <div className="relative">
-            <button
-              ref={helpTriggerRef}
-              aria-expanded={helpOpen}
-              aria-haspopup="dialog"
-              aria-label="How Sip Mode works"
-              className="grid size-9 cursor-pointer place-items-center rounded-full border border-border bg-card text-sm font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
-              onClick={() => setHelpOpen(true)}
-            >
-              ?
-            </button>
-            {helpOpen ? (
-              <div
-                ref={helpPanelRef}
-                aria-label="Sip Mode help"
-                className="absolute left-0 top-[calc(100%+0.5rem)] z-50 max-h-[min(28rem,calc(100dvh-7rem))] w-[min(20rem,calc(100vw-7rem))] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
-                role="dialog"
+      <header className="relative flex shrink-0 flex-col gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:gap-4 sm:px-8 sm:py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h1 className="text-base font-semibold">Sip Mode</h1>
+            <div className="relative">
+              <button
+                ref={helpTriggerRef}
+                aria-expanded={helpOpen}
+                aria-haspopup="dialog"
+                aria-label="How Sip Mode works"
+                className="grid size-9 cursor-pointer place-items-center rounded-full border border-border bg-card text-sm font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                type="button"
+                onClick={() => setHelpOpen(true)}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="font-semibold">How to sip</h2>
-                  <button
-                    aria-label="Close Sip Mode help"
-                    className="grid size-8 cursor-pointer place-items-center rounded-full border border-border bg-background text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    type="button"
-                    onClick={closeHelp}
-                  >
-                    ×
-                  </button>
+                ?
+              </button>
+              {helpOpen ? (
+                <div
+                  ref={helpPanelRef}
+                  aria-label="Sip Mode help"
+                  className="absolute left-0 top-[calc(100%+0.5rem)] z-50 max-h-[min(28rem,calc(100dvh-7rem))] w-[min(20rem,calc(100vw-7rem))] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
+                  role="dialog"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <h2 className="font-semibold">How to sip</h2>
+                    <button
+                      aria-label="Close Sip Mode help"
+                      className="grid size-8 cursor-pointer place-items-center rounded-full border border-border bg-background text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      type="button"
+                      onClick={closeHelp}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <ul className="mt-4 grid gap-2 text-sm leading-5 text-muted-foreground">
+                    <li>← Swipe or press Left to Skip</li>
+                    <li>→ Swipe or press Right to Like</li>
+                    <li>↑ Swipe or press Up to Must Try</li>
+                    <li>Or use the action buttons below the card</li>
+                    <li>Press Escape or Gallery to return to Gallery</li>
+                  </ul>
                 </div>
-                <ul className="mt-4 grid gap-2 text-sm leading-5 text-muted-foreground">
-                  <li>← Swipe or press Left to Skip</li>
-                  <li>→ Swipe or press Right to Like</li>
-                  <li>↑ Swipe or press Up to Must Try</li>
-                  <li>Or use the action buttons below the card</li>
-                  <li>Press Escape or Gallery to return to Gallery</li>
-                </ul>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
           <button
-            aria-label="Open Gallery"
-            className="cursor-pointer rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Share your moment"
+            className="min-h-11 shrink-0 cursor-pointer rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-5"
             type="button"
-            onClick={onExit}
+            onClick={(event) => onShare(event.currentTarget)}
           >
-            Gallery
+            <span className="sm:hidden">+ Share</span>
+            <span className="hidden sm:inline">Share your moment</span>
           </button>
         </div>
+        <MomentsModeSelector
+          mode="sip"
+          onGallery={onExit}
+          onSip={() => undefined}
+        />
       </header>
       <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2 sm:px-8">
         {content}

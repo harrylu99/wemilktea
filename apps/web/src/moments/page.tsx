@@ -21,6 +21,7 @@ import {
 } from "./data";
 import { ensurePublicWriteIdentity } from "./identity";
 import { ShareMomentComposer } from "./share-composer";
+import { MomentsModeSelector } from "./mode-selector";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import {
   SipMode,
@@ -510,12 +511,16 @@ export function MomentsPage() {
 
   const loadInitial = useCallback(async () => {
     const generation = ++generationRef.current;
+    const preserveSipContent =
+      previousModeRef.current === "sip" && entryDecisionResolvedRef.current;
     setStatus("loading");
     setLoadMoreStatus("idle");
-    setMoments([]);
-    setCursor(null);
-    setHasMore(false);
-    setSipIndex(0);
+    if (!preserveSipContent) {
+      setMoments([]);
+      setCursor(null);
+      setHasMore(false);
+      setSipIndex(0);
+    }
     if (!entryDecisionResolvedRef.current) setEntryDecisionResolved(false);
 
     const page = await loadPublicMomentsPage();
@@ -759,6 +764,20 @@ export function MomentsPage() {
     setMode("gallery");
   }, []);
 
+  const openShare = useCallback((trigger: HTMLElement) => {
+    returnFocusRef.current = trigger;
+    setShareOpen(true);
+  }, []);
+
+  const shareComposer = (
+    <ShareMomentComposer
+      open={shareOpen}
+      returnFocusRef={returnFocusRef}
+      onClose={() => setShareOpen(false)}
+      onSuccess={() => void loadInitial()}
+    />
+  );
+
   if (mode === "sip") {
     return (
       <>
@@ -781,7 +800,9 @@ export function MomentsPage() {
           onRollbackReaction={rollbackSipReaction}
           onExit={exitSipMode}
           onLoadMore={loadMore}
+          onShare={openShare}
         />
+        {shareComposer}
       </>
     );
   }
@@ -804,55 +825,43 @@ export function MomentsPage() {
       />
       <PublicHeader />
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 pb-10 pt-6 sm:px-8">
-        <header className="flex flex-col gap-5">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.16em] text-primary">
-              MILK TEA MOMENTS
-            </p>
-            <h1 className="mt-3 text-[32px] font-semibold leading-10">
-              What’s Auckland sipping? 🧋
-            </h1>
-            <p className="mt-3 max-w-3xl text-base leading-6 text-muted-foreground">
-              Little milk tea moments shared around the city. Browse the gallery
-              or switch to Sip Mode.
-            </p>
-          </div>
-          <div
-            aria-label="Moments views"
-            className="flex max-w-full items-center gap-2 overflow-x-auto pb-1"
-            role="group"
-          >
-            <div className="flex h-12 w-[214px] shrink-0 items-center rounded-xl border border-border bg-card p-1">
-              <span
-                aria-current="true"
-                className="flex h-10 w-[86px] shrink-0 items-center rounded-lg bg-accent px-4 py-2 text-xs font-medium text-primary"
-              >
-                Gallery
-              </span>
-              <button
-                ref={sipTriggerRef}
-                aria-label="Sip Mode"
-                aria-pressed={false}
-                className="flex h-10 w-[120px] shrink-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary shadow-sm transition-colors enabled:hover:border-primary/50 enabled:hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={status !== "ready" || moments.length === 0}
-                type="button"
-                onClick={enterSipMode}
-              >
-                <span aria-hidden="true">✦</span>
-                <span>Try Sip Mode</span>
-              </button>
+        <header className="flex flex-col gap-3 sm:gap-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-[0.16em] text-primary">
+                MILK TEA MOMENTS
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold leading-8 sm:mt-3 sm:text-[32px] sm:leading-10">
+                Moments
+              </h1>
             </div>
             <button
               ref={shareTriggerRef}
-              className="flex h-12 w-[156px] shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-primary px-6 py-4 text-xs font-medium text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+              aria-label="Share your moment"
+              className="min-h-11 shrink-0 cursor-pointer rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed sm:px-5"
               type="button"
-              onClick={() => {
-                returnFocusRef.current = shareTriggerRef.current;
-                setShareOpen(true);
-              }}
+              onClick={(event) => openShare(event.currentTarget)}
             >
-              Share your moment
+              <span className="sm:hidden">+ Share</span>
+              <span className="hidden sm:inline">Share your moment</span>
             </button>
+          </div>
+          <p className="hidden max-w-3xl text-sm leading-5 text-muted-foreground sm:block sm:text-base sm:leading-6">
+            <span>What’s Auckland sipping? 🧋</span>
+            <span className="hidden sm:inline">
+              {" "}
+              Little milk tea moments shared around the city. Browse the gallery
+              or switch to Sip Mode.
+            </span>
+          </p>
+          <div className="flex w-full justify-start">
+            <MomentsModeSelector
+              mode="gallery"
+              sipDisabled={status !== "ready" || moments.length === 0}
+              sipRef={sipTriggerRef}
+              onGallery={() => undefined}
+              onSip={enterSipMode}
+            />
             <span className="sr-only" id="sip-mode-status">
               Sip Mode opens the current Moments without reloading the feed.
             </span>
@@ -952,12 +961,7 @@ export function MomentsPage() {
         ) : null}
       </main>
       {showFooter ? <PublicFooter /> : null}
-      <ShareMomentComposer
-        open={shareOpen}
-        returnFocusRef={returnFocusRef}
-        onClose={() => setShareOpen(false)}
-        onSuccess={() => void loadInitial()}
-      />
+      {shareComposer}
     </div>
   );
 }
