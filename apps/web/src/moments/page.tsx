@@ -25,6 +25,7 @@ import { MomentsModeSelector } from "./mode-selector";
 import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import {
   SipMode,
+  SipModeLoadingSkeleton,
   type SipActionResult,
   type SipLoadMoreStatus,
   type SipReactionAction,
@@ -777,6 +778,23 @@ export function MomentsPage() {
       onSuccess={() => void loadInitial()}
     />
   );
+
+  const showSipEntryLoading =
+    !entryDecisionResolved &&
+    (status === "loading" || (status === "ready" && moments.length > 0));
+
+  if (mode === "gallery" && showSipEntryLoading) {
+    return (
+      <>
+        <Seo
+          description="Browse public milk tea Moments from the WeMilktea community."
+          path="/moments"
+          title="Milk Tea Moments | WeMilktea"
+        />
+        <SipModeLoadingSkeleton />
+      </>
+    );
+  }
 
   if (mode === "sip") {
     return (
