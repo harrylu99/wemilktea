@@ -68,6 +68,10 @@ test.describe("public responsive smoke", () => {
   }) => {
     await page.goto("/moments");
     await waitForPublicPage(page);
+    await page.getByRole("button", { name: "Open Gallery" }).click();
+    await expect(
+      page.getByRole("region", { name: "Public Moments Gallery" })
+    ).toBeVisible();
     const trigger = page.getByRole("button", { name: "Share your moment" });
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: "Share your moment" });
@@ -140,21 +144,21 @@ test.describe("public responsive smoke", () => {
         page.getByRole("heading", { name: "Sip Mode" })
       ).toBeVisible();
 
-      const share = page.getByRole("button", { name: "Share your moment" });
+      const galleryButton = page.getByRole("button", { name: "Open Gallery" });
       const currentMoment = page.getByRole("region", {
         name: "Sip Mode, Moment 1"
       });
-      await expect(share).toBeVisible();
+      await expect(galleryButton).toBeVisible();
       await expect(
-        page.getByRole("group", { name: "Moments views" })
+        page.getByRole("button", { name: "Share your moment" })
       ).toHaveCount(0);
       await expect(
-        page.getByRole("button", { name: "Open Gallery" })
+        page.getByRole("group", { name: "Moments views" })
       ).toHaveCount(0);
       await expect(currentMoment).toBeVisible();
 
       for (const [label, locator] of [
-        ["Share", share],
+        ["Gallery", galleryButton],
         ["first Moment", currentMoment]
       ] as const) {
         const box = await locator.boundingBox();
@@ -176,19 +180,7 @@ test.describe("public responsive smoke", () => {
         )
       ).toBe(true);
 
-      await share.click();
-      const shareDialog = page.getByRole("dialog", {
-        name: "Share your moment"
-      });
-      await expect(shareDialog).toBeVisible();
-      await expect(
-        shareDialog.getByRole("button", { name: "Close Share your moment" })
-      ).toBeFocused();
-      await page.keyboard.press("Escape");
-      await expect(shareDialog).toBeHidden();
-      await expect(share).toBeFocused();
-
-      await page.keyboard.press("Escape");
+      await galleryButton.click();
       await expect(
         page.getByRole("region", { name: "Public Moments Gallery" })
       ).toBeVisible();
@@ -197,7 +189,11 @@ test.describe("public responsive smoke", () => {
       await expect(
         selector.getByRole("button", { name: "Gallery" })
       ).toHaveAttribute("aria-pressed", "true");
+      const share = page.getByRole("button", { name: "Share your moment" });
       await share.click();
+      const shareDialog = page.getByRole("dialog", {
+        name: "Share your moment"
+      });
       await expect(shareDialog).toBeVisible();
       await expect(
         shareDialog.getByRole("button", { name: "Close Share your moment" })
