@@ -141,19 +141,20 @@ test.describe("public responsive smoke", () => {
       ).toBeVisible();
 
       const share = page.getByRole("button", { name: "Share your moment" });
-      const selector = page.getByRole("group", { name: "Moments views" });
-      const sipButton = selector.getByRole("button", { name: "Sip Mode" });
       const currentMoment = page.getByRole("region", {
         name: "Sip Mode, Moment 1"
       });
       await expect(share).toBeVisible();
-      await expect(selector).toBeVisible();
-      await expect(sipButton).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        page.getByRole("group", { name: "Moments views" })
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Open Gallery" })
+      ).toHaveCount(0);
       await expect(currentMoment).toBeVisible();
 
       for (const [label, locator] of [
         ["Share", share],
-        ["mode selector", selector],
         ["first Moment", currentMoment]
       ] as const) {
         const box = await locator.boundingBox();
@@ -187,11 +188,12 @@ test.describe("public responsive smoke", () => {
       await expect(shareDialog).toBeHidden();
       await expect(share).toBeFocused();
 
-      const selectorTop = (await selector.boundingBox())?.y;
-      await selector.getByRole("button", { name: "Open Gallery" }).click();
+      await page.keyboard.press("Escape");
       await expect(
         page.getByRole("region", { name: "Public Moments Gallery" })
       ).toBeVisible();
+      const selector = page.getByRole("group", { name: "Moments views" });
+      await expect(selector).toBeVisible();
       await expect(
         selector.getByRole("button", { name: "Gallery" })
       ).toHaveAttribute("aria-pressed", "true");
@@ -211,9 +213,100 @@ test.describe("public responsive smoke", () => {
       await expect(
         page.getByRole("heading", { name: "Sip Mode" })
       ).toBeVisible();
-      const reentrySelectorTop = (await selector.boundingBox())?.y;
-      expect(reentrySelectorTop).toBe(selectorTop);
+      await expect(
+        page.getByRole("group", { name: "Moments views" })
+      ).toHaveCount(0);
     }
+  });
+
+  test("deliberate mode choice persists across reloads without a Sip flash", async ({
+    browser
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 }
+    });
+    const page = await context.newPage();
+    await page.route("**/rest/v1/rpc/list_public_community_posts*", (route) =>
+      route.fulfill({
+        body: JSON.stringify([momentsFixture]),
+        contentType: "application/json",
+        status: 200
+      })
+    );
+    await page.goto("/moments");
+    await expect(page.getByRole("heading", { name: "Sip Mode" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("region", { name: "Public Moments Gallery" })
+    ).toBeVisible();
+
+    let releaseReload!: () => void;
+    const reloadReleased = new Promise<void>((resolve) => {
+      releaseReload = resolve;
+    });
+    await page.unroute("**/rest/v1/rpc/list_public_community_posts*");
+    await page.route(
+      "**/rest/v1/rpc/list_public_community_posts*",
+      async (route) => {
+        await reloadReleased;
+        await route.fulfill({
+          body: JSON.stringify([momentsFixture]),
+          contentType: "application/json",
+          status: 200
+        });
+      }
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("status", { name: "Loading Moments" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status", { name: "Loading Sip Mode" })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("group", { name: "Moments views" })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sip Mode" })).toHaveCount(
+      0
+    );
+    releaseReload();
+    await expect(
+      page.getByRole("region", { name: "Public Moments Gallery" })
+    ).toBeVisible();
+
+    await page
+      .getByRole("group", { name: "Moments views" })
+      .getByRole("button", { name: "Sip Mode" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Sip Mode" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Sip Mode" })).toBeVisible();
+    await expect(
+      page.getByRole("group", { name: "Moments views" })
+    ).toHaveCount(0);
+
+    const freshContext = await browser.newContext({
+      viewport: { width: 390, height: 844 }
+    });
+    const freshPage = await freshContext.newPage();
+    await freshPage.route(
+      "**/rest/v1/rpc/list_public_community_posts*",
+      (route) =>
+        route.fulfill({
+          body: JSON.stringify([momentsFixture]),
+          contentType: "application/json",
+          status: 200
+        })
+    );
+    await freshPage.goto("/moments");
+    await expect(
+      freshPage.getByRole("heading", { name: "Sip Mode" })
+    ).toBeVisible();
+    await expect(
+      freshPage.getByRole("group", { name: "Moments views" })
+    ).toHaveCount(0);
+    await freshContext.close();
+    await context.close();
   });
 
   test("Sip-first entry uses a Sip loading shell before feed resolution", async ({
@@ -242,6 +335,9 @@ test.describe("public responsive smoke", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("status", { name: "Loading Moments" })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("group", { name: "Moments views" })
     ).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Public Moments Gallery" })

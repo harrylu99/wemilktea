@@ -35,6 +35,28 @@ import {
 
 type FeedStatus = "loading" | "ready" | "error";
 type LoadMoreStatus = "idle" | "loading" | "error";
+type MomentsMode = "gallery" | "sip";
+
+const MOMENTS_MODE_STORAGE_KEY = "wemilktea:moments-mode";
+
+function readStoredMomentsMode(): MomentsMode | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.sessionStorage.getItem(MOMENTS_MODE_STORAGE_KEY);
+    return stored === "gallery" || stored === "sip" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeMomentsMode(mode: MomentsMode) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(MOMENTS_MODE_STORAGE_KEY, mode);
+  } catch {
+    // A restricted session store should not prevent the Moments view from working.
+  }
+}
 
 function momentImageAlt(moment: PublicMoment) {
   const context = [
@@ -487,19 +509,23 @@ function MomentsSkeleton() {
 }
 
 export function MomentsPage() {
+  const initialStoredMode = readStoredMomentsMode();
   const [moments, setMoments] = useState<PublicMoment[]>([]);
   const [status, setStatus] = useState<FeedStatus>("loading");
   const [loadMoreStatus, setLoadMoreStatus] = useState<LoadMoreStatus>("idle");
   const [cursor, setCursor] = useState<MomentsCursor | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [mode, setMode] = useState<"gallery" | "sip">("gallery");
-  const [entryDecisionResolved, setEntryDecisionResolved] = useState(false);
+  const [mode, setMode] = useState<MomentsMode>("gallery");
+  const [entryDecisionResolved, setEntryDecisionResolved] = useState(
+    () => initialStoredMode === "gallery"
+  );
   const [sipIndex, setSipIndex] = useState(0);
   const [pendingSipReactionPostIds, setPendingSipReactionPostIds] = useState<
     Set<string>
   >(new Set());
   const generationRef = useRef(0);
-  const entryDecisionResolvedRef = useRef(false);
+  const entryDecisionResolvedRef = useRef(initialStoredMode === "gallery");
+  const preferredModeRef = useRef<MomentsMode | null>(initialStoredMode);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const sipTriggerRef = useRef<HTMLButtonElement>(null);
   const previousModeRef = useRef<"gallery" | "sip">("gallery");
@@ -537,7 +563,9 @@ export function MomentsPage() {
     setStatus("ready");
     if (!entryDecisionResolvedRef.current) {
       entryDecisionResolvedRef.current = true;
-      if (page.data.length > 0) setMode("sip");
+      if (page.data.length > 0 && preferredModeRef.current !== "gallery") {
+        setMode("sip");
+      }
     }
     setEntryDecisionResolved(true);
   }, []);
@@ -757,11 +785,15 @@ export function MomentsPage() {
   const enterSipMode = () => {
     if (status !== "ready" || moments.length === 0) return;
     galleryScrollYRef.current = window.scrollY;
+    preferredModeRef.current = "sip";
+    storeMomentsMode("sip");
     setMode("sip");
   };
 
   const exitSipMode = useCallback(() => {
     entryDecisionResolvedRef.current = true;
+    preferredModeRef.current = "gallery";
+    storeMomentsMode("gallery");
     setMode("gallery");
   }, []);
 

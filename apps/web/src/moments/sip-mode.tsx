@@ -10,7 +10,6 @@ import {
 import { Link } from "react-router-dom";
 import { useDismissiblePopover } from "../use-dismissible-popover";
 import type { PublicMoment } from "./data";
-import { MomentsModeSelector } from "./mode-selector";
 import { sipDirection, resolveSipAction, type SipAction } from "./sip-gesture";
 export type SipLoadMoreStatus = "idle" | "loading" | "error";
 
@@ -268,19 +267,6 @@ export function SipModeLoadingSkeleton() {
           <span className="min-h-11 shrink-0 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:px-5">
             <span className="sm:hidden">+ Share</span>
             <span className="hidden sm:inline">Share your moment</span>
-          </span>
-        </div>
-        <div
-          aria-hidden="true"
-          aria-label="Moments views"
-          className="flex min-h-12 w-full max-w-xs items-center rounded-xl border border-border bg-card p-1"
-          role="group"
-        >
-          <span className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-xs font-semibold text-muted-foreground">
-            Gallery
-          </span>
-          <span className="min-h-11 flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground shadow-sm">
-            Sip Mode
           </span>
         </div>
       </header>
@@ -849,7 +835,7 @@ export function SipMode({
                     <li>→ Swipe or press Right to Like</li>
                     <li>↑ Swipe or press Up to Must Try</li>
                     <li>Or use the action buttons below the card</li>
-                    <li>Press Escape or Gallery to return to Gallery</li>
+                    <li>Press Escape to return to Gallery</li>
                   </ul>
                 </div>
               ) : null}
@@ -865,11 +851,6 @@ export function SipMode({
             <span className="hidden sm:inline">Share your moment</span>
           </button>
         </div>
-        <MomentsModeSelector
-          mode="sip"
-          onGallery={onExit}
-          onSip={() => undefined}
-        />
       </header>
       <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2 sm:px-8">
         {content}
