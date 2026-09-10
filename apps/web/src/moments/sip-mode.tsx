@@ -251,6 +251,73 @@ function SipCard({
   );
 }
 
+export function SipModeLoadingSkeleton() {
+  return (
+    <div className="sip-mode-shell fixed inset-0 z-30 flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+      <header className="relative flex shrink-0 flex-col gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:gap-4 sm:px-8 sm:py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold">Sip Mode</span>
+            <span
+              aria-hidden="true"
+              className="grid size-9 place-items-center rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground"
+            >
+              ?
+            </span>
+          </div>
+          <span className="min-h-11 shrink-0 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:px-5">
+            <span className="sm:hidden">+ Share</span>
+            <span className="hidden sm:inline">Share your moment</span>
+          </span>
+        </div>
+        <div
+          aria-hidden="true"
+          aria-label="Moments views"
+          className="flex min-h-12 w-full max-w-xs items-center rounded-xl border border-border bg-card p-1"
+          role="group"
+        >
+          <span className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-xs font-semibold text-muted-foreground">
+            Gallery
+          </span>
+          <span className="min-h-11 flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground shadow-sm">
+            Sip Mode
+          </span>
+        </div>
+      </header>
+      <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2 sm:px-8">
+        <div
+          aria-label="Loading Sip Mode"
+          className="h-full min-h-0 w-full max-w-5xl"
+          role="status"
+        >
+          <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl items-center justify-center">
+            <div className="flex h-full max-h-[min(70dvh,36rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl md:flex-row">
+              <div className="min-h-[min(45dvh,24rem)] flex-1 animate-pulse bg-muted md:min-h-0" />
+              <div className="flex flex-1 flex-col justify-end gap-3 p-5 sm:p-8">
+                <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                <div className="h-6 w-3/4 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+      <div
+        aria-hidden="true"
+        className="flex shrink-0 justify-center gap-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-8 sm:pb-4"
+      >
+        {Array.from({ length: 3 }, (_, index) => (
+          <span
+            className="size-14 animate-pulse rounded-full border border-border bg-card sm:size-16"
+            key={index}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SipMode({
   moments,
   index,

@@ -216,6 +216,45 @@ test.describe("public responsive smoke", () => {
     }
   });
 
+  test("Sip-first entry uses a Sip loading shell before feed resolution", async ({
+    page
+  }) => {
+    let releaseResponse!: () => void;
+    const responseReleased = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+
+    await page.route(
+      "**/rest/v1/rpc/list_public_community_posts*",
+      async (route) => {
+        await responseReleased;
+        await route.fulfill({
+          body: JSON.stringify([momentsFixture]),
+          contentType: "application/json",
+          status: 200
+        });
+      }
+    );
+
+    await page.goto("/moments", { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("status", { name: "Loading Sip Mode" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status", { name: "Loading Moments" })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "Public Moments Gallery" })
+    ).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Moments" })).toHaveCount(0);
+
+    releaseResponse();
+    await expect(page.getByRole("heading", { name: "Sip Mode" })).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Sip Mode, Moment 1" })
+    ).toBeVisible();
+  });
+
   test("header switches between mobile controls and desktop navigation", async ({
     page
   }) => {

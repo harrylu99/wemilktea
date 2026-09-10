@@ -300,7 +300,7 @@ test.serial(
     const view = renderMoments();
 
     expect(view.getByRole("status").getAttribute("aria-label")).toBe(
-      "Loading Moments"
+      "Loading Sip Mode"
     );
     expect(await view.findByText(firstMoment.caption)).toBeTruthy();
     expect(view.getByRole("heading", { name: "Sip Mode" })).toBeTruthy();
@@ -353,10 +353,12 @@ test.serial(
     });
     observer.observe(view.container, { childList: true, subtree: true });
 
-    expect(view.getByRole("status", { name: "Loading Moments" })).toBeTruthy();
+    expect(view.getByRole("status", { name: "Loading Sip Mode" })).toBeTruthy();
+    expect(view.queryByRole("status", { name: "Loading Moments" })).toBeNull();
     expect(
       view.queryByRole("region", { name: "Public Moments Gallery" })
     ).toBeNull();
+    expect(view.queryByText("THE GALLERY IS QUIET")).toBeNull();
 
     pendingInitialPage!({
       data: [firstMoment, secondMoment],
@@ -376,7 +378,7 @@ test.serial("keeps the loading state out of Sip end-of-feed UI", async () => {
   deferInitialPage = true;
   const view = renderMoments();
 
-  expect(view.getByRole("status", { name: "Loading Moments" })).toBeTruthy();
+  expect(view.getByRole("status", { name: "Loading Sip Mode" })).toBeTruthy();
   expect(view.queryByText("That’s all for now 🧋")).toBeNull();
 
   pendingInitialPage!({
