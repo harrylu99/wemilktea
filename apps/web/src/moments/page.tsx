@@ -850,7 +850,6 @@ export function MomentsPage() {
           onRollbackReaction={rollbackSipReaction}
           onExit={exitSipMode}
           onLoadMore={loadMore}
-          onShare={openShare}
         />
         {shareComposer}
       </>

@@ -315,16 +315,16 @@ test.serial(
     expect(
       view.getByRole("region", { name: "Sip Mode, Moment 1" })
     ).toBeTruthy();
+    expect(view.getByRole("button", { name: "Open Gallery" })).toBeTruthy();
     expect(
-      view.getByRole("button", { name: "Share your moment" })
-    ).toBeTruthy();
+      view.queryByRole("button", { name: "Share your moment" })
+    ).toBeNull();
     expect(view.queryByRole("group", { name: "Moments views" })).toBeNull();
-    expect(view.queryByRole("button", { name: "Open Gallery" })).toBeNull();
     expect(pageCalls).toHaveLength(1);
     expect(auth.getSession).not.toHaveBeenCalled();
     expect(auth.signInAnonymously).not.toHaveBeenCalled();
 
-    exitSipMode(view);
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
     expect(view.getByText("Mellow Tea House")).toBeTruthy();
     expect(view.getByText("Matcha Cloud Latte")).toBeTruthy();
     expect(view.getByText("Takapuna tea shop")).toBeTruthy();
@@ -1705,25 +1705,21 @@ test.serial("restores focus to the Sip Mode trigger after exit", async () => {
 });
 
 test.serial(
-  "opens Share from Sip and Escape returns to the same Sip view",
+  "opens Gallery from Sip and preserves the deliberate mode",
   async () => {
     const view = renderMoments();
     await view.findByText(firstMoment.caption);
 
-    const share = view.getByRole("button", { name: "Share your moment" });
-    fireEvent.click(share);
+    fireEvent.click(view.getByRole("button", { name: "Open Gallery" }));
+
     expect(
-      view.getByRole("dialog", { name: "Share your moment" })
+      view.getByRole("region", { name: "Public Moments Gallery" })
     ).toBeTruthy();
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    await act(async () => await Promise.resolve());
-
+    expect(view.getByRole("group", { name: "Moments views" })).toBeTruthy();
+    expect(view.queryByRole("heading", { name: "Sip Mode" })).toBeNull();
     expect(
-      view.queryByRole("dialog", { name: "Share your moment" })
-    ).toBeNull();
-    expect(view.getByRole("heading", { name: "Sip Mode" })).toBeTruthy();
-    expect(share).toBe(document.activeElement as HTMLElement);
+      view.queryByRole("button", { name: "Share your moment" })
+    ).toBeTruthy();
   }
 );
 

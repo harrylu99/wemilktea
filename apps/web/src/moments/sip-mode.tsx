@@ -264,9 +264,8 @@ export function SipModeLoadingSkeleton() {
               ?
             </span>
           </div>
-          <span className="min-h-11 shrink-0 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:px-5">
-            <span className="sm:hidden">+ Share</span>
-            <span className="hidden sm:inline">Share your moment</span>
+          <span className="min-h-11 shrink-0 rounded-xl border border-border bg-card px-4 py-2 text-xs font-medium text-foreground">
+            Gallery
           </span>
         </div>
       </header>
@@ -317,8 +316,7 @@ export function SipMode({
   onReactionSettled,
   onRollbackReaction,
   onExit,
-  onLoadMore,
-  onShare
+  onLoadMore
 }: {
   moments: PublicMoment[];
   index: number;
@@ -337,7 +335,6 @@ export function SipMode({
   onRollbackReaction: (operation: SipReactionOperation) => void;
   onExit: () => void;
   onLoadMore: () => Promise<void>;
-  onShare: (trigger: HTMLElement) => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const endTriggerRef = useRef<HTMLButtonElement>(null);
@@ -842,13 +839,12 @@ export function SipMode({
             </div>
           </div>
           <button
-            aria-label="Share your moment"
-            className="min-h-11 shrink-0 cursor-pointer rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors enabled:hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-5"
+            aria-label="Open Gallery"
+            className="min-h-11 shrink-0 cursor-pointer rounded-xl border border-border bg-card px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
-            onClick={(event) => onShare(event.currentTarget)}
+            onClick={onExit}
           >
-            <span className="sm:hidden">+ Share</span>
-            <span className="hidden sm:inline">Share your moment</span>
+            Gallery
           </button>
         </div>
       </header>
