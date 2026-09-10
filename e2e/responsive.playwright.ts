@@ -257,6 +257,15 @@ test.describe("public responsive smoke", () => {
       }
     );
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("status", { name: "Loading Moments" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status", { name: "Loading Sip Mode" })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("group", { name: "Moments views" })
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Sip Mode" })).toHaveCount(
       0
     );
@@ -326,6 +335,9 @@ test.describe("public responsive smoke", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("status", { name: "Loading Moments" })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("group", { name: "Moments views" })
     ).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Public Moments Gallery" })

@@ -368,6 +368,7 @@ test.serial(
 
     expect(view.getByRole("status", { name: "Loading Sip Mode" })).toBeTruthy();
     expect(view.queryByRole("status", { name: "Loading Moments" })).toBeNull();
+    expect(view.queryByRole("group", { name: "Moments views" })).toBeNull();
     expect(
       view.queryByRole("region", { name: "Public Moments Gallery" })
     ).toBeNull();

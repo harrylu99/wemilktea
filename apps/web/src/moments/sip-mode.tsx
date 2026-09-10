@@ -269,19 +269,6 @@ export function SipModeLoadingSkeleton() {
             <span className="hidden sm:inline">Share your moment</span>
           </span>
         </div>
-        <div
-          aria-hidden="true"
-          aria-label="Moments views"
-          className="flex min-h-12 w-full max-w-xs items-center rounded-xl border border-border bg-card p-1"
-          role="group"
-        >
-          <span className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-xs font-semibold text-muted-foreground">
-            Gallery
-          </span>
-          <span className="min-h-11 flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground shadow-sm">
-            Sip Mode
-          </span>
-        </div>
       </header>
       <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2 sm:px-8">
         <div
