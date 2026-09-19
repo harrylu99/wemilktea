@@ -115,6 +115,7 @@ let deferNextPage = false;
 let failNextPage = false;
 let failRpc = false;
 let deferRpc = false;
+let rpcErrorMessage: string | null = null;
 let pendingInitialPage: ((page: MockPage) => void) | null = null;
 let pendingNextPage: ((page: MockPage) => void) | null = null;
 let pendingRpc: ((success?: boolean) => void) | null = null;
@@ -156,6 +157,9 @@ const supabaseMock = {
       });
     }
     if (failRpc) return { data: null, error: { message: "rpc_failed" } };
+    if (rpcErrorMessage) {
+      return { data: null, error: { message: rpcErrorMessage } };
+    }
     return { data: true, error: null };
   })
 };
@@ -279,6 +283,7 @@ beforeEach(() => {
   failNextPage = false;
   failRpc = false;
   deferRpc = false;
+  rpcErrorMessage = null;
   pendingNextPage = null;
   pendingInitialPage = null;
   pendingRpc = null;
@@ -493,6 +498,73 @@ test.serial(
     expect(trigger).toBe(document.activeElement as HTMLElement);
   }
 );
+
+test.serial(
+  "shows a specific message when a Moment was already reported",
+  async () => {
+    rpcErrorMessage = "report_already_exists";
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+
+    exitSipMode(view);
+    fireEvent.click(view.getByRole("button", { name: "Open Moment actions" }));
+    fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
+    fireEvent.change(view.getByLabelText("Report reason"), {
+      target: { value: "copyright" }
+    });
+    fireEvent.click(view.getByRole("button", { name: "Send report" }));
+    await act(async () => await Promise.resolve());
+
+    expect(view.getByRole("alert").textContent).toBe(
+      "You've already reported this Moment."
+    );
+    expect(view.queryByText("Report sent")).toBeNull();
+  }
+);
+
+test.serial(
+  "keeps unexpected report errors behind the generic message",
+  async () => {
+    rpcErrorMessage = "unexpected_database_error";
+    const view = renderMoments();
+    await view.findByText(firstMoment.caption);
+
+    exitSipMode(view);
+    fireEvent.click(view.getByRole("button", { name: "Open Moment actions" }));
+    fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
+    fireEvent.change(view.getByLabelText("Report reason"), {
+      target: { value: "spam" }
+    });
+    fireEvent.click(view.getByRole("button", { name: "Send report" }));
+    await act(async () => await Promise.resolve());
+
+    expect(view.getByRole("alert").textContent).toBe(
+      "That action could not be completed. Please try again."
+    );
+    expect(view.getByRole("alert").textContent).not.toContain(
+      "unexpected_database_error"
+    );
+  }
+);
+
+test.serial("explains when a Moment is no longer reportable", async () => {
+  rpcErrorMessage = "post_not_reportable";
+  const view = renderMoments();
+  await view.findByText(firstMoment.caption);
+
+  exitSipMode(view);
+  fireEvent.click(view.getByRole("button", { name: "Open Moment actions" }));
+  fireEvent.click(view.getByRole("menuitem", { name: "Report" }));
+  fireEvent.change(view.getByLabelText("Report reason"), {
+    target: { value: "spam" }
+  });
+  fireEvent.click(view.getByRole("button", { name: "Send report" }));
+  await act(async () => await Promise.resolve());
+
+  expect(view.getByRole("alert").textContent).toBe(
+    "This Moment can no longer be reported."
+  );
+});
 
 test.serial(
   "moves report focus into the form and restores it to the trigger",
