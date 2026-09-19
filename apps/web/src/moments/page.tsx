@@ -37,6 +37,10 @@ type FeedStatus = "loading" | "ready" | "error";
 type LoadMoreStatus = "idle" | "loading" | "error";
 type MomentsMode = "gallery" | "sip";
 
+type MomentsRpcError = {
+  message?: string | null;
+};
+
 const MOMENTS_MODE_STORAGE_KEY = "wemilktea:moments-mode";
 
 function readStoredMomentsMode(): MomentsMode | null {
@@ -56,6 +60,21 @@ function storeMomentsMode(mode: MomentsMode) {
   } catch {
     // A restricted session store should not prevent the Moments view from working.
   }
+}
+
+function momentsRpcErrorMessage(
+  rpcName: string,
+  error: MomentsRpcError | null
+) {
+  if (rpcName === "report_community_post") {
+    if (error?.message === "report_already_exists") {
+      return "You've already reported this Moment.";
+    }
+    if (error?.message === "post_not_reportable") {
+      return "This Moment can no longer be reported.";
+    }
+  }
+  return "That action could not be completed. Please try again.";
 }
 
 function momentImageAlt(moment: PublicMoment) {
@@ -184,7 +203,7 @@ function MomentActions({
     }
     const result = await supabase.rpc(name, args);
     if (result.error) {
-      setError("That action could not be completed. Please try again.");
+      setError(momentsRpcErrorMessage(name, result.error));
       return null;
     }
     return result;
