@@ -63,6 +63,59 @@ test.describe("public responsive smoke", () => {
     }
   });
 
+  test("Stores filter popover stays inside the viewport", async ({
+    page
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "desktop",
+      "Run the full Stores filter viewport matrix once in Chromium."
+    );
+
+    const viewports = [
+      { width: 375, height: 667 },
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+      { width: 1280, height: 900 }
+    ];
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto("/stores");
+      await waitForPublicPage(page);
+
+      const filters = page.getByRole("button", {
+        name: "Filters",
+        exact: true
+      });
+      await filters.click();
+
+      const popover = page.locator("#store-filters-popover");
+      await expect(popover).toBeVisible();
+      await expect(popover.getByLabel("Area", { exact: true })).toBeVisible();
+      await expect(popover.getByLabel("Brand", { exact: true })).toBeVisible();
+
+      const geometry = await popover.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          clientWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          left: rect.left,
+          right: rect.right
+        };
+      });
+
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+      expect(geometry.left).toBeGreaterThanOrEqual(0);
+      expect(geometry.right).toBeLessThanOrEqual(geometry.clientWidth);
+
+      await page.getByRole("button", { name: "Close filters" }).click();
+      await expect(popover).toBeHidden();
+      await filters.click();
+      await expect(popover).toBeVisible();
+      await page.getByRole("button", { name: "Close filters" }).click();
+    }
+  });
+
   test("Moments Share composer stays usable across responsive sizes", async ({
     page
   }) => {

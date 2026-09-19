@@ -19,7 +19,7 @@ test("uses the header Search entry without a standalone Home Search field", () =
   expect(markup).not.toContain('id="home-search"');
   expect(markup).not.toContain('aria-label="Search stores or drinks"');
   expect(markup).toContain('aria-label="Search WeMilktea"');
-  expect(markup).toContain("Finding something worth trying…");
+  expect(markup).toContain("Let’s find your next favourite…");
   expect(markup).not.toContain("Have you ever tried this one?");
   expect(markup).toContain("TODAY’S MILK TEA SIGN");
   expect(markup).toContain("What’s your milk tea sign today?");
@@ -72,7 +72,7 @@ test("keeps the Home Hero loading state intentional", () => {
     </MemoryRouter>
   );
 
-  expect(markup).toContain("Finding something worth trying…");
+  expect(markup).toContain("Let’s find your next favourite…");
   expect(markup).not.toContain("Have you ever tried this one?");
   expect(markup).not.toContain("View drink");
   expect(markup).toContain('aria-hidden="true"');
@@ -86,7 +86,7 @@ test("keeps Home Hero errors free of loading placeholders", () => {
   );
 
   expect(markup).toContain("Couldn’t pick one right now.");
-  expect(markup).not.toContain("Finding something worth trying…");
+  expect(markup).not.toContain("Let’s find your next favourite…");
   expect(markup).not.toContain("animate-pulse");
 });
 

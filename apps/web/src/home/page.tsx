@@ -175,7 +175,7 @@ export function HomeHeroCopy({
         {showError
           ? "Couldn’t pick one right now."
           : showLoading
-            ? "Finding something worth trying…"
+            ? "Let’s find your next favourite…"
             : showEmpty
               ? "No featured drink just yet."
               : "Have you ever tried this one?"}

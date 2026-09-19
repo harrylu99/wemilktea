@@ -928,7 +928,7 @@ export function StoresPage() {
         </div>
 
         <div
-          className="mt-3 flex flex-wrap gap-2"
+          className="store-filter-group relative mt-3 flex flex-wrap gap-2"
           aria-label="Store filters"
           role="group"
         >
@@ -940,7 +940,7 @@ export function StoresPage() {
           >
             Near me
           </button>
-          <div className="relative">
+          <div className="store-filter-anchor relative">
             <button
               ref={filtersButtonRef}
               aria-controls="store-filters-popover"
@@ -958,7 +958,7 @@ export function StoresPage() {
             {filtersOpen ? (
               <div
                 id="store-filters-popover"
-                className="filter-popover"
+                className="filter-popover store-filter-popover"
                 ref={filtersPopoverRef}
                 role="group"
                 aria-label="Store filters"
