@@ -144,12 +144,12 @@ test.serial(
     await act(async () => {
       await Promise.resolve();
     });
-    expect(view.getByText("Consulting the pearls...")).toBeTruthy();
+    expect(view.getByText("Reading your milk tea stars…")).toBeTruthy();
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 1050));
     });
-    expect(view.getByText("Reading your milk tea stars...")).toBeTruthy();
+    expect(view.getByText("Consulting the pearls...")).toBeTruthy();
 
     const resolveCandidates = pendingResolve;
     expect(resolveCandidates).toBeTruthy();
@@ -158,7 +158,7 @@ test.serial(
       await Promise.resolve();
     });
 
-    expect(view.queryByText("Reading your milk tea stars...")).toBeNull();
+    expect(view.queryByText("Consulting the pearls...")).toBeNull();
     expect(view.getByText("Your sign is ready ✦")).toBeTruthy();
     expect(
       (
@@ -183,8 +183,8 @@ test.serial("resets the first loading message when retrying", async () => {
     await Promise.resolve();
   });
 
-  expect(view.getByText("Consulting the pearls...")).toBeTruthy();
-  expect(view.queryByText("Reading your milk tea stars...")).toBeNull();
+  expect(view.getByText("Reading your milk tea stars…")).toBeTruthy();
+  expect(view.queryByText("Consulting the pearls...")).toBeNull();
 });
 
 test.serial("cleans up loading timers when the Picker unmounts", async () => {
@@ -197,7 +197,7 @@ test.serial("cleans up loading timers when the Picker unmounts", async () => {
   view.unmount();
 
   await new Promise((resolve) => setTimeout(resolve, 1050));
-  expect(view.queryByText("Reading your milk tea stars...")).toBeNull();
+  expect(view.queryByText("Reading your milk tea stars…")).toBeNull();
 });
 
 test.serial(

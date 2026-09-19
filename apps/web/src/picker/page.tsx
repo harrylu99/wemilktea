@@ -14,8 +14,8 @@ import {
 } from "./data";
 
 const pickerLoadingMessages = [
-  "Consulting the pearls...",
-  "Reading your milk tea stars..."
+  "Reading your milk tea stars…",
+  "Consulting the pearls..."
 ] as const;
 const pickerLoadingStepMs = 1000;
 const pickerReadyNoticeMs = 1600;
