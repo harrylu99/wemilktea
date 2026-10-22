@@ -597,12 +597,13 @@ Deploy it once, then confirm a run under the Worker's Cron Events in the
 Cloudflare dashboard:
 
 ```bash
-bunx wrangler deploy -c workers/supabase-keepalive/wrangler.jsonc \
-  --var SUPABASE_URL:https://tqdxmotcpogyvzdvgopi.supabase.co
+bunx wrangler deploy -c workers/supabase-keepalive/wrangler.jsonc
 bunx wrangler secret put SUPABASE_ANON_KEY -c workers/supabase-keepalive/wrangler.jsonc
 ```
 
-Only the anon key is used, the same one that is already public in the browser.
+`SUPABASE_URL` is committed in `wrangler.jsonc`, so redeploys keep the
+production target. Only the anon key is used, the same one that is already
+public in the browser.
 A failed ping throws, so it appears as a failed Cron Event. Upgrading the
 project to a paid plan removes the need for this Worker.
 

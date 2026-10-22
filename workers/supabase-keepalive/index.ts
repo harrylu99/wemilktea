@@ -30,11 +30,9 @@ export async function pingSupabase(
 }
 
 export default {
-  async scheduled(
-    _controller: unknown,
-    env: KeepaliveEnv,
-    ctx: { waitUntil(promise: Promise<unknown>): void }
-  ) {
-    ctx.waitUntil(pingSupabase(env));
+  // Awaited rather than passed to waitUntil so a failed ping fails the
+  // invocation and shows up as an error in Cron Events.
+  async scheduled(_controller: unknown, env: KeepaliveEnv) {
+    await pingSupabase(env);
   }
 };

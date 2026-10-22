@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { pingSupabase } from "./index";
+import worker, { pingSupabase } from "./index";
 
 const env = {
   SUPABASE_URL: "https://project.supabase.co",
@@ -29,5 +29,20 @@ describe("pingSupabase", () => {
       new Response("paused", { status: 540 })) as unknown as typeof fetch;
 
     await expect(pingSupabase(env, fetcher)).rejects.toThrow("HTTP 540");
+  });
+});
+
+describe("scheduled", () => {
+  test("propagates a failed ping so Cron Events record an error", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response("paused", { status: 540 })) as unknown as typeof fetch;
+    try {
+      await expect(worker.scheduled(undefined, env)).rejects.toThrow(
+        "HTTP 540"
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

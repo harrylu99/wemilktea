@@ -7,6 +7,6 @@
   // Ping every 2 days at 03:00 UTC so one missed run still leaves headroom.
   "triggers": { "crons": ["0 3 */2 * *"] },
   "vars": {
-    "SUPABASE_URL": "configure-at-deploy"
+    "SUPABASE_URL": "https://tqdxmotcpogyvzdvgopi.supabase.co"
   }
 }
