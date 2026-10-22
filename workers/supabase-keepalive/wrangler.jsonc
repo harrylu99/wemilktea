@@ -1,0 +1,12 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "wemilktea-supabase-keepalive",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-31",
+  // Free-tier Supabase projects pause after 7 days without activity.
+  // Ping every 2 days at 03:00 UTC so one missed run still leaves headroom.
+  "triggers": { "crons": ["0 3 */2 * *"] },
+  "vars": {
+    "SUPABASE_URL": "https://tqdxmotcpogyvzdvgopi.supabase.co"
+  }
+}

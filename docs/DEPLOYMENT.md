@@ -580,6 +580,33 @@ certification.
   rollback; if a migration is not safely reversible, ship a reviewed corrective
   migration and document the incident.
 
+## Supabase keep-alive
+
+The production Supabase project is on the free plan, which pauses a project
+after 7 days without activity. When it pauses, every REST, RPC, Auth and Edge
+Function call fails while the Cloudflare site shell still loads. This happened
+in October 2026.
+
+`workers/supabase-keepalive` is a Cloudflare Worker with a Cron Trigger that
+runs every 2 days. It calls the public `search_public_stores` RPC with the anon
+key, which is a real database read. A Cloudflare cron is used instead of a
+GitHub Actions schedule because GitHub disables scheduled workflows after 60
+days without repository activity.
+
+Deploy it once, then confirm a run under the Worker's Cron Events in the
+Cloudflare dashboard:
+
+```bash
+bunx wrangler deploy -c workers/supabase-keepalive/wrangler.jsonc
+bunx wrangler secret put SUPABASE_ANON_KEY -c workers/supabase-keepalive/wrangler.jsonc
+```
+
+`SUPABASE_URL` is committed in `wrangler.jsonc`, so redeploys keep the
+production target. Only the anon key is used, the same one that is already
+public in the browser.
+A failed ping throws, so it appears as a failed Cron Event. Upgrading the
+project to a paid plan removes the need for this Worker.
+
 ## Troubleshooting
 
 | Symptom                  | First place to look                                                   |
